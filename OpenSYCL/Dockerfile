@@ -4,6 +4,7 @@ FROM almalinux:9
 # Setup parameters
 ARG CUDA_VERSION=11.8
 ARG LLVM_VERSION=15
+ARG PYTHON_VERSION=3.12
 ARG COMPILE_FLAGS="-fno-omit-frame-pointer -mno-omit-leaf-frame-pointer"
 
 # Switch to root
@@ -11,7 +12,8 @@ USER root
 WORKDIR /root
 
 # Install dependencies
-RUN dnf update -y && dnf install -y gcc cmake git boost boost-devel dnf-plugins-core epel-release wget which kmod pciutils perl
+RUN dnf update -y && dnf install -y gcc cmake git boost boost-devel dnf-plugins-core epel-release wget which kmod pciutils perl zlib-devel \
+    openssl openssl-devel libffi libffi-devel
 
 # Install CUDA
 RUN export CUDA_PACKAGE=${CUDA_VERSION/./-} && dnf config-manager --add-repo http://developer.download.nvidia.com/compute/cuda/repos/rhel9/x86_64/cuda-rhel9.repo && \
@@ -22,8 +24,12 @@ RUN export CUDA_PACKAGE=${CUDA_VERSION/./-} && dnf config-manager --add-repo htt
 #RUN wget -O setup_cuda.sh ${CUDA_URL} && sh setup_cuda.sh --silent --toolkit && rm setup_cuda.sh
 ENV NVIDIA_VISIBLE_DEVICES=all
 
+# Install Python from source
+RUN git clone https://github.com/python/cpython && cd cpython && git checkout ${PYTHON_VERSION} && \
+    ./configure --enable-shared --enable-optimizations --prefix=/usr CFLAGS="-g ${COMPILE_FLAGS}" CPPFLAGS="-g ${COMPILE_FLAGS}" && make -j && \
+    make altinstall && cd .. && rm -r cpython
+
 # Install clang, LLVM
-RUN echo $BUILD_DATE >> build_date.txt
 RUN dnf config-manager --set-enabled crb && dnf update -y && dnf install -y clang-${LLVM_VERSION}* clang-devel-${LLVM_VERSION}* \
     llvm-${LLVM_VERSION}* llvm-devel-${LLVM_VERSION}*
 
