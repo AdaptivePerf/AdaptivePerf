@@ -5,4 +5,6 @@ A set of Dockerfiles for setting up the Docker-based testing infrastructure for 
 * **OpenSYCL:** Open SYCL + LLVM + OpenMP + CUDA + perf (based on AlmaLinux 9)
 * **SYCL-ROOT**: ROOT with SYCL extensions (based on the OpenSYCL image)
 
-All Dockerfiles have setup parameters that can be customised by the user.
+Open SYCL, OpenMP, Python, and ROOT are compiled with `-g`, `-fno-omit-frame-pointer` and `-mno-omit-leaf-frame-pointer` flags to facilitate profiling.
+
+All Dockerfiles have setup parameters that can be customised by the user. It should be noted that Python 3.12 introduces [perf support](https://docs.python.org/3.12/howto/perf_profiling.html).
