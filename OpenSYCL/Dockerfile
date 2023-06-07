@@ -4,6 +4,7 @@ FROM almalinux:9
 # Setup parameters
 ARG CUDA_VERSION=11.8
 ARG LLVM_VERSION=15
+ARG COMPILE_FLAGS="-fno-omit-frame-pointer -mno-omit-leaf-frame-pointer"
 
 # Switch to root
 USER root
@@ -33,11 +34,12 @@ RUN rpm -e --nodeps gcc-toolset-12-binutils gcc-toolset-12-binutils-gold gcc-too
 
 # Install libomp with debug info
 RUN git clone https://github.com/llvm/llvm-project && cd llvm-project && git checkout release/${LLVM_VERSION}.x && cd openmp && \
-    cmake . -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=RelWithDebInfo && make && \
-    make install && cd ../.. && rm -r llvm-project
+    cmake . -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_BUILD_TYPE=RelWithDebInfo -DCMAKE_C_FLAGS="${COMPILE_FLAGS}" \
+    -DCMAKE_CXX_FLAGS="${COMPILE_FLAGS}" && make && make install && cd ../.. && rm -r llvm-project
 
 # Install Open SYCL
-RUN git clone https://github.com/OpenSYCL/OpenSYCL && mkdir build && cd build && cmake ../OpenSYCL -DCMAKE_BUILD_TYPE=RelWithDebInfo && \
+RUN git clone https://github.com/OpenSYCL/OpenSYCL && mkdir build && cd build && cmake ../OpenSYCL -DCMAKE_BUILD_TYPE=RelWithDebInfo \
+    -DCMAKE_C_FLAGS="${COMPILE_FLAGS}" -DCMAKE_CXX_FLAGS="${COMPILE_FLAGS}" && \
     make && make install && cd .. && rm -r OpenSYCL build
 
 # Set up essential tooling
