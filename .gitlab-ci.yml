@@ -1,76 +1,49 @@
-# Based on https://gitlab.com/gitlab-org/gitlab/-/blob/master/lib/gitlab/ci/templates/Docker.gitlab-ci.yml
+# Based on https://gitlab.cern.ch/gitlabci-examples/build_docker_image/-/blob/master/.gitlab-ci.yml
 stages:
   - opensycl-build
   - base-build
 
 opensycl-root-llvm:
-  image: docker:latest
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
   stage: opensycl-build
-  services:
-    - docker:dind
-  before_script:
-    - echo $CI_REGISTRY_PASSWORD | docker login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
+  variables:
+    IMAGE_DESTINATION: opensycl:root-llvm
   script:
-    - |
-      if [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" ]]; then
-        tag=":root-llvm-latest"
-        echo "Running on default branch '$CI_DEFAULT_BRANCH': tag = $tag"
-      else
-        tag=":root-llvm-$CI_COMMIT_REF_SLUG"
-        echo "Running on branch '$CI_COMMIT_BRANCH': tag = $tag"
-      fi
-    - IMAGE_NAME="opensycl"
-    - docker build --pull -t "$IMAGE_NAME${tag}" --build-arg="LLVM_GIT_BRANCH=ROOT-llvm13" .
-    - docker push "$IMAGE_NAME${tag}"
-  rules:
-    - if: $CI_COMMIT_BRANCH
-      exists:
-        - OpenSYCL/Dockerfile
+    # Prepare Kaniko configuration file
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+    # Build and push the image from the Dockerfile at the root of the project.
+    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/OpenSYCL/Dockerfile --destination $IMAGE_DESTINATION --build-arg="LLVM_GIT_BRANCH=ROOT-llvm13"
+    # Print the full registry path of the pushed image
+    - echo "Image pushed successfully to ${IMAGE_DESTINATION}"
 
 opensycl-cling-llvm:
-  image: docker:latest
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
   stage: opensycl-build
-  services:
-    - docker:dind
-  before_script:
-    - echo $CI_REGISTRY_PASSWORD | docker login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
+  variables:
+    IMAGE_DESTINATION: opensycl:cling-llvm
   script:
-    - |
-      if [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" ]]; then
-        tag=":cling-llvm-latest"
-        echo "Running on default branch '$CI_DEFAULT_BRANCH': tag = $tag"
-      else
-        tag=":cling-llvm-$CI_COMMIT_REF_SLUG"
-        echo "Running on branch '$CI_COMMIT_BRANCH': tag = $tag"
-      fi
-    - IMAGE_NAME="opensycl"
-    - docker build --pull -t "$IMAGE_NAME${tag}" --build-arg="LLVM_GIT_BRANCH=cling-llvm13" .
-    - docker push "$IMAGE_NAME${tag}"
-  rules:
-    - if: $CI_COMMIT_BRANCH
-      exists:
-        - OpenSYCL/Dockerfile
+    # Prepare Kaniko configuration file
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+    # Build and push the image from the Dockerfile at the root of the project.
+    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/OpenSYCL/Dockerfile --destination $IMAGE_DESTINATION --build-arg="LLVM_GIT_BRANCH=cling-llvm13"
+    # Print the full registry path of the pushed image
+    - echo "Image pushed successfully to ${IMAGE_DESTINATION}"
 
 sycl-root-base:
-  image: docker:latest
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
   stage: base-build
-  services:
-    - docker:dind
-  before_script:
-    - echo $CI_REGISTRY_PASSWORD | docker login -u "$CI_REGISTRY_USER" --password-stdin $CI_REGISTRY
+  variables:
+    IMAGE_DESTINATION: sycl-root-base:latest
   script:
-    - |
-      if [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" ]]; then
-        tag=""
-        echo "Running on default branch '$CI_DEFAULT_BRANCH': tag = 'latest'"
-      else
-        tag=":$CI_COMMIT_REF_SLUG"
-        echo "Running on branch '$CI_COMMIT_BRANCH': tag = $tag"
-      fi
-    - IMAGE_NAME="sycl-root-base"
-    - docker build --pull -t "$IMAGE_NAME${tag}" .
-    - docker push "$IMAGE_NAME${tag}"
-  rules:
-    - if: $CI_COMMIT_BRANCH
-      exists:
-        - SYCL-ROOT/Dockerfile
+    # Prepare Kaniko configuration file
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+    # Build and push the image from the Dockerfile at the root of the project.
+    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/SYCL-ROOT/Dockerfile --destination $IMAGE_DESTINATION
+    # Print the full registry path of the pushed image
+    - echo "Image pushed successfully to ${IMAGE_DESTINATION}"
