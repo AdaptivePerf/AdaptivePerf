@@ -5,7 +5,7 @@ stages:
 
 opensycl-root-llvm:
   image:
-    name: gcr.io/kaniko-project/executor:debug
+    name: gitlab-registry.cern.ch/ci-tools/docker-image-builder
     entrypoint: [""]
   stage: opensycl-build
   variables:
@@ -20,7 +20,7 @@ opensycl-root-llvm:
 
 opensycl-cling-llvm:
   image:
-    name: gcr.io/kaniko-project/executor:debug
+    name: gitlab-registry.cern.ch/ci-tools/docker-image-builder
     entrypoint: [""]
   stage: opensycl-build
   variables:
@@ -35,7 +35,7 @@ opensycl-cling-llvm:
 
 sycl-root-base:
   image:
-    name: gcr.io/kaniko-project/executor:debug
+    name: gitlab-registry.cern.ch/ci-tools/docker-image-builder
     entrypoint: [""]
   stage: base-build
   variables:
