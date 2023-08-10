@@ -4,6 +4,11 @@ stages:
   - base-build
 
 opensycl-root-llvm:
+  artifacts:
+    expire_in: 1 day
+    when: on_failure
+    paths:
+      - docker.log
   image:
     name: gitlab-registry.cern.ch/ci-tools/docker-image-builder
     entrypoint: [""]
@@ -14,11 +19,16 @@ opensycl-root-llvm:
     # Prepare Kaniko configuration file
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
     # Build and push the image from the Dockerfile at the root of the project.
-    - /kaniko/executor --context $CI_PROJECT_DIR/OpenSYCL --dockerfile $CI_PROJECT_DIR/OpenSYCL/Dockerfile --destination $IMAGE_DESTINATION --build-arg="LLVM_GIT_BRANCH=ROOT-llvm13"
+    - /kaniko/executor --context $CI_PROJECT_DIR/OpenSYCL --dockerfile $CI_PROJECT_DIR/OpenSYCL/Dockerfile --destination $IMAGE_DESTINATION --build-arg="LLVM_GIT_BRANCH=ROOT-llvm13" | tee -a docker.log
     # Print the full registry path of the pushed image
     - echo "Image pushed successfully to ${IMAGE_DESTINATION}"
 
 opensycl-cling-llvm:
+  artifacts:
+    expire_in: 1 day
+    when: on_failure
+    paths:
+      - docker.log
   image:
     name: gitlab-registry.cern.ch/ci-tools/docker-image-builder
     entrypoint: [""]
@@ -29,11 +39,16 @@ opensycl-cling-llvm:
     # Prepare Kaniko configuration file
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
     # Build and push the image from the Dockerfile at the root of the project.
-    - /kaniko/executor --context $CI_PROJECT_DIR/OpenSYCL --dockerfile $CI_PROJECT_DIR/OpenSYCL/Dockerfile --destination $IMAGE_DESTINATION --build-arg="LLVM_GIT_BRANCH=cling-llvm13"
+    - /kaniko/executor --context $CI_PROJECT_DIR/OpenSYCL --dockerfile $CI_PROJECT_DIR/OpenSYCL/Dockerfile --destination $IMAGE_DESTINATION --build-arg="LLVM_GIT_BRANCH=cling-llvm13" | tee -a docker.log
     # Print the full registry path of the pushed image
     - echo "Image pushed successfully to ${IMAGE_DESTINATION}"
 
 sycl-root-base:
+  artifacts:
+    expire_in: 1 day
+    when: on_failure
+    paths:
+      - docker.log
   image:
     name: gitlab-registry.cern.ch/ci-tools/docker-image-builder
     entrypoint: [""]
@@ -44,6 +59,6 @@ sycl-root-base:
     # Prepare Kaniko configuration file
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
     # Build and push the image from the Dockerfile at the root of the project.
-    - /kaniko/executor --context $CI_PROJECT_DIR/SYCL-ROOT --dockerfile $CI_PROJECT_DIR/SYCL-ROOT/Dockerfile --destination $IMAGE_DESTINATION
+    - /kaniko/executor --context $CI_PROJECT_DIR/SYCL-ROOT --dockerfile $CI_PROJECT_DIR/SYCL-ROOT/Dockerfile --destination $IMAGE_DESTINATION | tee -a docker.log
     # Print the full registry path of the pushed image
     - echo "Image pushed successfully to ${IMAGE_DESTINATION}"
