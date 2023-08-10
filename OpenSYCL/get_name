@@ -1,0 +1,51 @@
+#!/bin/env python3
+import re
+import sys
+
+if __name__ == '__main__':
+    for line in sys.stdin:
+        line = line.strip().replace('(gdb) ', '')
+
+        name_match = re.search(r'(.+?)( \+ \d+)? in section', line)
+
+        if name_match is None:
+            print('[unknown]')
+            continue
+
+        name = name_match.group(1)
+        name = re.sub(r' \[.*\S+.*\]', '', name)
+
+        stack = []
+        open_cnt = 0
+
+        for i in range(len(name) - 1, -1, -1):
+            c = name[i]
+
+            if c in [')', '>']:
+                open_cnt += 1
+            elif c in ['(', '<']:
+                open_cnt -= 1
+            elif c == ' ' and open_cnt == 0:
+                if ''.join(stack[::-1]) == 'const':
+                    stack = []
+                else:
+                    break
+
+            stack.append(c)
+
+        last_i = -1
+
+        if stack[0] == ')':
+            soft_bracket_cnt = 1
+            for i in range(1, len(stack)):
+                if stack[i] == ')':
+                    soft_bracket_cnt += 1
+                elif stack[i] == '(':
+                    soft_bracket_cnt -= 1
+
+                if soft_bracket_cnt == 0:
+                    last_i = i
+                    break
+
+        name = ''.join(stack[last_i + 1:][::-1])
+        print(name)

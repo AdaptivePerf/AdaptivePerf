@@ -78,7 +78,7 @@ WORKDIR /home/sycl
 
 ### Install LLVM, clang, libomp from source
 ARG LLVM_GIT_URL=https://github.com/root-project/llvm-project
-ARG LLVM_GIT_BRANCH=cling-llvm13
+ARG LLVM_GIT_BRANCH=ROOT-llvm13
 
 RUN git clone -b ${LLVM_GIT_BRANCH} --single-branch ${LLVM_GIT_URL} && mkdir llvm-project/build llvm-install && \
     cd llvm-project/build && cmake ../llvm -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo \
@@ -112,7 +112,14 @@ RUN export LDFLAGS="-Wl,--copy-dt-needed-entries" && mkdir bcc/build bcc/install
     cmake ../ -DCMAKE_INSTALL_PREFIX=/home/sycl/bcc/install -DENABLE_LLVM_SHARED=ON && make -j && make install && \
     mkdir -p /home/sycl/bcc/install/lib/python && \
     ln -s /home/sycl/bcc/install/lib/python*/site-packages/bcc* /home/sycl/bcc/install/lib/python/bcc
+COPY offcputime /home/sycl/bcc/install/share/bcc/tools/
 
 ENV PYTHONPATH="${PYTHONPATH}:/home/sycl/bcc/install/lib/python/bcc"
 ENV LD_LIBRARY_PATH="${LD_LIBRARY_PATH}:/home/sycl/bcc/install/lib64"
 ENV PATH="${PATH}:/home/sycl/bcc/install/share/bcc/tools"
+
+
+### Install profiling scripts and modified flamegraph.pl
+RUN mkdir /home/sycl/benchmark
+COPY get_addr get_name match_addr merge profile replace_addr split_ids split_report /home/sycl/benchmark/
+COPY flamegraph.pl /usr/bin/flamegraph.pl
