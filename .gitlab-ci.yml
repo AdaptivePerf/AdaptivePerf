@@ -9,12 +9,12 @@ opensycl-root-llvm:
     entrypoint: [""]
   stage: opensycl-build
   variables:
-    IMAGE_DESTINATION: opensycl:root-llvm
+    IMAGE_DESTINATION: gitlab-registry.cern.ch/syclops/testinginfra/opensycl:root-llvm
   script:
     # Prepare Kaniko configuration file
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
     # Build and push the image from the Dockerfile at the root of the project.
-    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/OpenSYCL/Dockerfile --destination $IMAGE_DESTINATION --build-arg="LLVM_GIT_BRANCH=ROOT-llvm13"
+    - /kaniko/executor --context $CI_PROJECT_DIR/OpenSYCL --dockerfile $CI_PROJECT_DIR/OpenSYCL/Dockerfile --destination $IMAGE_DESTINATION --build-arg="LLVM_GIT_BRANCH=ROOT-llvm13"
     # Print the full registry path of the pushed image
     - echo "Image pushed successfully to ${IMAGE_DESTINATION}"
 
@@ -24,12 +24,12 @@ opensycl-cling-llvm:
     entrypoint: [""]
   stage: opensycl-build
   variables:
-    IMAGE_DESTINATION: opensycl:cling-llvm
+    IMAGE_DESTINATION: gitlab-registry.cern.ch/syclops/testinginfra/opensycl:cling-llvm
   script:
     # Prepare Kaniko configuration file
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
     # Build and push the image from the Dockerfile at the root of the project.
-    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/OpenSYCL/Dockerfile --destination $IMAGE_DESTINATION --build-arg="LLVM_GIT_BRANCH=cling-llvm13"
+    - /kaniko/executor --context $CI_PROJECT_DIR/OpenSYCL --dockerfile $CI_PROJECT_DIR/OpenSYCL/Dockerfile --destination $IMAGE_DESTINATION --build-arg="LLVM_GIT_BRANCH=cling-llvm13"
     # Print the full registry path of the pushed image
     - echo "Image pushed successfully to ${IMAGE_DESTINATION}"
 
@@ -39,11 +39,11 @@ sycl-root-base:
     entrypoint: [""]
   stage: base-build
   variables:
-    IMAGE_DESTINATION: sycl-root-base:latest
+    IMAGE_DESTINATION: gitlab-registry.cern.ch/syclops/testinginfra/sycl-root-base:latest
   script:
     # Prepare Kaniko configuration file
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
     # Build and push the image from the Dockerfile at the root of the project.
-    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/SYCL-ROOT/Dockerfile --destination $IMAGE_DESTINATION
+    - /kaniko/executor --context $CI_PROJECT_DIR/SYCL-ROOT --dockerfile $CI_PROJECT_DIR/SYCL-ROOT/Dockerfile --destination $IMAGE_DESTINATION
     # Print the full registry path of the pushed image
     - echo "Image pushed successfully to ${IMAGE_DESTINATION}"
