@@ -1,64 +1,54 @@
-# Based on https://gitlab.cern.ch/gitlabci-examples/build_docker_image/-/blob/master/.gitlab-ci.yml
 stages:
   - opensycl-build
   - base-build
 
 opensycl-root-llvm:
-  artifacts:
-    expire_in: 1 day
-    when: on_failure
-    paths:
-      - docker.log
-  image:
-    name: gitlab-registry.cern.ch/ci-tools/docker-image-builder
-    entrypoint: [""]
   stage: opensycl-build
   variables:
-    IMAGE_DESTINATION: gitlab-registry.cern.ch/syclops/testinginfra/opensycl:root-llvm
+    IMAGE_NAME: gitlab-registry.cern.ch/syclops/testinginfra/opensycl
+  before_script:
+    - echo $CONTAINER_TOKEN | docker login --username $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
   script:
-    # Prepare Kaniko configuration file
-    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    # Build and push the image from the Dockerfile at the root of the project.
-    - /kaniko/executor --context $CI_PROJECT_DIR/OpenSYCL --dockerfile $CI_PROJECT_DIR/OpenSYCL/Dockerfile --destination $IMAGE_DESTINATION --build-arg="LLVM_GIT_BRANCH=ROOT-llvm13" | tee -a docker.log
-    # Print the full registry path of the pushed image
-    - echo "Image pushed successfully to ${IMAGE_DESTINATION}"
+    # Based on https://gitlab.com/gitlab-org/gitlab-foss/-/blob/master/lib/gitlab/ci/templates/Docker.gitlab-ci.yml
+    - |
+      if [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" ]]; then
+        TAG="root-llvm"
+      else
+        TAG="root-llvm-$CI_COMMIT_REF_SLUG"
+      fi
+    - docker build --network=host -t $IMAGE_NAME:$TAG --build-arg LLVM_GIT_BRANCH=ROOT-llvm13 $CI_PROJECT_DIR/OpenSYCL
+    - docker push $IMAGE_NAME
 
 opensycl-cling-llvm:
-  artifacts:
-    expire_in: 1 day
-    when: on_failure
-    paths:
-      - docker.log
-  image:
-    name: gitlab-registry.cern.ch/ci-tools/docker-image-builder
-    entrypoint: [""]
   stage: opensycl-build
   variables:
-    IMAGE_DESTINATION: gitlab-registry.cern.ch/syclops/testinginfra/opensycl:cling-llvm
+    IMAGE_NAME: gitlab-registry.cern.ch/syclops/testinginfra/opensycl
+  before_script:
+    - echo $CONTAINER_TOKEN | docker login --username $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
   script:
-    # Prepare Kaniko configuration file
-    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    # Build and push the image from the Dockerfile at the root of the project.
-    - /kaniko/executor --context $CI_PROJECT_DIR/OpenSYCL --dockerfile $CI_PROJECT_DIR/OpenSYCL/Dockerfile --destination $IMAGE_DESTINATION --build-arg="LLVM_GIT_BRANCH=cling-llvm13" | tee -a docker.log
-    # Print the full registry path of the pushed image
-    - echo "Image pushed successfully to ${IMAGE_DESTINATION}"
+    # Based on https://gitlab.com/gitlab-org/gitlab-foss/-/blob/master/lib/gitlab/ci/templates/Docker.gitlab-ci.yml
+    - |
+      if [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" ]]; then
+        TAG="cling-llvm"
+      else
+        TAG="cling-llvm-$CI_COMMIT_REF_SLUG"
+      fi
+    - docker build --network=host -t $IMAGE_NAME:$TAG --build-arg LLVM_GIT_BRANCH=cling-llvm13 $CI_PROJECT_DIR/OpenSYCL
+    - docker push $IMAGE_NAME
 
 sycl-root-base:
-  artifacts:
-    expire_in: 1 day
-    when: on_failure
-    paths:
-      - docker.log
-  image:
-    name: gitlab-registry.cern.ch/ci-tools/docker-image-builder
-    entrypoint: [""]
   stage: base-build
   variables:
-    IMAGE_DESTINATION: gitlab-registry.cern.ch/syclops/testinginfra/sycl-root-base:latest
+    IMAGE_NAME: gitlab-registry.cern.ch/syclops/testinginfra/sycl-root-base
+  before_script:
+    - echo $CONTAINER_TOKEN | docker login --username $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
   script:
-    # Prepare Kaniko configuration file
-    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_REGISTRY_USER\",\"password\":\"$CI_REGISTRY_PASSWORD\"}}}" > /kaniko/.docker/config.json
-    # Build and push the image from the Dockerfile at the root of the project.
-    - /kaniko/executor --context $CI_PROJECT_DIR/SYCL-ROOT --dockerfile $CI_PROJECT_DIR/SYCL-ROOT/Dockerfile --destination $IMAGE_DESTINATION | tee -a docker.log
-    # Print the full registry path of the pushed image
-    - echo "Image pushed successfully to ${IMAGE_DESTINATION}"
+    # Based on https://gitlab.com/gitlab-org/gitlab-foss/-/blob/master/lib/gitlab/ci/templates/Docker.gitlab-ci.yml
+    - |
+      if [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" ]]; then
+        TAG="latest"
+      else
+        TAG="$CI_COMMIT_REF_SLUG"
+      fi
+    - docker build --network=host -t $IMAGE_NAME:$TAG $CI_PROJECT_DIR/SYCL-ROOT
+    - docker push $IMAGE_NAME
