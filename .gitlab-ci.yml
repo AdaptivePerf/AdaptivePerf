@@ -1,15 +1,20 @@
+# Based on https://gitlab.com/gitlab-org/gitlab-foss/-/blob/master/lib/gitlab/ci/templates/Docker.gitlab-ci.yml
 stages:
   - opensycl-build
   - base-build
 
 opensycl-root-llvm:
+  image: docker:latest
+  services:
+    - docker:dind
+  tags:
+    - openlab
   stage: opensycl-build
   variables:
     IMAGE_NAME: gitlab-registry.cern.ch/syclops/testinginfra/opensycl
   before_script:
     - echo $CONTAINER_TOKEN | docker login --username $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
   script:
-    # Based on https://gitlab.com/gitlab-org/gitlab-foss/-/blob/master/lib/gitlab/ci/templates/Docker.gitlab-ci.yml
     - |
       if [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" ]]; then
         TAG="root-llvm"
@@ -20,13 +25,17 @@ opensycl-root-llvm:
     - docker push $IMAGE_NAME
 
 opensycl-cling-llvm:
+  image: docker:latest
+  services:
+    - docker:dind
+  tags:
+    - openlab
   stage: opensycl-build
   variables:
     IMAGE_NAME: gitlab-registry.cern.ch/syclops/testinginfra/opensycl
   before_script:
     - echo $CONTAINER_TOKEN | docker login --username $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
   script:
-    # Based on https://gitlab.com/gitlab-org/gitlab-foss/-/blob/master/lib/gitlab/ci/templates/Docker.gitlab-ci.yml
     - |
       if [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" ]]; then
         TAG="cling-llvm"
@@ -37,13 +46,17 @@ opensycl-cling-llvm:
     - docker push $IMAGE_NAME
 
 sycl-root-base:
+  image: docker:latest
+  services:
+    - docker:dind
+  tags:
+    - openlab
   stage: base-build
   variables:
     IMAGE_NAME: gitlab-registry.cern.ch/syclops/testinginfra/sycl-root-base
   before_script:
     - echo $CONTAINER_TOKEN | docker login --username $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
   script:
-    # Based on https://gitlab.com/gitlab-org/gitlab-foss/-/blob/master/lib/gitlab/ci/templates/Docker.gitlab-ci.yml
     - |
       if [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" ]]; then
         TAG="latest"
