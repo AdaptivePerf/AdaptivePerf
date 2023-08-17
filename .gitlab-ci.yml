@@ -19,7 +19,7 @@ opensycl-root-llvm:
         TAG="root-llvm-$CI_COMMIT_REF_SLUG"
       fi
     - podman build --network=host -t $IMAGE_NAME:$TAG --build-arg LLVM_GIT_BRANCH=ROOT-llvm13 $CI_PROJECT_DIR/OpenSYCL
-    - podman push $IMAGE_NAME
+    - podman push $IMAGE_NAME:$TAG
 
 opensycl-cling-llvm:
   tags:
@@ -38,7 +38,7 @@ opensycl-cling-llvm:
         TAG="cling-llvm-$CI_COMMIT_REF_SLUG"
       fi
     - podman build --network=host -t $IMAGE_NAME:$TAG --build-arg LLVM_GIT_BRANCH=cling-llvm13 $CI_PROJECT_DIR/OpenSYCL
-    - podman push $IMAGE_NAME
+    - podman push $IMAGE_NAME:$TAG
 
 sycl-root-base:
   tags:
@@ -57,4 +57,4 @@ sycl-root-base:
         TAG="$CI_COMMIT_REF_SLUG"
       fi
     - podman build --network=host -t $IMAGE_NAME:$TAG $CI_PROJECT_DIR/SYCL-ROOT
-    - podman push $IMAGE_NAME
+    - podman push $IMAGE_NAME:$TAG
