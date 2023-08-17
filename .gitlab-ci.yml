@@ -4,16 +4,14 @@ stages:
   - base-build
 
 opensycl-root-llvm:
-  image: docker:latest
-  services:
-    - docker:dind
+  image: quay.io/podman/stable:latest
   tags:
     - openlab
   stage: opensycl-build
   variables:
     IMAGE_NAME: gitlab-registry.cern.ch/syclops/testinginfra/opensycl
   before_script:
-    - echo $CONTAINER_TOKEN | docker login --username $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
+    - echo $CONTAINER_TOKEN | podman login --username $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
   script:
     - |
       if [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" ]]; then
@@ -21,20 +19,18 @@ opensycl-root-llvm:
       else
         TAG="root-llvm-$CI_COMMIT_REF_SLUG"
       fi
-    - docker build --network=host -t $IMAGE_NAME:$TAG --build-arg LLVM_GIT_BRANCH=ROOT-llvm13 $CI_PROJECT_DIR/OpenSYCL
-    - docker push $IMAGE_NAME
+    - podman build --network=host -t $IMAGE_NAME:$TAG --build-arg LLVM_GIT_BRANCH=ROOT-llvm13 $CI_PROJECT_DIR/OpenSYCL
+    - podman push $IMAGE_NAME
 
 opensycl-cling-llvm:
-  image: docker:latest
-  services:
-    - docker:dind
+  image: quay.io/podman/stable:latest
   tags:
     - openlab
   stage: opensycl-build
   variables:
     IMAGE_NAME: gitlab-registry.cern.ch/syclops/testinginfra/opensycl
   before_script:
-    - echo $CONTAINER_TOKEN | docker login --username $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
+    - echo $CONTAINER_TOKEN | podman login --username $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
   script:
     - |
       if [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" ]]; then
@@ -42,20 +38,18 @@ opensycl-cling-llvm:
       else
         TAG="cling-llvm-$CI_COMMIT_REF_SLUG"
       fi
-    - docker build --network=host -t $IMAGE_NAME:$TAG --build-arg LLVM_GIT_BRANCH=cling-llvm13 $CI_PROJECT_DIR/OpenSYCL
-    - docker push $IMAGE_NAME
+    - podman build --network=host -t $IMAGE_NAME:$TAG --build-arg LLVM_GIT_BRANCH=cling-llvm13 $CI_PROJECT_DIR/OpenSYCL
+    - podman push $IMAGE_NAME
 
 sycl-root-base:
-  image: docker:latest
-  services:
-    - docker:dind
+  image: quay.io/podman/stable:latest
   tags:
     - openlab
   stage: base-build
   variables:
     IMAGE_NAME: gitlab-registry.cern.ch/syclops/testinginfra/sycl-root-base
   before_script:
-    - echo $CONTAINER_TOKEN | docker login --username $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
+    - echo $CONTAINER_TOKEN | podman login --username $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
   script:
     - |
       if [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" ]]; then
@@ -63,5 +57,5 @@ sycl-root-base:
       else
         TAG="$CI_COMMIT_REF_SLUG"
       fi
-    - docker build --network=host -t $IMAGE_NAME:$TAG $CI_PROJECT_DIR/SYCL-ROOT
-    - docker push $IMAGE_NAME
+    - podman build --network=host -t $IMAGE_NAME:$TAG $CI_PROJECT_DIR/SYCL-ROOT
+    - podman push $IMAGE_NAME
