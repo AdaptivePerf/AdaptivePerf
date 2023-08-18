@@ -45,12 +45,7 @@ if ! grep -qs '/sys/kernel/debug ' /proc/mounts; then
     sudo mount -t debugfs none /sys/kernel/debug
 fi
 
-CLOCK_SPEED=$(cat /proc/cpuinfo | grep "cpu MHz" | sed -E 's/cpu MHz\s*:\s*([0-9\.]+)\s*/\1/' | sort -n | uniq)
-
-if [ $(wc -w <<< $CLOCK_SPEED) -gt 1 ]; then
-    echo "==> CPU cores are clocked differently! Cannot proceed."
-    exit 1
-fi
+CLOCK_SPEED=$(cat /proc/cpuinfo | grep "cpu MHz" | sed -E 's/cpu MHz\s*:\s*([0-9\.]+)\s*/\1/' | sort -n | uniq | head -n 1)
 
 echo "==> Preparing results directory and starting tracers..."
 mkdir -p results
