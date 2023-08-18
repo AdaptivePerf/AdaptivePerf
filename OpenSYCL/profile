@@ -1,0 +1,118 @@
+#!/bin/bash
+set -e
+
+TO_PROFILE=$(realpath $1)
+
+function convert_to_time() {
+    while read -ra arr; do
+	new_val=$(perl <<< "print ${arr[-1]}/$CLOCK_SPEED")
+	arr[-1]=$new_val
+	echo ${arr[@]}
+    done
+}
+
+function perf_record() {
+    perf record --call-graph fp -e cycles -- env CLING_DEBUG=1 CLING_PROFILE=1 python3.12 -X perf $TO_PROFILE
+    echo "==> Code execution completed!"
+
+    echo "==> Terminating perf-trace..."
+    while ps -p $PERF_TRACE_PID > /dev/null; do
+	if ! sudo kill $PERF_TRACE_PID &> /dev/null; then
+	    break
+	fi
+    done
+
+    if ps -p $PERF_TRACE_PID > /dev/null; then
+	echo "==> ERROR: perf-trace is still running despite terminating!"
+	exit 1
+    fi
+
+    echo "==> Terminating offcputime..."
+    while ps -p $OFFCPUTIME_PID > /dev/null; do
+	if ! sudo kill -s SIGUSR1 $OFFCPUTIME_PID &> /dev/null; then
+	    break
+	fi
+    done
+
+    if ps -p $OFFCPUTIME_PID > /dev/null; then
+	echo "==> ERROR: offcputime is still running despite terminating!"
+	exit 1
+    fi
+}
+
+if ! grep -qs '/sys/kernel/debug ' /proc/mounts; then
+    echo "==> /sys/kernel/debug is not mounted, mounting..."
+    sudo mount -t debugfs none /sys/kernel/debug
+fi
+
+CLOCK_SPEED=$(cat /proc/cpuinfo | grep "cpu MHz" | sed -E 's/cpu MHz\s*:\s*([0-9\.]+)\s*/\1/' | sort -n | uniq)
+
+if [ $(wc -w <<< $CLOCK_SPEED) -gt 1 ]; then
+    echo "==> CPU cores are clocked differently! Cannot proceed."
+    exit 1
+fi
+
+echo "==> Preparing results directory and starting tracers..."
+mkdir -p results
+cd results
+rm -rf *
+sudo perf trace -e clone,fork,vfork 2> syscalls.data &
+PERF_TRACE_PID=$!
+sudo -E env PATH=$PATH PYTHONPATH=$PYTHONPATH LD_LIBRARY_PATH=$LD_LIBRARY_PATH offcputime -f > off_cpu_full.data &
+OFFCPUTIME_PID=$!
+echo "perf-trace PID: $PERF_TRACE_PID"
+echo "offcputime PID: $OFFCPUTIME_PID"
+
+echo "==> Waiting 10 seconds for the tracers to warm up..."
+sleep 10
+
+echo "==> Executing the code..."
+perf_record &
+
+set +e
+wait $PERF_TRACE_PID
+set -e
+
+wait $OFFCPUTIME_PID
+
+echo "==> Done, creating collapsed reports now..."
+cat off_cpu_full.data | grep "python3.12" > off_cpu.data
+JOBS=$2
+perf script -F comm,tid,pid,time,event,ip,sym,dso,period --show-mmap-events --no-demangle | c++filt -p | awk '/PERF_RECORD_MMAP/ {print $0 >> "script_mmap.data"; next}{print $0}' | ../split_report $JOBS
+
+PIDS=()
+for i in $(seq 0 $((JOBS-1))); do
+   script_i="script${i}.data"
+   echo -n "Starting $script_i..."
+   cat script_mmap.data $script_i | stackcollapse-perf.pl --tid | grep "^python3.12" | convert_to_time > ${script_i:0:-5}_collapsed.data && echo "$script_i done!" &
+   PIDS+=($!)
+   echo "PID ${PIDS[-1]}"
+done
+
+for pid in ${PIDS[@]}; do
+   wait $pid
+done
+
+../merge script*_collapsed.data > script_collapsed.data.tmp
+rm script*_collapsed.data
+mv script_collapsed.data.tmp script_collapsed.data
+
+echo "==> Matching addresses to symbols..."
+cd ..
+./match_addr results/script_collapsed.data python3.12 results/core.* results/script_collapsed_final.data hot
+./match_addr results/off_cpu.data python3.12 results/core.* results/off_cpu_final.data cold
+
+echo "==> Splitting reports into processes/threads..."
+./split_ids results/script_collapsed_final.data results/off_cpu_final.data
+
+echo "==> Producing flame graphs..."
+cd results/ids
+for i in *_cold.data; do
+    cat $i >> ${i:0:-10}_hot.data
+done
+
+for i in *_hot.data; do
+    flamegraph.pl --countname=us $i > ${i:0:-9}.svg
+done
+
+echo "==> All finished! You can check the results directory now."

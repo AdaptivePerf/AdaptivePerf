@@ -1,0 +1,38 @@
+#!/bin/env python3
+import sys
+import re
+import math
+
+
+if __name__ == '__main__':
+    parts = int(sys.argv[1])
+
+    blocks = []
+
+    lines = []
+    for line in sys.stdin:
+        line = line.replace('\n', '')
+
+        if len(line) == 0:
+            blocks.append(lines)
+            lines = []
+        else:
+            lines.append(line)
+
+    if len(lines) > 0:
+        blocks.append(lines)
+
+    block_cnt = math.ceil(len(blocks) / parts)
+
+    index = 0
+    for i in range(parts):
+        with open(f'script{i}.data', mode='w') as f:
+            for j in range(block_cnt):
+                if index >= len(blocks):
+                    break
+
+                if j > 0:
+                    f.write('\n')
+
+                f.write('\n'.join(blocks[index]) + '\n')
+                index += 1

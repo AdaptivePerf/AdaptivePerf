@@ -1,0 +1,44 @@
+#!/bin/env python3
+import sys
+import re
+import shutil
+from pathlib import Path
+from collections import defaultdict
+
+
+if __name__ == '__main__':
+    script_path = Path(sys.argv[1])
+    offcpu_path = Path(sys.argv[2])
+
+    script_dict = defaultdict(list)
+    offcpu_dict = defaultdict(list)
+
+    def process(line, dest):
+        line = line.strip()
+
+        if len(line) > 0:
+            match = re.search(r'^\S+?\-([\d/]+)', line)
+            dest[match.group(1).replace('/', '_')].append(line)
+
+    with script_path.open(mode='r') as f:
+        for line in f:
+            process(line, script_dict)
+
+    with offcpu_path.open(mode='r') as f:
+        for line in f:
+            process(line, offcpu_dict)
+
+    results_path = script_path.parent / 'ids'
+
+    if results_path.exists():
+        shutil.rmtree(results_path)
+
+    results_path.mkdir()
+
+    for k, v in script_dict.items():
+        with (results_path / f'{k}_hot.data').open(mode='w') as f:
+            f.write('\n'.join(v))
+
+    for k, v in offcpu_dict.items():
+        with (results_path / f'{k}_cold.data').open(mode='w') as f:
+            f.write('\n'.join(v))
