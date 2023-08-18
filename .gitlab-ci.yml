@@ -53,8 +53,10 @@ sycl-root-base:
     - |
       if [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" ]]; then
         TAG="latest"
+        FROM_TAG="root-llvm"
       else
         TAG="$CI_COMMIT_REF_SLUG"
+        FROM_TAG="root-llvm-$CI_COMMIT_REF_SLUG"
       fi
-    - podman build --network=host -t $IMAGE_NAME:$TAG $CI_PROJECT_DIR/SYCL-ROOT
+    - podman build --network=host -t $IMAGE_NAME:$TAG --build-arg TAG=$FROM_TAG $CI_PROJECT_DIR/SYCL-ROOT
     - podman push $IMAGE_NAME:$TAG

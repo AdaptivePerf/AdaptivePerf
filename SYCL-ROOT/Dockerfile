@@ -1,4 +1,5 @@
-FROM opensycl:root-llvm
+ARG TAG=root-llvm
+FROM gitlab-registry.cern.ch/syclops/testinginfra/opensycl:${TAG}
 
 
 ### Install dependencies required for building ROOT
