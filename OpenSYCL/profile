@@ -15,15 +15,18 @@ function perf_record() {
     perf record --call-graph fp -e cycles -o perf.data -- env CLING_DEBUG=1 CLING_PROFILE=1 python3.12 -X perf $TO_PROFILE
     echo "==> Code execution completed!"
 
-    echo "==> Terminating perf-trace..."
+    echo "==> Waiting 10 seconds for the tracers to catch up..."
+    sleep 10
+
+    echo "==> Killing perf-trace..."
     while ps -p $PERF_TRACE_PID > /dev/null; do
-	if ! sudo kill $PERF_TRACE_PID &> /dev/null; then
+	if ! sudo kill -9 $PERF_TRACE_PID &> /dev/null; then
 	    break
 	fi
     done
 
     if ps -p $PERF_TRACE_PID > /dev/null; then
-	echo "==> ERROR: perf-trace is still running despite terminating!"
+	echo "==> ERROR: perf-trace is still running despite killing!"
 	exit 1
     fi
 
