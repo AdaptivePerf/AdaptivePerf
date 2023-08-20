@@ -70,7 +70,7 @@ RUN wget https://boostorg.jfrog.io/artifactory/main/release/1.82.0/source/boost_
 
 
 ### Set up essential tooling and configure "sycl" user
-RUN dnf install -y emacs nano sudo perf flamegraph flamegraph-stackcollapse-perf ethtool flex iperf3 python3-netaddr ncurses-devel netperf python3-pip && \
+RUN dnf install -y gdb emacs nano sudo perf flamegraph flamegraph-stackcollapse-perf ethtool flex iperf3 python3-netaddr ncurses-devel netperf python3-pip && \
     ln -s /usr/bin/python3 /usr/bin/python && useradd -m sycl && echo "sycl ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 USER sycl
 WORKDIR /home/sycl
