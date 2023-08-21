@@ -12,7 +12,14 @@ function convert_to_time() {
 }
 
 function perf_record() {
-    perf record --call-graph fp -e cycles -o perf.data -- env CLING_DEBUG=1 CLING_PROFILE=1 python3.12 -X perf $TO_PROFILE
+    mkdir out
+    cd out
+
+    # stdout and stderr redirection based on https://unix.stackexchange.com/a/6431
+    (perf record --call-graph fp -e cycles -o perf.data -- env CLING_DEBUG=1 CLING_PROFILE=1 python3.12 -X perf $TO_PROFILE | tee stdout.log) 3>&1 1>&2 2>&3 | tee stderr.log
+
+    cd ..
+
     echo "==> Code execution completed!"
 
     echo "==> Waiting 10 seconds for the tracers to catch up..."
@@ -74,6 +81,7 @@ set -e
 wait $OFFCPUTIME_PID
 
 echo "==> Cleaning up and creating collapsed reports..."
+mv out/core.* out/perf.data .
 cat off_cpu_full.data | grep "python3.12" > off_cpu.data
 rm off_cpu_full.data
 
@@ -99,14 +107,15 @@ mv script_collapsed.data.tmp script_collapsed.data
 
 echo "==> Matching addresses to symbols..."
 cd ..
-./match_addr results/script_collapsed.data python3.12 results/core.* results/script_collapsed_final.data hot
-./match_addr results/off_cpu.data python3.12 results/core.* results/off_cpu_final.data cold
+./match_addr results/script_collapsed.data python3.12 results/core.* results/script_collapsed_final.data hot $JOBS
+./match_addr results/off_cpu.data python3.12 results/core.* results/off_cpu_final.data cold $JOBS
 
 echo "==> Splitting reports into processes/threads..."
 ./split_ids results/script_collapsed_final.data results/off_cpu_final.data
 
-echo "==> Producing flame graphs..."
-cd results/ids
+echo "==> Removing leftover files and producing flame graphs..."
+rm results/core.* results/off_cpu*.data results/script*.data results/perf.data
+cd results/processed
 for i in *_cold.data; do
     cat ${i:0:-10}_hot.data $i > ${i:0:-10}.data
     rm ${i:0:-10}_hot.data $i

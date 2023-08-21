@@ -28,7 +28,7 @@ if __name__ == '__main__':
         for line in f:
             process(line, offcpu_dict)
 
-    results_path = script_path.parent / 'ids'
+    results_path = script_path.parent / 'processed'
 
     if results_path.exists():
         shutil.rmtree(results_path)

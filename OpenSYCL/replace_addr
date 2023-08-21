@@ -56,7 +56,7 @@ if __name__ == '__main__':
 
         return res
 
-    jobs = 12
+    jobs = int(sys.argv[3])
     jump = math.ceil(len(to_replace) / jobs)
     replaced = Parallel(n_jobs=jobs, verbose=20)(delayed(do)(a, jump)
                                                  for a in range(0, len(to_replace), jump))
