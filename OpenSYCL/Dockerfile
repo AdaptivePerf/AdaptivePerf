@@ -120,6 +120,6 @@ ENV PATH="${PATH}:/home/sycl/bcc/install/share/bcc/tools"
 
 
 ### Install profiling scripts and modified flamegraph.pl
-RUN mkdir /home/sycl/benchmark
+RUN pip3 install joblib && mkdir /home/sycl/benchmark
 COPY get_addr get_name match_addr merge profile replace_addr split_ids split_report /home/sycl/benchmark/
 COPY flamegraph.pl /usr/bin/flamegraph.pl
