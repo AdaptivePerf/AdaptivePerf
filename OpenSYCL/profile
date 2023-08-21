@@ -76,7 +76,7 @@ wait $OFFCPUTIME_PID
 echo "==> Done, creating collapsed reports now..."
 cat off_cpu_full.data | grep "python3.12" > off_cpu.data
 JOBS=$2
-perf script -F comm,tid,pid,time,event,ip,sym,dso,period --show-mmap-events --no-demangle | c++filt -p | awk '/PERF_RECORD_MMAP/ {print $0 >> "script_mmap.data"; next}{print $0}' | ../split_report $JOBS
+perf script -i perf.data -F comm,tid,pid,time,event,ip,sym,dso,period --show-mmap-events --no-demangle | c++filt -p | awk '/PERF_RECORD_MMAP/ {print $0 >> "script_mmap.data"; next}{print $0}' | ../split_report $JOBS
 
 PIDS=()
 for i in $(seq 0 $((JOBS-1))); do
