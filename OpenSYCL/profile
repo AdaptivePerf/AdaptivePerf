@@ -22,18 +22,15 @@ function perf_record() {
 
     echo "==> Code execution completed!"
 
-    echo "==> Waiting 10 seconds for the tracers to catch up..."
-    sleep 10
-
-    echo "==> Killing perf-trace..."
+    echo "==> Terminating perf-trace..."
     while ps -p $PERF_TRACE_PID > /dev/null; do
-	if ! sudo kill -9 $PERF_TRACE_PID &> /dev/null; then
+	if ! sudo kill $PERF_TRACE_PID &> /dev/null; then
 	    break
 	fi
     done
 
     if ps -p $PERF_TRACE_PID > /dev/null; then
-	echo "==> ERROR: perf-trace is still running despite killing!"
+	echo "==> ERROR: perf-trace is still running despite terminating!"
 	exit 1
     fi
 
