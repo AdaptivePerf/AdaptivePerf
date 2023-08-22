@@ -121,6 +121,10 @@ for i in *_cold.data; do
     rm -f ${i:0:-10}_hot.data $i
 done
 
+for i in *_hot.data; do
+    mv $i ${i:0:-9}.data
+done
+
 for i in *.data; do
     flamegraph.pl --countname=us $i > ${i:0:-5}.svg
 done
