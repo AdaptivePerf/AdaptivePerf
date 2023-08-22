@@ -117,8 +117,8 @@ echo "==> Removing leftover files and producing flame graphs..."
 rm results/core.* results/off_cpu*.data results/script*.data results/perf.data
 cd results/processed
 for i in *_cold.data; do
-    cat ${i:0:-10}_hot.data $i > ${i:0:-10}.data
-    rm ${i:0:-10}_hot.data $i
+    cat ${i:0:-10}_hot.data $i > ${i:0:-10}.data 2> /dev/null || true
+    rm -f ${i:0:-10}_hot.data $i
 done
 
 for i in *.data; do
