@@ -33,21 +33,21 @@ RUN export VER=$(rpm -qa glibc | sed -E 's/glibc-([0-9\.]+)-.+/\1/') && wget htt
 ARG GCC_VERSION=11
 
 RUN mkdir gcc gcc/build && cd gcc && git clone https://github.com/gcc-mirror/gcc && cd gcc && git checkout releases/gcc-${GCC_VERSION}
-RUN cd gcc/build && ../gcc/configure --prefix=/usr --disable-multilib || cat config.log && make -j CFLAGS_FOR_TARGET="-g ${COMPILE_FLAGS}" CXXFLAGS_FOR_TARGET="-g ${COMPILE_FLAGS}"
+RUN cd gcc/build && ../gcc/configure --prefix=/usr --disable-multilib && make -j CFLAGS_FOR_TARGET="-g ${COMPILE_FLAGS}" CXXFLAGS_FOR_TARGET="-g ${COMPILE_FLAGS}"
 RUN cd gcc/build && rpm -e --nodeps gcc gcc-c++ && make install && cd ../.. && rm -r gcc && export VER=$(gcc --version | awk '/gcc/ {print $3}') && \
     fpm -s empty -t rpm -n gcc -v $VER -a native && fpm -s empty -t rpm -n gcc-c++ -v $VER -a native && dnf install -y *.rpm && rm -r *.rpm && \
     echo "exclude=gcc gcc-c++" >> /etc/dnf/dnf.conf
 
 
 ### Install other dependencies
-RUN dnf config-manager --set-enabled crb && dnf install -y cmake epel-release which kmod pciutils zlib-devel openssl openssl-devel libffi libffi-devel ninja-build \
+RUN dnf install -y cmake which kmod pciutils zlib-devel openssl openssl-devel libffi libffi-devel ninja-build \
     elfutils-libelf elfutils-libelf-devel
 
 
 ### Install CUDA
 ARG CUDA_VERSION=11.8
 
-RUN export CUDA_PACKAGE=${CUDA_VERSION/./-} && dnf config-manager --add-repo http://developer.download.nvidia.com/compute/cuda/repos/rhel9/x86_64/cuda-rhel9.repo && \
+RUN export CUDA_PACKAGE=${CUDA_VERSION/./-} && dnf config-manager --add-repo https://developer.download.nvidia.com/compute/cuda/repos/fedora35/x86_64/cuda-fedora35.repo && \
     dnf install -y cuda-cudart-${CUDA_PACKAGE} cuda-compat-${CUDA_PACKAGE} cuda-command-line-tools-${CUDA_PACKAGE} cuda-libraries-devel-${CUDA_PACKAGE} \
     cuda-minimal-build-${CUDA_PACKAGE} cuda-cudart-devel-${CUDA_PACKAGE} cuda-nvprof-${CUDA_PACKAGE} cuda-nvml-devel-${CUDA_PACKAGE} libcublas-devel-${CUDA_PACKAGE} \
     libnpp-devel-${CUDA_PACKAGE}
@@ -70,7 +70,7 @@ RUN wget https://boostorg.jfrog.io/artifactory/main/release/1.82.0/source/boost_
 
 
 ### Set up essential tooling and configure "sycl" user
-RUN dnf install -y gdb procps emacs nano sudo perf flamegraph flamegraph-stackcollapse-perf ethtool flex \
+RUN dnf install -y gdb procps nano sudo perf flamegraph flamegraph-stackcollapse-perf ethtool flex \
     iperf3 python3-netaddr ncurses-devel netperf python3-pip && \
     ln -s /usr/bin/python3 /usr/bin/python && useradd -m sycl && echo "sycl ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 USER sycl
