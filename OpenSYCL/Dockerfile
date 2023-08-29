@@ -1,5 +1,5 @@
-### Based on AlmaLinux 9
-FROM almalinux:9
+### Based on Fedora 38 (which includes frame pointers by default)
+FROM fedora:38
 
 
 ### Compile flags for everything (here: do not omit frame pointers for easier stack trace profiling)
