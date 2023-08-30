@@ -443,16 +443,18 @@ while (defined($_ = <>)) {
 		        my $pc_corr;
 
 			if (exists $correction_addr{$m_pid.$mod}) {
-			    $pc_corr = (hex($pc) + $correction_addr{$m_pid.$mod})->to_hex;
+				$pc_corr = (hex($pc) + $correction_addr{$m_pid.$mod})->to_hex;
 			} else {
-			    $pc_corr = $pc;
+				$pc_corr = $pc;
 			}
 
-			if ($mod =~ m/perf-\d+.map/ || ($mod =~ m/(^\[|vmlinux$)/ && $mod !~ /unknown/)) {
-			    push @inline, "(0x$pc_corr $func)";
+			if ($func eq "[unknown]") {
+				push @inline, "(0x$pc_corr)";
+                        } elsif ($func =~ m/^\[.+\]$/) {
+				push @inline, "(0x$pc_corr (0x$pc_corr) $func)";
 			} else {
-			    push @inline, "(0x$pc_corr)";
-			}
+				push @inline, "(0x$pc_corr $func)";
+                        }
 		}
 
 		unshift @stack, @inline;
