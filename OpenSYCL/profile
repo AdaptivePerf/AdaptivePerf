@@ -3,9 +3,9 @@ set -e
 
 TO_PROFILE=$(realpath $1)
 
-function convert_to_time() {
+function convert_from_ns_to_us() {
     while read -ra arr; do
-	new_val=$(perl <<< "print ${arr[-1]}/$CLOCK_SPEED")
+	new_val=$(perl <<< "print ${arr[-1]}/1000")
 	arr[-1]=$new_val
 	echo ${arr[@]}
     done
@@ -52,8 +52,6 @@ if ! grep -qs '/sys/kernel/debug ' /proc/mounts; then
     sudo mount -t debugfs none /sys/kernel/debug
 fi
 
-CLOCK_SPEED=$(cat /proc/cpuinfo | grep "cpu MHz" | sed -E 's/cpu MHz\s*:\s*([0-9\.]+)\s*/\1/' | sort -n | uniq | head -n 1)
-
 echo "==> Preparing results directory and starting tracers..."
 mkdir -p results
 cd results
@@ -89,7 +87,7 @@ PIDS=()
 for i in $(seq 0 $((JOBS-1))); do
    script_i="script${i}.data"
    echo -n "Starting $script_i..."
-   cat script_mmap.data $script_i | stackcollapse-perf.pl --tid | grep "^python3.12" | convert_to_time > ${script_i:0:-5}_collapsed.data && rm $script_i && echo "$script_i done!" &
+   cat script_mmap.data $script_i | stackcollapse-perf.pl --tid | grep "^python3.12" | convert_from_ns_to_us > ${script_i:0:-5}_collapsed.data && rm $script_i && echo "$script_i done!" &
    PIDS+=($!)
    echo "PID ${PIDS[-1]}"
 done

@@ -68,9 +68,16 @@ use Getopt::Long;
 use bigint;
 
 my %collapsed;
+my $last_stack;
 
 sub remember_stack {
 	my ($stack, $count) = @_;
+
+	if (defined $last_stack and $last_stack ne $stack) {
+		$count /= 2;
+		$collapsed{$last_stack} += $count;
+	}
+
 	$collapsed{$stack} += $count;
 }
 my $annotate_kernel = 0; # put an annotation on kernel function
