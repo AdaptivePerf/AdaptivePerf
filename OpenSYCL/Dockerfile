@@ -16,19 +16,6 @@ RUN dnf update -y && dnf install -y dnf-plugins-core gcc gcc-c++ git gmp gmp-dev
     perl diffutils gem wget bison rsync patch rpm-build && gem install fpm
 
 
-### Install glibc from source
-RUN export VER=$(rpm -qa glibc | sed -E 's/glibc-([0-9\.]+)-.+/\1/') && wget https://ftp.gnu.org/gnu/glibc/glibc-$VER.tar.gz && \
-    tar xf glibc-$VER.tar.gz && dnf download --source glibc-$VER && rpm -ivh *.rpm && cd glibc-$VER && \
-    export PATCH_ARGS=$(cat ../rpmbuild/SPECS/glibc.spec | grep %autosetup | sed -E 's/.+(\-p[0-9]+)/\1/') && \
-    export PATCH_FILES=$(cat ../rpmbuild/SPECS/glibc.spec | grep Patch[0-9]*: | sed -E 's/Patch[0-9]*: (.+)/..\/rpmbuild\/SOURCES\/\1/') && \
-    for i in $PATCH_FILES; do patch $PATCH_ARGS < $i; done && \
-    mkdir ../glibc-build && cd ../glibc-build && \
-    ../glibc-$VER/configure CFLAGS="-g -O2 ${COMPILE_FLAGS}" --prefix=/usr \
-    --with-nonshared-cflags="-fplugin=annobin -fplugin-arg-annobin-disable -Wa,--generate-missing-build-notes=yes ${COMPILE_FLAGS}" \
-    --enable-bind-now --enable-stack-protector=strong --enable-tunables --enable-systemtap --enable-cet --disable-crypt && make -j && \
-    make install DESTDIR=/tmp/glibc && rsync -aK /tmp/glibc/ / && ldconfig && cd .. && rm -rf *rpm* glibc* && echo "exclude=glibc*" >> /etc/dnf/dnf.conf
-
-
 ### Install GCC from source
 ARG GCC_VERSION=11
 
