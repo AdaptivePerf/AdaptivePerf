@@ -17,13 +17,28 @@ RUN dnf update -y && dnf install -y dnf-plugins-core gcc gcc-c++ git gmp gmp-dev
 
 
 ### Install GCC from source
+### (two GCC installations are needed: an older one as the default option for CUDA compatibility reasons 
+### and a newer one for compiling perf in inheriting images)
+
+## Older GCC
 ARG GCC_VERSION=11
 
 RUN mkdir gcc gcc/build && cd gcc && git clone https://github.com/gcc-mirror/gcc && cd gcc && git checkout releases/gcc-${GCC_VERSION}
 RUN cd gcc/build && ../gcc/configure --prefix=/usr --disable-multilib && make -j CFLAGS_FOR_TARGET="-g ${COMPILE_FLAGS}" CXXFLAGS_FOR_TARGET="-g ${COMPILE_FLAGS}"
-RUN cd gcc/build && rpm -e --nodeps gcc gcc-c++ && make install && cd ../.. && rm -r gcc && export VER=$(gcc --version | awk '/gcc/ {print $3}') && \
+RUN cd gcc/build && rpm -e --nodeps gcc gcc-c++ && make install && cd ../.. && export VER=$(gcc --version | awk '/gcc/ {print $3}') && \
     fpm -s empty -t rpm -n gcc -v $VER -a native && fpm -s empty -t rpm -n gcc-c++ -v $VER -a native && dnf install -y *.rpm && rm -r *.rpm && \
     echo "exclude=gcc gcc-c++" >> /etc/dnf/dnf.conf
+
+## Newer GCC with annobin
+ARG GCC_VERSION=13
+
+RUN cd gcc/gcc && git checkout releases/gcc-${GCC_VERSION} && cd ../build && rm -rf * && \
+    ../gcc/configure --prefix=/usr --disable-multilib --program-suffix="${GCC_VERSION}" && \
+    make -j CFLAGS_FOR_TARGET="-g ${COMPILE_FLAGS}" CXXFLAGS_FOR_TARGET="-g ${COMPILE_FLAGS}"
+RUN cd gcc/build && make install && cd ../.. && rm -r gcc
+RUN export PLUGIN_PATH=/usr/lib64/gcc/$(uname -m)*/${GCC_VERSION}*/plugin && git clone git://sourceware.org/git/annobin.git && cd annobin && \
+    ./configure --with-gcc-plugin-dir="${PLUGIN_PATH}" CC=gcc${GCC_VERSION} CXX=g++${GCC_VERSION} && \
+    make -j && make install && ln -s ${PLUGIN_PATH}/annobin.so ${PLUGIN_PATH}/gcc-annobin.so
 
 
 ### Install other dependencies
