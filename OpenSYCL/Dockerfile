@@ -13,7 +13,8 @@ WORKDIR /root
 
 ### Install dependencies for installing GCC and glibc from source
 RUN dnf update -y && dnf install -y dnf-plugins-core gcc gcc-c++ git gmp gmp-devel mpfr mpfr-devel libmpc libmpc-devel flex \
-    perl diffutils gem wget bison rsync patch rpm-build && gem install fpm
+    perl diffutils gem wget bison rsync patch rpm-build texinfo automake rpm rpm-devel elfutils-libelf elfutils-libelf-devel \
+    elfutils elfutils-devel && gem install fpm
 
 
 ### Install GCC from source
@@ -33,17 +34,16 @@ RUN cd gcc/build && rpm -e --nodeps gcc gcc-c++ && make install && cd ../.. && e
 ARG GCC_VERSION=13
 
 RUN cd gcc/gcc && git checkout releases/gcc-${GCC_VERSION} && cd ../build && rm -rf * && \
-    ../gcc/configure --prefix=/usr --disable-multilib --program-suffix="${GCC_VERSION}" && \
+    ../gcc/configure --prefix=/usr/local --disable-multilib --program-suffix="${GCC_VERSION}" --enable-languages=c,c++ && \
     make -j CFLAGS_FOR_TARGET="-g ${COMPILE_FLAGS}" CXXFLAGS_FOR_TARGET="-g ${COMPILE_FLAGS}"
 RUN cd gcc/build && make install && cd ../.. && rm -r gcc
-RUN export PLUGIN_PATH=/usr/lib64/gcc/$(uname -m)*/${GCC_VERSION}*/plugin && git clone git://sourceware.org/git/annobin.git && cd annobin && \
-    ./configure --with-gcc-plugin-dir="${PLUGIN_PATH}" CC=gcc${GCC_VERSION} CXX=g++${GCC_VERSION} && \
-    make -j && make install && ln -s ${PLUGIN_PATH}/annobin.so ${PLUGIN_PATH}/gcc-annobin.so
+RUN export PLUGIN_PATH=$(compgen -G "/usr/local/lib/gcc/$(uname -m)*/${GCC_VERSION}*/plugin") && git clone git://sourceware.org/git/annobin.git && cd annobin && \
+    ./configure --with-gcc-plugin-dir=${PLUGIN_PATH} CC=gcc${GCC_VERSION} CXX=g++${GCC_VERSION} && \
+    make -j && make install && ln -s ${PLUGIN_PATH}/annobin.so ${PLUGIN_PATH}/gcc-annobin.so && cd .. && rm -r annobin
 
 
 ### Install other dependencies
-RUN dnf install -y cmake which kmod pciutils zlib-devel openssl openssl-devel libffi libffi-devel ninja-build \
-    elfutils-libelf elfutils-libelf-devel
+RUN dnf install -y cmake which kmod pciutils zlib-devel openssl openssl-devel libffi libffi-devel ninja-build
 
 
 ### Install CUDA
@@ -65,6 +65,9 @@ RUN git clone https://github.com/python/cpython && cd cpython && git checkout ${
     ./configure --enable-shared --enable-optimizations --prefix=/usr CFLAGS="-g ${COMPILE_FLAGS}" CPPFLAGS="-g ${COMPILE_FLAGS}" && make -j && \
     make altinstall && cd .. && rm -r cpython
 
+# Temporary workaround for https://github.com/python/cpython/issues/108819
+RUN ln -s /usr/lib64/python${PYTHON_VERSION}/lib-dynload /usr/lib/python${PYTHON_VERSION}/ || true
+
 
 ### Install Boost from source
 RUN wget https://boostorg.jfrog.io/artifactory/main/release/1.82.0/source/boost_1_82_0.tar.gz && tar xf *.tar.gz && cd boost_1_82_0 && ./bootstrap.sh --prefix=/usr && \
@@ -72,7 +75,7 @@ RUN wget https://boostorg.jfrog.io/artifactory/main/release/1.82.0/source/boost_
 
 
 ### Set up essential tooling and configure "sycl" user
-RUN dnf install -y gdb procps nano sudo perf flamegraph flamegraph-stackcollapse-perf ethtool flex \
+RUN dnf install -y gdb procps nano sudo flamegraph flamegraph-stackcollapse-perf ethtool flex \
     iperf3 python3-netaddr ncurses-devel netperf python3-pip && \
     ln -s /usr/bin/python3 /usr/bin/python && useradd -m sycl && echo "sycl ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 USER sycl
