@@ -110,7 +110,8 @@ ENV CMAKE_PREFIX_PATH="${CMAKE_PREFIX_PATH}:/home/sycl/OpenSYCL/build_install"
 RUN pip3 install pyroute2 && git clone https://github.com/iovisor/bcc
 COPY clang_libs.cmake /home/sycl/bcc/cmake/
 RUN export LDFLAGS="-Wl,--copy-dt-needed-entries" && mkdir bcc/build bcc/install && cd bcc/build && \
-    cmake ../ -DCMAKE_INSTALL_PREFIX=/home/sycl/bcc/install -DENABLE_LLVM_SHARED=ON && make -j && make install && \
+    cmake ../ -DCMAKE_INSTALL_PREFIX=/home/sycl/bcc/install -DENABLE_LLVM_SHARED=ON \
+    -DPYTHON_PREFIX=/home/sycl/bcc/install && make -j && make install && \
     mkdir -p /home/sycl/bcc/install/lib/python && \
     ln -s /home/sycl/bcc/install/lib/python*/site-packages/bcc* /home/sycl/bcc/install/lib/python/bcc
 COPY offcputime /home/sycl/bcc/install/share/bcc/tools/
