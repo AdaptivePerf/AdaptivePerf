@@ -12,82 +12,36 @@ function convert_from_ns_to_us() {
 }
 
 function perf_record() {
-    mkdir out
-    cd out
+    mkdir results/out
 
     # stdout and stderr redirection based on https://unix.stackexchange.com/a/6431
-    (perf record --call-graph fp -e task-clock -o perf.data -F $1 -- env CLING_DEBUG=1 CLING_PROFILE=1 python3.12 -X perf $TO_PROFILE | tee stdout.log) 3>&1 1>&2 2>&3 | tee stderr.log
-
-    cd ..
+    (perf record --call-graph fp -e task-clock -e syscalls:sys_exit_clone,syscalls:sys_exit_clone3,syscalls:sys_exit_fork,syscalls:sys_exit_vfork -o results/out/perf.data -F $1 --off-cpu -- $TO_PROFILE | tee results/out/stdout.log) 3>&1 1>&2 2>&3 | tee results/out/stderr.log
 
     echo "==> Code execution completed!"
-
-    echo "==> Terminating perf-trace..."
-    while ps -p $PERF_TRACE_PID > /dev/null; do
-	if ! sudo kill $PERF_TRACE_PID &> /dev/null; then
-	    break
-	fi
-    done
-
-    if ps -p $PERF_TRACE_PID > /dev/null; then
-	echo "==> ERROR: perf-trace is still running despite terminating!"
-	exit 1
-    fi
-
-    echo "==> Terminating offcputime..."
-    while ps -p $OFFCPUTIME_PID > /dev/null; do
-	if ! sudo kill -s SIGUSR1 $OFFCPUTIME_PID &> /dev/null; then
-	    break
-	fi
-    done
-
-    if ps -p $OFFCPUTIME_PID > /dev/null; then
-	echo "==> ERROR: offcputime is still running despite terminating!"
-	exit 1
-    fi
 }
 
-if ! grep -qs '/sys/kernel/debug ' /proc/mounts; then
-    echo "==> /sys/kernel/debug is not mounted, mounting..."
-    sudo mount -t debugfs none /sys/kernel/debug
-fi
-
-echo "==> Preparing results directory and starting tracers..."
-mkdir -p results
-cd results
-rm -rf *
-sudo perf trace -e clone,fork,vfork 2> syscalls.data &
-PERF_TRACE_PID=$!
-sudo -E env PATH=$PATH PYTHONPATH=$PYTHONPATH LD_LIBRARY_PATH=$LD_LIBRARY_PATH offcputime -f > off_cpu_full.data &
-OFFCPUTIME_PID=$!
-echo "perf-trace PID: $PERF_TRACE_PID"
-echo "offcputime PID: $OFFCPUTIME_PID"
-
-echo "==> Waiting 10 seconds for the tracers to warm up..."
-sleep 10
+echo "==> Preparing results directory..."
+rm -rf results
+mkdir results
 
 echo "==> Executing the code..."
-perf_record $3 &
-
-set +e
-wait $PERF_TRACE_PID
-set -e
-
-wait $OFFCPUTIME_PID
+perf_record $3
 
 echo "==> Cleaning up and creating collapsed reports..."
-mv out/core.* out/perf.data .
-cat off_cpu_full.data | grep "python3.12" > off_cpu.data
-rm off_cpu_full.data
+cd results
+mv out/perf.data .
 
 JOBS=$2
-perf script -i perf.data -F comm,tid,pid,time,event,ip,sym,dso,period --no-demangle | c++filt -p | ../split_report $JOBS
+perf script -i perf.data -F comm,tid,pid,time,event,ip,sym,dso,period --no-demangle --max-stack=$(sysctl -n kernel.perf_event_max_stack) --per-event-dump
+
+cat perf.data.task-clock.dump perf.data.offcpu-time.dump | c++filt -p | split_report $JOBS
+rm *.dump
 
 PIDS=()
 for i in $(seq 0 $((JOBS-1))); do
    script_i="script${i}.data"
    echo -n "Starting $script_i..."
-   cat $script_i | stackcollapse-perf.pl --tid | grep "^python3.12" | convert_from_ns_to_us > ${script_i:0:-5}_collapsed.data && rm $script_i && echo "$script_i done!" &
+   cat $script_i | stackcollapse-perf.pl --tid | convert_from_ns_to_us > ${script_i:0:-5}_collapsed.data && rm $script_i && echo "$script_i done!" &
    PIDS+=($!)
    echo "PID ${PIDS[-1]}"
 done
@@ -96,33 +50,17 @@ for pid in ${PIDS[@]}; do
    wait $pid
 done
 
-../merge script*_collapsed.data > script_collapsed.data.tmp
+merge script*_collapsed.data > script_collapsed.data.tmp
 rm script*_collapsed.data
 mv script_collapsed.data.tmp script_collapsed.data
 
-echo "==> Matching addresses to symbols..."
-cd ..
-./match_addr results/script_collapsed.data python3.12 results/core.* results/script_collapsed_final.data hot $JOBS
-./match_addr results/off_cpu.data python3.12 results/core.* results/off_cpu_final.data cold $JOBS
-
 echo "==> Splitting reports into processes/threads..."
-./split_ids results/script_collapsed_final.data results/off_cpu_final.data
+cd ..
+split_ids results/script_collapsed.data
 
 echo "==> Removing leftover files and producing flame graphs..."
-rm results/core.* results/off_cpu*.data results/script*.data results/perf.data
+rm results/script*.data
 cd results/processed
-for i in *_cold.data; do
-    if [ "$i" != "*_cold.data" ]; then
-        [ -f "${i:0:-10}_hot.data" ] && cat "${i:0:-10}_hot.data" >> "${i:0:-10}.data" && rm "${i:0:-10}_hot.data"
-        cat "$i" >> "${i:0:-10}.data" && rm "$i"
-    fi
-done
-
-for i in *_hot.data; do
-    if [ "$i" != "*_hot.data" ]; then
-        [ ! -f "${i:0:-9}.data" ] && mv "$i" "${i:0:-9}.data"
-    fi
-done
 
 for i in *.data; do
     flamegraph.pl --countname=us "$i" > "${i:0:-5}.svg"
