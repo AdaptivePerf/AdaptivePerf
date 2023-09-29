@@ -13,9 +13,15 @@ function convert_from_ns_to_us() {
 
 function perf_record() {
     mkdir results/out
+    RESULT_OUT=$(pwd)/results/out
+    OLD_DIR=$(pwd)
+
+    cd $(dirname $TO_PROFILE)
 
     # stdout and stderr redirection based on https://unix.stackexchange.com/a/6431
-    (perf record --call-graph fp -e task-clock -e syscalls:sys_exit_clone,syscalls:sys_exit_clone3,syscalls:sys_exit_fork,syscalls:sys_exit_vfork -o results/out/perf.data -F $1 --off-cpu -- $TO_PROFILE | tee results/out/stdout.log) 3>&1 1>&2 2>&3 | tee results/out/stderr.log
+    (perf record --call-graph fp -e task-clock -e syscalls:sys_exit_clone,syscalls:sys_exit_clone3,syscalls:sys_exit_fork,syscalls:sys_exit_vfork -o $RESULT_OUT/perf.data -F $1 --off-cpu -- $TO_PROFILE | tee $RESULT_OUT/stdout.log) 3>&1 1>&2 2>&3 | tee $RESULT_OUT/stderr.log
+
+    cd $OLD_DIR
 
     echo "==> Code execution completed!"
 }
