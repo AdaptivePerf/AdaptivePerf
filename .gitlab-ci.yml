@@ -1,62 +1,16 @@
 stages:
-  - opensycl-build
-  - base-build
+  - deploy-to-instances
 
-opensycl-root-llvm:
+deploy:
   tags:
-    - openlab-shell
-  stage: opensycl-build
-  variables:
-    IMAGE_NAME: gitlab-registry.cern.ch/syclops/testinginfra/opensycl
-  before_script:
-    - echo $CONTAINER_TOKEN | podman login --username $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
+    - gentoo-profiling
+  stage: deploy-to-instances
   script:
-    # Based on https://gitlab.com/gitlab-org/gitlab-foss/-/blob/master/lib/gitlab/ci/templates/Docker.gitlab-ci.yml
     - |
-      if [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" ]]; then
-        TAG="root-llvm"
-      else
-        TAG="root-llvm-$CI_COMMIT_REF_SLUG"
-      fi
-    - podman build --network=host -t $IMAGE_NAME:$TAG --build-arg LLVM_GIT_BRANCH=ROOT-llvm13 $CI_PROJECT_DIR/OpenSYCL
-    - podman push $IMAGE_NAME:$TAG
-
-opensycl-cling-llvm:
-  tags:
-    - openlab-shell
-  stage: opensycl-build
-  variables:
-    IMAGE_NAME: gitlab-registry.cern.ch/syclops/testinginfra/opensycl
-  before_script:
-    - echo $CONTAINER_TOKEN | podman login --username $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
-  script:
-    # Based on https://gitlab.com/gitlab-org/gitlab-foss/-/blob/master/lib/gitlab/ci/templates/Docker.gitlab-ci.yml
-    - |
-      if [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" ]]; then
-        TAG="cling-llvm"
-      else
-        TAG="cling-llvm-$CI_COMMIT_REF_SLUG"
-      fi
-    - podman build --network=host -t $IMAGE_NAME:$TAG --build-arg LLVM_GIT_BRANCH=cling-llvm13 $CI_PROJECT_DIR/OpenSYCL
-    - podman push $IMAGE_NAME:$TAG
-
-sycl-root-base:
-  tags:
-    - openlab-shell
-  stage: base-build
-  variables:
-    IMAGE_NAME: gitlab-registry.cern.ch/syclops/testinginfra/sycl-root-base
-  before_script:
-    - echo $CONTAINER_TOKEN | podman login --username $CI_REGISTRY_USER --password-stdin $CI_REGISTRY
-  script:
-    # Based on https://gitlab.com/gitlab-org/gitlab-foss/-/blob/master/lib/gitlab/ci/templates/Docker.gitlab-ci.yml
-    - |
-      if [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" ]]; then
-        TAG="latest"
-        FROM_TAG="root-llvm"
-      else
-        TAG="$CI_COMMIT_REF_SLUG"
-        FROM_TAG="root-llvm-$CI_COMMIT_REF_SLUG"
-      fi
-    - podman build --network=host -t $IMAGE_NAME:$TAG --build-arg TAG=$FROM_TAG $CI_PROJECT_DIR/SYCL-ROOT
-    - podman push $IMAGE_NAME:$TAG
+      for i in $CI_PROJECT_DIR/OpenSYCL/*; do
+        if [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" ]]; then
+          sudo cp $i /usr/local/bin/
+        else
+          sudo cp $i "/usr/local/bin/$(basename $i)-$CI_COMMIT_BRANCH"
+        fi
+      done
