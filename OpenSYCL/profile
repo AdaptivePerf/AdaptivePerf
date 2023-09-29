@@ -26,6 +26,11 @@ function perf_record() {
     echo "==> Code execution completed!"
 }
 
+if ! grep -qs '/sys/kernel/debug ' /proc/mounts; then
+    echo "==> /sys/kernel/debug is not mounted, mounting..."
+    sudo mount -t debugfs none /sys/kernel/debug
+fi
+
 echo "==> Preparing results directory..."
 rm -rf results
 mkdir results
