@@ -17,10 +17,14 @@ function perf_record() {
     OLD_DIR=$(pwd)
 
     cd $(dirname $TO_PROFILE)
+    declare -px > dump.env
 
     # stdout and stderr redirection based on https://unix.stackexchange.com/a/6431
-    (perf record --call-graph fp -e task-clock -e syscalls:sys_exit_clone,syscalls:sys_exit_clone3,syscalls:sys_exit_fork,syscalls:sys_exit_vfork -o $RESULT_OUT/perf.data -F $1 --off-cpu -- $TO_PROFILE | tee $RESULT_OUT/stdout.log) 3>&1 1>&2 2>&3 | tee $RESULT_OUT/stderr.log
+    (sudo perf record --call-graph fp -e task-clock -e syscalls:sys_exit_clone,syscalls:sys_exit_clone3,syscalls:sys_exit_fork,syscalls:sys_exit_vfork -o $RESULT_OUT/perf.data -F $1 --off-cpu -- runuser -u $(whoami) -- /bin/bash -c "source dump.env && $TO_PROFILE" | tee $RESULT_OUT/stdout.log) 3>&1 1>&2 2>&3 | tee $RESULT_OUT/stderr.log
 
+    rm dump.env
+
+    sudo chown $(whoami) $RESULT_OUT/perf.data
     cd $OLD_DIR
 
     echo "==> Code execution completed!"
