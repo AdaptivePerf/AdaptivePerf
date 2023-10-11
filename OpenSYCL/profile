@@ -17,14 +17,29 @@ function perf_record() {
     OLD_DIR=$(pwd)
 
     cd $(dirname $TO_PROFILE)
-    declare -px > dump.env
+    mkfifo $RESULT_OUT/waitpipe
 
     # stdout and stderr redirection based on https://unix.stackexchange.com/a/6431
-    (sudo perf record --call-graph fp -e task-clock -e syscalls:sys_exit_clone,syscalls:sys_exit_clone3,syscalls:sys_exit_fork,syscalls:sys_exit_vfork -o $RESULT_OUT/perf.data -F $1 --off-cpu -- runuser -u $(whoami) -- /bin/bash -c "source dump.env && $TO_PROFILE" | tee $RESULT_OUT/stdout.log) 3>&1 1>&2 2>&3 | tee $RESULT_OUT/stderr.log
+    # PID retrieval based on https://stackoverflow.com/a/3786955
+    (cat $RESULT_OUT/waitpipe > /dev/null && $TO_PROFILE & echo $! >&3) 3>pid | tee $RESULT_OUT/stdout.log 3>&1 1>&2 2>&3 | tee $RESULT_OUT/stderr.log &
+    TO_PROFILE_PID=$(<pid)
 
-    rm dump.env
+    sudo perf record -e syscalls:sys_exit_execve,syscalls:sys_exit_clone,syscalls:sys_exit_clone3,syscalls:sys_exit_fork,syscalls:sys_exit_vfork,syscalls:sys_enter_exit,syscalls:sys_enter_exit_group -o $RESULT_OUT/syscalls.data --pid=$TO_PROFILE_PID &
+    SYSCALLS_PID=$!
+    sudo perf record --call-graph fp -e task-clock -F $1 --off-cpu -o $RESULT_OUT/perf.data --pid=$TO_PROFILE_PID &
+    SAMPLING_PID=$!
 
-    sudo chown $(whoami) $RESULT_OUT/perf.data
+    echo "==> Waiting 10 seconds for the tracers to warm up..."
+    sleep 10
+
+    echo "==> Executing the code..."
+    echo 1 > $RESULT_OUT/waitpipe
+    wait $SYSCALLS_PID
+    wait $SAMPLING_PID
+
+    rm $RESULT_OUT/waitpipe
+
+    sudo chown $(whoami) $RESULT_OUT/*.data
     cd $OLD_DIR
 
     echo "==> Code execution completed!"
@@ -39,12 +54,12 @@ echo "==> Preparing results directory..."
 rm -rf results
 mkdir results
 
-echo "==> Executing the code..."
+echo "==> Starting tracers..."
 perf_record $3
 
 echo "==> Cleaning up and creating collapsed reports..."
 cd results
-mv out/perf.data .
+mv out/*.data .
 
 JOBS=$2
 perf script -i perf.data -F comm,tid,pid,time,event,ip,sym,dso,period --no-demangle --max-stack=$(sysctl -n kernel.perf_event_max_stack) --per-event-dump
