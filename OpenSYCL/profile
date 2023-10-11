@@ -50,6 +50,10 @@ if ! grep -qs '/sys/kernel/debug ' /proc/mounts; then
     sudo mount -t debugfs none /sys/kernel/debug
 fi
 
+echo "==> Updating kernel settings to facilitate profiling..."
+sudo sysctl kernel.perf_event_paranoid=-1
+sudo sysctl kernel.perf_event_max_stack=1024
+
 echo "==> Preparing results directory..."
 rm -rf results
 mkdir results
