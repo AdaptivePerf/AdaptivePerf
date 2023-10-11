@@ -68,9 +68,16 @@ use Getopt::Long;
 use bigint;
 
 my %collapsed;
+my $last_stack;
 
 sub remember_stack {
 	my ($stack, $count) = @_;
+
+	if (defined $last_stack and $last_stack ne $stack) {
+		$count /= 2;
+		$collapsed{$last_stack} += $count;
+	}
+
 	$collapsed{$stack} += $count;
 }
 my $annotate_kernel = 0; # put an annotation on kernel function
@@ -200,6 +207,7 @@ my $m_pid;
 my $m_tid;
 my $m_period;
 my $m_time;
+my $m_offcpu;
 my %correction_addr;
 
 #
@@ -236,6 +244,12 @@ while (defined($_ = <>)) {
 				unshift @stack, "";
 			}
 		}
+
+		if ($m_offcpu) {
+		    $stack[-1] = "[cold]_" . $stack[-1];
+		}
+
+		$m_offcpu = 0;
 		remember_stack(join(";", @stack), $m_period) if @stack;
 		undef @stack;
 		undef $pname;
@@ -263,7 +277,7 @@ while (defined($_ = <>)) {
 		# eg, "java 12688/12764 6544038.708352: 10309278 cpu-clock:"
 		# eg, "V8 WorkerThread 24636/25607 [000] 94564.109216: 100 cycles:"
 		# other combinations possible
-        	my ($comm, $pid, $tid, $period) = ($1, $2, $3, "");
+		my ($comm, $pid, $tid, $period) = ($1, $2, $3, "");
 		if (not $tid) {
 			$tid = $pid;
 			$pid = "?";
@@ -273,13 +287,19 @@ while (defined($_ = <>)) {
 			$period = $1;
 			my $event = $2;
 
+			if ($event eq "offcpu-time") {
+			    $m_offcpu = 1;
+			} else {
+			    $m_offcpu = 0;
+			}
+
 			if ($event_filter eq "") {
 				# By default only show events of the first encountered
 				# event type. Merging together different types, such as
 				# instructions and cycles, produces misleading results.
 				$event_filter = $event;
 				$event_defaulted = 1;
-			} elsif ($event ne $event_filter) {
+			} elsif ($event ne $event_filter and $event ne "offcpu-time") {
 				if ($event_defaulted and $event_warning == 0) {
 					# only print this warning if necessary:
 					# when we defaulted and there was
@@ -436,16 +456,16 @@ while (defined($_ = <>)) {
 		        my $pc_corr;
 
 			if (exists $correction_addr{$m_pid.$mod}) {
-			    $pc_corr = (hex($pc) + $correction_addr{$m_pid.$mod})->to_hex;
+				$pc_corr = (hex($pc) + $correction_addr{$m_pid.$mod})->to_hex;
 			} else {
-			    $pc_corr = $pc;
+				$pc_corr = $pc;
 			}
 
-			if ($mod =~ m/perf-\d+.map/ || ($mod =~ m/(^\[|vmlinux$)/ && $mod !~ /unknown/)) {
-			    push @inline, "(0x$pc_corr $func)";
+			if ($func eq "[unknown]") {
+				push @inline, "(0x$pc_corr)";
 			} else {
-			    push @inline, "(0x$pc_corr)";
-			}
+				push @inline, $func;
+                        }
 		}
 
 		unshift @stack, @inline;
