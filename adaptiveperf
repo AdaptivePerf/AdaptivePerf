@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-TO_PROFILE=$(realpath $1)
+TO_PROFILE=$1
 
 function convert_from_ns_to_us() {
     while read -ra arr; do
@@ -12,19 +12,24 @@ function convert_from_ns_to_us() {
 }
 
 function perf_record() {
-    mkdir results/out
-    RESULT_OUT=$(pwd)/results/out
-    OLD_DIR=$(pwd)
+    mkdir results/$RESULT_STORAGE/out
+    RESULT_OUT=$(pwd)/results/$RESULT_STORAGE/out
 
-    cd $(dirname $TO_PROFILE)
     mkfifo $RESULT_OUT/waitpipe
 
     # stdout and stderr redirection based on https://unix.stackexchange.com/a/6431
     # PID retrieval based on https://stackoverflow.com/a/3786955
     (cat $RESULT_OUT/waitpipe > /dev/null && $TO_PROFILE & echo $! >&3) 3>pid | tee $RESULT_OUT/stdout.log 3>&1 1>&2 2>&3 | tee $RESULT_OUT/stderr.log &
     TO_PROFILE_PID=$(<pid)
+    rm -f pid
 
-    sudo perf record -e syscalls:sys_exit_execve,syscalls:sys_exit_clone,syscalls:sys_exit_clone3,syscalls:sys_exit_fork,syscalls:sys_exit_vfork,syscalls:sys_enter_exit,syscalls:sys_enter_exit_group -o $RESULT_OUT/syscalls.data --pid=$TO_PROFILE_PID &
+    SYSCALL_LIST="syscalls:sys_exit_execve,syscalls:sys_exit_clone,syscalls:sys_exit_fork,syscalls:sys_exit_vfork,syscalls:sys_enter_exit,syscalls:sys_enter_exit_group"
+
+    if [[ $(sudo perf list | grep syscalls:sys_exit_clone3 | wc -l) -gt 0 ]]; then
+        SYSCALL_LIST+=",syscalls:sys_exit_clone3"
+    fi
+
+    sudo perf record -e $SYSCALL_LIST -o $RESULT_OUT/syscalls.data --pid=$TO_PROFILE_PID &
     SYSCALLS_PID=$!
     sudo perf record --call-graph fp -e task-clock -F $1 --off-cpu -o $RESULT_OUT/perf.data --pid=$TO_PROFILE_PID &
     SAMPLING_PID=$!
@@ -40,7 +45,6 @@ function perf_record() {
     rm $RESULT_OUT/waitpipe
 
     sudo chown $(whoami) $RESULT_OUT/*.data
-    cd $OLD_DIR
 
     echo "==> Code execution completed!"
 }
@@ -55,14 +59,15 @@ sudo sysctl kernel.perf_event_paranoid=-1
 sudo sysctl kernel.perf_event_max_stack=1024
 
 echo "==> Preparing results directory..."
-rm -rf results
-mkdir results
+printf -v DATE "%(%Y_%m_%d_%H_%M)T" -1  # Based on https://stackoverflow.com/a/1401495
+RESULT_STORAGE=${DATE}_$(hostname)_$(basename $TO_PROFILE | cut -f1 -d ' ')
+mkdir -p results/$RESULT_STORAGE
 
 echo "==> Starting tracers..."
 perf_record $3
 
 echo "==> Cleaning up and creating collapsed reports..."
-cd results
+cd results/$RESULT_STORAGE
 mv out/*.data .
 
 JOBS=$2
@@ -89,12 +94,12 @@ rm script*_collapsed.data
 mv script_collapsed.data.tmp script_collapsed.data
 
 echo "==> Splitting reports into processes/threads..."
-cd ..
-adaptiveperf-split-ids results/script_collapsed.data
+cd ../..
+adaptiveperf-split-ids results/$RESULT_STORAGE/script_collapsed.data
 
 echo "==> Removing leftover files and producing flame graphs..."
-rm results/script*.data
-cd results/processed
+rm results/$RESULT_STORAGE/script*.data
+cd results/$RESULT_STORAGE/processed
 
 for i in *.data; do
     adaptiveperf-flamegraph --title="Wall time flame graph" --countname=us "$i" > "${i:0:-5}.svg"
