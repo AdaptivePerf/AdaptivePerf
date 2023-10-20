@@ -10,8 +10,8 @@ A comprehensive profiling tool for heterogeneous architectures, designed for uti
 
 ## Installation
 ### Requirements
-* Linux with kernel-specific packages enabling profiling (for RHEL/CentOS/AlmaLinux: ```kernel-headers```, ```kernel-modules```).
-* [The patched ```perf```](https://gitlab.cern.ch/syclops/linux/-/tree/master/tools/perf) compiled with Python support and ```BUILD_BPF_SKEL=1```.
+* Linux with kernel-specific packages enabling profiling (for RHEL/CentOS/AlmaLinux: ```kernel-headers```, ```kernel-modules```). For best reliability of off-CPU profiling, usage of the newest Linux kernel version is recommended.
+* [The patched ```perf```](https://gitlab.cern.ch/syclops/linux/-/tree/master/tools/perf) compiled with ```BUILD_BPF_SKEL=1```.
 * Dependencies of your profiled code compiled with frame pointers (i.e. with the ```-fno-omit-frame-pointer``` and ```-mno-omit-leaf-frame-pointer``` gcc flags). It is recommended that everything in your system is compiled with frame pointers, otherwise you may get broken stacks in profiling results.
 
 ### Local
