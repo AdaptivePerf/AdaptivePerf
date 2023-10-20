@@ -7,7 +7,7 @@ deploy:
   stage: deploy-to-instances
   script:
     - |
-      for i in $CI_PROJECT_DIR/OpenSYCL/*; do
+      for i in $CI_PROJECT_DIR/adaptiveperf*; do
         if [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" ]]; then
           sudo cp $i /usr/local/bin/
         else
