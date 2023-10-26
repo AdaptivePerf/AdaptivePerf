@@ -71,7 +71,7 @@ cd results/$RESULT_STORAGE
 mv out/*.data .
 
 JOBS=$2
-perf script -i perf.data -F comm,tid,pid,time,event,ip,sym,dso,period --no-demangle --max-stack=$(sysctl -n kernel.perf_event_max_stack) --per-event-dump
+perf script -i perf.data -F comm,tid,pid,time,event,ip,sym,dso,period --no-demangle --max-stack=$(sysctl -n kernel.perf_event_max_stack) --per-event-dump > /dev/null
 
 cat perf.data.task-clock.dump perf.data.offcpu-time.dump | c++filt -p | adaptiveperf-split-report $JOBS
 rm *.dump
