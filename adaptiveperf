@@ -1,108 +1,179 @@
 #!/bin/bash
 set -e
 
+touch /tmp/adaptiveperf.pid.$$
+trap 'rm -f /tmp/adaptiveperf.pid.$$' EXIT
+
 TO_PROFILE=$1
+
+function echo_sub() {
+    if [[ $2 -eq 1 ]]; then
+        echo -e "\033[0;31m-> $1\033[0m"
+    else
+        echo -e "\033[0;34m-> $1\033[0m"
+    fi
+}
+
+function echo_main() {
+    echo -e "\033[1;32m==> $1\033[0m"
+}
 
 function convert_from_ns_to_us() {
     while read -ra arr; do
-	new_val=$(perl <<< "print ${arr[-1]}/1000")
-	arr[-1]=$new_val
-	echo ${arr[@]}
+        new_val=$(perl <<< "print ${arr[-1]}/1000")
+        arr[-1]=$new_val
+        echo ${arr[@]}
     done
 }
 
-function perf_record() {
-    mkdir results/$RESULT_STORAGE/out
-    RESULT_OUT=$(pwd)/results/$RESULT_STORAGE/out
+function check_kernel_settings() {
+    if ! grep -qs '/sys/kernel/debug ' /proc/mounts; then
+        echo_sub "/sys/kernel/debug is not mounted, mounting..."
+        sudo mount -t debugfs none /sys/kernel/debug
+    fi
 
-    mkfifo $RESULT_OUT/waitpipe
+    paranoid=$(sysctl -n kernel.perf_event_paranoid)
+    max_stack=$(sysctl -n kernel.perf_event_max_stack)
+
+    if [[ $paranoid -ne -1 ]]; then
+        echo_sub "kernel.perf_event_paranoid is not -1! Please run \"sysctl kernel.perf_event_paranoid=-1\" before profiling." 1
+        exit 1
+    fi
+
+    echo_sub "Note that stacks with more than $max_stack entries/entry *WILL* be broken in your results! To avoid that, run \"sysctl kernel.perf_event_max_stack=<larger value>\"."
+}
+
+function check_numa() {
+    if ! command -v numactl &> /dev/null; then
+        echo_sub "numactl not found! Please install it first before using adaptiveperf." 1
+        exit 1
+    fi
+
+    available_nodes=( $(numactl -H | sed -nE 's/node ([0-9]+) size:.*/\1/p') )
+    running_perf_instances=$(( $(ls /tmp/adaptiveperf.pid.* | wc -l) - 1))  # Do not count itself
+
+    if [[ $running_perf_instances -ge ${#available_nodes[@]} ]]; then
+        echo_sub "No more NUMA nodes available for profiling! Wait until at least one adaptiveperf instance finishes executing." 1
+        exit 1
+    fi
+
+    NODE_NUM=${available_nodes[$running_perf_instances]}
+
+    echo_sub "$((${#available_nodes[@]} - $running_perf_instances)) NUMA node(s) available for profiling, picking node number $NODE_NUM."
+}
+
+function prepare_results_dir() {
+    printf -v date "%(%Y_%m_%d_%H_%M_%S)T" -1  # Based on https://stackoverflow.com/a/1401495
+    RESULT_STORAGE=${date}_$(hostname)_$(basename $TO_PROFILE | cut -f1 -d ' ')
+    mkdir -p results/$RESULT_STORAGE
+}
+
+function perf_record() {
+    echo_sub "Starting tracers..."
+
+    mkdir results/$RESULT_STORAGE/out
+    result_out=$(pwd)/results/$RESULT_STORAGE/out
+
+    mkfifo $result_out/waitpipe
 
     # stdout and stderr redirection based on https://unix.stackexchange.com/a/6431
     # PID retrieval based on https://stackoverflow.com/a/3786955
-    (cat $RESULT_OUT/waitpipe > /dev/null && $TO_PROFILE & echo $! >&3) 3>pid | tee $RESULT_OUT/stdout.log 3>&1 1>&2 2>&3 | tee $RESULT_OUT/stderr.log &
-    TO_PROFILE_PID=$(<pid)
+    (cat $result_out/waitpipe > /dev/null && numactl --cpunodebind $NODE_NUM --membind $NODE_NUM $TO_PROFILE & echo $! >&3) 3>pid | tee $result_out/stdout.log 3>&1 1>&2 2>&3 | tee $result_out/stderr.log &
+
+    while [[ ! -f pid ]]; do
+        true
+    done
+
+    to_profile_pid=$(<pid)
     rm -f pid
 
-    SYSCALL_LIST="syscalls:sys_exit_execve,syscalls:sys_exit_clone,syscalls:sys_exit_fork,syscalls:sys_exit_vfork,syscalls:sys_enter_exit,syscalls:sys_enter_exit_group"
+    syscall_list="syscalls:sys_exit_execve,syscalls:sys_exit_clone,syscalls:sys_exit_fork,syscalls:sys_exit_vfork,syscalls:sys_enter_exit,syscalls:sys_enter_exit_group"
 
     if [[ $(sudo perf list | grep syscalls:sys_exit_clone3 | wc -l) -gt 0 ]]; then
-        SYSCALL_LIST+=",syscalls:sys_exit_clone3"
+        syscall_list+=",syscalls:sys_exit_clone3"
     fi
 
-    sudo perf record -e $SYSCALL_LIST -o $RESULT_OUT/syscalls.data --pid=$TO_PROFILE_PID &
-    SYSCALLS_PID=$!
-    sudo perf record --call-graph fp -e task-clock -F $1 --off-cpu -o $RESULT_OUT/perf.data --pid=$TO_PROFILE_PID &
-    SAMPLING_PID=$!
+    sudo perf record -e $syscall_list -o $result_out/syscalls.data --pid=$to_profile_pid &
+    syscalls_pid=$!
+    sudo perf record --call-graph fp -e task-clock -F $1 -o $result_out/perf.data --off-cpu --pid=$to_profile_pid &
+    sampling_pid=$!
 
-    echo "==> Waiting 10 seconds for the tracers to warm up..."
+    echo_sub "Waiting 10 seconds for the tracers to warm up..."
     sleep 10
 
-    echo "==> Executing the code..."
-    echo 1 > $RESULT_OUT/waitpipe
-    wait $SYSCALLS_PID
-    wait $SAMPLING_PID
+    echo_sub "Executing the code..."
 
-    rm $RESULT_OUT/waitpipe
+    echo 1 > $result_out/waitpipe
+    wait $syscalls_pid
+    wait $sampling_pid
 
-    sudo chown $(whoami) $RESULT_OUT/*.data
+    rm $result_out/waitpipe
 
-    echo "==> Code execution completed!"
+    sudo chown $(whoami) $result_out/*.data
+
+    echo_sub "Code execution completed!"
 }
 
-if ! grep -qs '/sys/kernel/debug ' /proc/mounts; then
-    echo "==> /sys/kernel/debug is not mounted, mounting..."
-    sudo mount -t debugfs none /sys/kernel/debug
-fi
+function clean_up_and_report() {
+    cd results/$RESULT_STORAGE
+    mv out/*.data .
 
-echo "==> Updating kernel settings to facilitate profiling..."
-sudo sysctl kernel.perf_event_paranoid=-1
-sudo sysctl kernel.perf_event_max_stack=1024
+    jobs=$1
+    perf script -i perf.data -F comm,tid,pid,time,event,ip,sym,dso,period --no-demangle --max-stack=$(sysctl -n kernel.perf_event_max_stack) --per-event-dump > /dev/null
 
-echo "==> Preparing results directory..."
-printf -v DATE "%(%Y_%m_%d_%H_%M)T" -1  # Based on https://stackoverflow.com/a/1401495
-RESULT_STORAGE=${DATE}_$(hostname)_$(basename $TO_PROFILE | cut -f1 -d ' ')
-mkdir -p results/$RESULT_STORAGE
+    cat perf.data.task-clock.dump perf.data.offcpu-time.dump | c++filt -p | adaptiveperf-split-report $jobs
+    rm *.dump
 
-echo "==> Starting tracers..."
+    PIDS=()
+    for i in $(seq 0 $((jobs-1))); do
+        script_i="script${i}.data"
+        echo_sub "Starting $script_i..."
+        cat $script_i | adaptiveperf-stackcollapse --tid | convert_from_ns_to_us > ${script_i:0:-5}_collapsed.data && rm $script_i && echo_sub "$script_i done!" &
+        PIDS+=($!)
+    done
+
+    for pid in ${PIDS[@]}; do
+        wait $pid
+    done
+
+    adaptiveperf-merge script*_collapsed.data > script_collapsed.data.tmp
+    rm script*_collapsed.data
+    mv script_collapsed.data.tmp script_collapsed.data
+}
+
+function split_reports() {
+    cd ../..
+    adaptiveperf-split-ids results/$RESULT_STORAGE/script_collapsed.data
+}
+
+function remove_leftovers_and_make_flame_graphs() {
+    rm results/$RESULT_STORAGE/script*.data
+    cd results/$RESULT_STORAGE/processed
+
+    for i in *.data; do
+        adaptiveperf-flamegraph --title="Wall time flame graph" --countname=us "$i" > "${i:0:-5}.svg"
+    done
+}
+
+echo_main "Checking kernel settings..."
+check_kernel_settings
+
+echo_main "Checking for NUMA..."
+check_numa
+
+echo_main "Preparing results directory..."
+prepare_results_dir
+
+echo_main "Profiling..."
 perf_record $3
 
-echo "==> Cleaning up and creating collapsed reports..."
-cd results/$RESULT_STORAGE
-mv out/*.data .
+echo_main "Cleaning up and creating collapsed reports..."
+clean_up_and_report $2
 
-JOBS=$2
-perf script -i perf.data -F comm,tid,pid,time,event,ip,sym,dso,period --no-demangle --max-stack=$(sysctl -n kernel.perf_event_max_stack) --per-event-dump > /dev/null
+echo_main "Splitting reports into processes/threads..."
+split_reports
 
-cat perf.data.task-clock.dump perf.data.offcpu-time.dump | c++filt -p | adaptiveperf-split-report $JOBS
-rm *.dump
+echo_main "Removing leftover files and producing flame graphs..."
+remove_leftovers_and_make_flame_graphs
 
-PIDS=()
-for i in $(seq 0 $((JOBS-1))); do
-   script_i="script${i}.data"
-   echo -n "Starting $script_i..."
-   cat $script_i | adaptiveperf-stackcollapse --tid | convert_from_ns_to_us > ${script_i:0:-5}_collapsed.data && rm $script_i && echo "$script_i done!" &
-   PIDS+=($!)
-   echo "PID ${PIDS[-1]}"
-done
-
-for pid in ${PIDS[@]}; do
-   wait $pid
-done
-
-adaptiveperf-merge script*_collapsed.data > script_collapsed.data.tmp
-rm script*_collapsed.data
-mv script_collapsed.data.tmp script_collapsed.data
-
-echo "==> Splitting reports into processes/threads..."
-cd ../..
-adaptiveperf-split-ids results/$RESULT_STORAGE/script_collapsed.data
-
-echo "==> Removing leftover files and producing flame graphs..."
-rm results/$RESULT_STORAGE/script*.data
-cd results/$RESULT_STORAGE/processed
-
-for i in *.data; do
-    adaptiveperf-flamegraph --title="Wall time flame graph" --countname=us "$i" > "${i:0:-5}.svg"
-done
-
-echo "==> All finished! You can check the results directory now."
+echo_main "All finished! You can check the results directory now."
