@@ -49,17 +49,29 @@ function check_numa() {
         exit 1
     fi
 
-    available_nodes=( $(numactl -H | sed -nE 's/node ([0-9]+) size:.*/\1/p') )
-    running_perf_instances=$(( $(ls /tmp/adaptiveperf.pid.* | wc -l) - 1))  # Do not count itself
+    numa_balancing=$(sysctl -n kernel.numa_balancing)
 
-    if [[ $running_perf_instances -ge ${#available_nodes[@]} ]]; then
-        echo_sub "No more NUMA nodes available for profiling! Wait until at least one adaptiveperf instance finishes executing." 1
-        exit 1
+    if [[ $numa_balancing -eq 1 ]]; then
+        echo_sub "NUMA balancing is enabled, the code will be run on a single NUMA node only to avoid broken stacks."
+        echo_sub "If it's not desired, run \"sysctl kernel.numa_balancing=0\" to disable NUMA balancing."
+
+        available_nodes=( $(numactl -H | sed -nE 's/node ([0-9]+) size:.*/\1/p') )
+        running_perf_instances=$(( $(ls /tmp/adaptiveperf.pid.* | wc -l) - 1))  # Do not count itself
+
+        if [[ $running_perf_instances -ge ${#available_nodes[@]} ]]; then
+            echo_sub "No more NUMA nodes available for profiling! Wait until at least one adaptiveperf instance finishes executing." 1
+            exit 1
+        fi
+
+        NODE_NUM=${available_nodes[$running_perf_instances]}
+
+        echo_sub "$((${#available_nodes[@]} - $running_perf_instances)) NUMA node(s) available for profiling, picking node number $NODE_NUM."
+    else
+        echo_sub "NUMA balancing is disabled, the code will be run on all NUMA nodes."
+        echo_sub "If it's not desired, run \"sysctl kernel.numa_balancing=1\" to enable NUMA balancing."
+
+        NODE_NUM=-1
     fi
-
-    NODE_NUM=${available_nodes[$running_perf_instances]}
-
-    echo_sub "$((${#available_nodes[@]} - $running_perf_instances)) NUMA node(s) available for profiling, picking node number $NODE_NUM."
 }
 
 function prepare_results_dir() {
@@ -78,13 +90,20 @@ function perf_record() {
 
     # stdout and stderr redirection based on https://unix.stackexchange.com/a/6431
     # PID retrieval based on https://stackoverflow.com/a/3786955
-    (cat $result_out/waitpipe > /dev/null && numactl --cpunodebind $NODE_NUM --membind $NODE_NUM $TO_PROFILE & echo $! >&3) 3>pid | tee $result_out/stdout.log 3>&1 1>&2 2>&3 | tee $result_out/stderr.log &
+    if [[ $NODE_NUM -eq -1 ]]; then
+        (cat $result_out/waitpipe > /dev/null && $TO_PROFILE & echo $! >&3) 3>pid | tee $result_out/stdout.log 3>&1 1>&2 2>&3 | tee $result_out/stderr.log &
+    else
+        (cat $result_out/waitpipe > /dev/null && numactl --cpunodebind $NODE_NUM --membind $NODE_NUM $TO_PROFILE & echo $! >&3) 3>pid | tee $result_out/stdout.log 3>&1 1>&2 2>&3 | tee $result_out/stderr.log &
+    fi
+
+    to_profile_wait_pid=$!
 
     while [[ ! -f pid ]]; do
         true
     done
 
     to_profile_pid=$(<pid)
+
     rm -f pid
 
     syscall_list="syscalls:sys_exit_execve,syscalls:sys_exit_clone,syscalls:sys_exit_fork,syscalls:sys_exit_vfork,syscalls:sys_enter_exit,syscalls:sys_enter_exit_group"
@@ -103,7 +122,14 @@ function perf_record() {
 
     echo_sub "Executing the code..."
 
+    start_time=$(date +%s%3N)
+
     echo 1 > $result_out/waitpipe
+    wait $to_profile_wait_pid
+
+    end_time=$(date +%s%3N)
+    runtime_length=$(($end_time - $start_time))
+
     wait $syscalls_pid
     wait $sampling_pid
 
@@ -111,7 +137,7 @@ function perf_record() {
 
     sudo chown $(whoami) $result_out/*.data
 
-    echo_sub "Code execution completed!"
+    echo_sub "Code execution completed in $runtime_length ms!"
 }
 
 function clean_up_and_report() {
