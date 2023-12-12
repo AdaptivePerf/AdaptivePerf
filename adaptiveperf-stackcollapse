@@ -67,18 +67,44 @@ use strict;
 use Getopt::Long;
 use bigint;
 
-my %collapsed;
+my @collapsed;
+
 my $last_stack;
+my $last_count;
+
+my $last_overall_offcpu_stack;
+my $last_overall_offcpu_count;
 
 sub remember_stack {
-	my ($stack, $count) = @_;
+	my ($stack, $count, $overall_offcpu) = @_;
 
-	if (defined $last_stack and $last_stack ne $stack) {
-		$count /= 2;
-		$collapsed{$last_stack} += $count;
+	if ($overall_offcpu) {
+		if (defined $last_overall_offcpu_stack) {
+			if ($last_overall_offcpu_stack ne $stack) {
+				push @collapsed, "$last_overall_offcpu_stack $last_overall_offcpu_count" . "#";
+				$last_overall_offcpu_stack = $stack;
+				$last_overall_offcpu_count = $count;
+			} else {
+				$last_overall_offcpu_count += $count;
+			}
+		} else {
+			$last_overall_offcpu_stack = $stack;
+			$last_overall_offcpu_count = $count;
+		}
+	} else {
+		if (defined $last_stack) {
+			if ($last_stack ne $stack) {
+				push @collapsed, $last_stack . " " . $last_count;
+				$last_stack = $stack;
+				$last_count = $count;
+			} else {
+				$last_count += $count;
+			}
+		} else {
+			$last_stack = $stack;
+			$last_count = $count;
+		}
 	}
-
-	$collapsed{$stack} += $count;
 }
 my $annotate_kernel = 0; # put an annotation on kernel function
 my $annotate_jit = 0;   # put an annotation on jit symbols
@@ -208,6 +234,7 @@ my $m_tid;
 my $m_period;
 my $m_time;
 my $m_offcpu;
+my $m_overall_offcpu;
 my %correction_addr;
 
 #
@@ -246,11 +273,12 @@ while (defined($_ = <>)) {
 		}
 
 		if ($m_offcpu) {
-		    $stack[-1] = "[cold]_" . $stack[-1];
+			$stack[-1] = "[cold]_" . $stack[-1];
 		}
 
 		$m_offcpu = 0;
-		remember_stack(join(";", @stack), $m_period) if @stack;
+		remember_stack(join(";", @stack), $m_period, $m_overall_offcpu) if @stack;
+		$m_overall_offcpu = 0;
 		undef @stack;
 		undef $pname;
 		next;
@@ -268,7 +296,7 @@ while (defined($_ = <>)) {
 	#
 	# event record start
 	#
-	} elsif (/^(\S.+?)\s+(\d+)\/*(\d+)*\s+/) {
+	} elsif (/^(\S.+?)\s+(\d+)\/*(\d+)*\s+([\d\.]+):/) {
 		# default "perf script" output has TID but not PID
 		# eg, "java 25607 4794564.109216: 1 cycles:"
 		# eg, "java 12688 [002] 6544038.708352: 235 cpu-clock:"
@@ -277,7 +305,7 @@ while (defined($_ = <>)) {
 		# eg, "java 12688/12764 6544038.708352: 10309278 cpu-clock:"
 		# eg, "V8 WorkerThread 24636/25607 [000] 94564.109216: 100 cycles:"
 		# other combinations possible
-		my ($comm, $pid, $tid, $period) = ($1, $2, $3, "");
+		my ($comm, $pid, $tid, $tstamp, $period) = ($1, $2, $3, $4, "");
 		if (not $tid) {
 			$tid = $pid;
 			$pid = "?";
@@ -288,26 +316,32 @@ while (defined($_ = <>)) {
 			my $event = $2;
 
 			if ($event eq "offcpu-time") {
-			    $m_offcpu = 1;
-			} else {
-			    $m_offcpu = 0;
-			}
+				$m_offcpu = 1;
 
-			if ($event_filter eq "") {
-				# By default only show events of the first encountered
-				# event type. Merging together different types, such as
-				# instructions and cycles, produces misleading results.
-				$event_filter = $event;
-				$event_defaulted = 1;
-			} elsif ($event ne $event_filter and $event ne "offcpu-time") {
-				if ($event_defaulted and $event_warning == 0) {
-					# only print this warning if necessary:
-					# when we defaulted and there was
-					# multiple event types.
-					print STDERR "Filtering for events of type: $event\n";
-					$event_warning = 1;
+				if ($tstamp eq "18446744069.414584320") {
+					$m_overall_offcpu = 1;
+				} else {
+					$m_overall_offcpu = 0;
 				}
-				next;
+			} else {
+				$m_offcpu = 0;
+				$m_overall_offcpu = 0;
+				if ($event_filter eq "") {
+					# By default only show events of the first encountered
+					# event type. Merging together different types, such as
+					# instructions and cycles, produces misleading results.
+					$event_filter = $event;
+					$event_defaulted = 1;
+				} elsif ($event ne $event_filter) {
+					if ($event_defaulted and $event_warning == 0) {
+						# only print this warning if necessary:
+						# when we defaulted and there was
+						# multiple event types.
+						print STDERR "Filtering for events of type: $event\n";
+						$event_warning = 1;
+					}
+					next;
+				}
 			}
 		}
 
@@ -474,6 +508,14 @@ while (defined($_ = <>)) {
 	}
 }
 
-foreach my $k (sort { $a cmp $b } keys %collapsed) {
-	print "$k $collapsed{$k}\n";
+foreach (@collapsed) {
+	print "$_\n";
+}
+
+if (defined $last_stack and defined $last_count) {
+	print "$last_stack $last_count\n";
+}
+
+if (defined $last_overall_offcpu_stack and defined $last_overall_offcpu_count) {
+	print "$last_overall_offcpu_stack $last_overall_offcpu_count" . "#\n";
 }

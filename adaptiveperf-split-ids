@@ -8,18 +8,43 @@ from collections import defaultdict
 
 if __name__ == '__main__':
     script_path = Path(sys.argv[1])
+    offcpu_path = Path(sys.argv[2])
     script_dict = defaultdict(list)
+    script_dict_with_offcpu = defaultdict(list)
+    count_dict = defaultdict(lambda: 0)
 
-    def process(line, dest):
+    def process(line, dest, separate_offcpu, count_dest=None):
         line = line.strip()
 
         if len(line) > 0:
             match = re.search(r'^\S+?\-([\d/]+)', line)
-            dest[match.group(1).replace('/', '_')].append(line)
+            identifier = match.group(1).replace('/', '_')
+
+            if separate_offcpu:
+                k_v_match = re.search(r'^(.+) ([\d\.]+)$', line)
+                k, v = k_v_match.group(1), k_v_match.group(2)
+                parts = k.split(';')
+
+                if len(parts) > 1:
+                    k = ';'.join(map(lambda x: f'[cold]_{x}', parts[:-1])) + ';' + parts[-1]
+
+                line = f'{k} {v}'
+
+            dest[identifier].append(line)
+
+            if count_dest is not None:
+                count_match = re.search(r' ([\d\.]+)$', line)
+                count_dict[identifier] += float(count_match.group(1))
 
     with script_path.open(mode='r') as f:
         for line in f:
-            process(line, script_dict)
+            process(line, script_dict, False)
+            process(line, script_dict_with_offcpu, False, count_dict)
+
+    with offcpu_path.open(mode='r') as f:
+        for line in f:
+            process(line, script_dict, False)
+            process(line, script_dict_with_offcpu, True, count_dict)
 
     results_path = script_path.parent / 'processed'
 
@@ -29,5 +54,13 @@ if __name__ == '__main__':
     results_path.mkdir()
 
     for k, v in script_dict.items():
-        with (results_path / f'{k}.data').open(mode='w') as f:
+        with (results_path / f'{k}_no_overall_offcpu.data').open(mode='w') as f:
             f.write('\n'.join(v))
+
+    for k, v in script_dict_with_offcpu.items():
+        with (results_path / f'{k}_with_overall_offcpu.data').open(mode='w') as f:
+            f.write('\n'.join(v))
+
+    for k, v in count_dict.items():
+        with (results_path / f'{k}_sampled_time.data').open(mode='w') as f:
+            f.write(str(v / 1000))

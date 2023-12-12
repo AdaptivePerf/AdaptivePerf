@@ -5,7 +5,8 @@ from pathlib import Path
 from collections import defaultdict
 
 if __name__ == '__main__':
-    d = defaultdict(lambda: 0)
+    d = []
+    overall_offcpu_d = defaultdict(lambda: 0)
 
     def process(line):
         line = line.strip()
@@ -13,18 +14,38 @@ if __name__ == '__main__':
         if len(line) == 0:
             return
 
+        if line[-1] == '#':
+            line = line[:-1]
+            offcpu = True
+        else:
+            offcpu = False
+
         match = re.search(r'^(.+) ([\d\.]+)$', line)
 
         if match is None:
             raise RuntimeError(line)
 
-        d[match.group(1)] += float(match.group(2))
+        if offcpu:
+            overall_offcpu_d[match.group(1)] += float(match.group(2))
+        elif len(d) == 0 or d[-1][0] != match.group(1):
+            d.append([match.group(1), float(match.group(2))])
+        else:
+            d[-1][1] += float(match.group(2))
 
-    for s in sys.argv[2:]:
+    for s in sys.argv[1:]:
         p = Path(s)
         with p.open(mode='r') as f:
             for line in f:
                 process(line)
 
-    for k, v in d.items():
+    with open('overall_offcpu_collapsed.data', mode='w') as f:
+        for k, v in overall_offcpu_d.items():
+            f.write(f'{k} {v}\n')
+
+    for k, v in d:
+        parts = k.split(';')
+
+        if len(parts) == 1:
+            k = f'{k};[cold]_(just thread/process)'
+
         print(f'{k} {v}')

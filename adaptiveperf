@@ -20,8 +20,21 @@ function echo_main() {
 
 function convert_from_ns_to_us() {
     while read -ra arr; do
+        if [[ ${arr[-1]} == *\# ]]; then
+            arr[-1]=${arr[-1]:0:-1}
+            overall_offcpu=true
+        else
+            overall_offcpu=false
+        fi
+
         new_val=$(perl <<< "print ${arr[-1]}/1000")
+
+        if [[ $overall_offcpu == true ]]; then
+            new_val+=\#
+        fi
+
         arr[-1]=$new_val
+
         echo ${arr[@]}
     done
 }
@@ -112,9 +125,9 @@ function perf_record() {
         syscall_list+=",syscalls:sys_exit_clone3"
     fi
 
-    sudo perf record -e $syscall_list -o $result_out/syscalls.data --pid=$to_profile_pid &
+    sudo perf record --call-graph fp -e $syscall_list -o $result_out/syscalls.data --pid=$to_profile_pid -k CLOCK_MONOTONIC &
     syscalls_pid=$!
-    sudo perf record --call-graph fp -e task-clock -F $1 -o $result_out/perf.data --off-cpu --pid=$to_profile_pid &
+    sudo perf record --call-graph fp -e task-clock -F $1 -o $result_out/perf.data --off-cpu --pid=$to_profile_pid -k CLOCK_MONOTONIC &
     sampling_pid=$!
 
     echo_sub "Waiting 10 seconds for the tracers to warm up..."
@@ -145,16 +158,14 @@ function clean_up_and_report() {
     mv out/*.data .
 
     jobs=$1
-    perf script -i perf.data -F comm,tid,pid,time,event,ip,sym,dso,period --no-demangle --max-stack=$(sysctl -n kernel.perf_event_max_stack) --per-event-dump > /dev/null
-
-    cat perf.data.task-clock.dump perf.data.offcpu-time.dump | c++filt -p | adaptiveperf-split-report $jobs
-    rm *.dump
+    perf script -i perf.data -F comm,tid,pid,time,event,ip,sym,dso,period --ns --no-demangle --max-stack=$(sysctl -n kernel.perf_event_max_stack) | c++filt -p | adaptiveperf-split-report $jobs
+    perf script -i syscalls.data --no-demangle --max-stack=$(sysctl -n kernel.perf_event_max_stack) $(dirname $0)/adaptiveperf-perf-get-callchain.py > new_proc_callchains.data
 
     PIDS=()
     for i in $(seq 0 $((jobs-1))); do
         script_i="script${i}.data"
         echo_sub "Starting $script_i..."
-        cat $script_i | adaptiveperf-stackcollapse --tid | convert_from_ns_to_us > ${script_i:0:-5}_collapsed.data && rm $script_i && echo_sub "$script_i done!" &
+        (cat $script_i | adaptiveperf-stackcollapse --tid | convert_from_ns_to_us > ${script_i:0:-5}_collapsed.data) && (cat $script_i | sed -nE 's/^\S*\s*([0-9]+)\/([0-9]+)\s+([0-9\.]+):\s+([0-9]+)\s+offcpu-time.*/\1 \2 \3 \4/p' > offcpu${i}.data) && rm $script_i && echo_sub "$script_i done!" &
         PIDS+=($!)
     done
 
@@ -162,22 +173,31 @@ function clean_up_and_report() {
         wait $pid
     done
 
-    adaptiveperf-merge script*_collapsed.data > script_collapsed.data.tmp
+    for i in offcpu*.data; do
+        cat $i >> offcpu.data
+        rm $i
+    done
+
+    adaptiveperf-merge $(ls script*_collapsed.data | sort -V) > script_collapsed.data.tmp
     rm script*_collapsed.data
     mv script_collapsed.data.tmp script_collapsed.data
 }
 
 function split_reports() {
     cd ../..
-    adaptiveperf-split-ids results/$RESULT_STORAGE/script_collapsed.data
+    adaptiveperf-split-ids results/$RESULT_STORAGE/script_collapsed.data results/$RESULT_STORAGE/overall_offcpu_collapsed.data
 }
 
 function remove_leftovers_and_make_flame_graphs() {
     rm results/$RESULT_STORAGE/script*.data
     cd results/$RESULT_STORAGE/processed
 
-    for i in *.data; do
-        adaptiveperf-flamegraph --title="Wall time flame graph" --countname=us "$i" > "${i:0:-5}.svg"
+    for i in *_no_overall_offcpu.data; do
+        adaptiveperf-flamegraph --title="Wall time flame graph" --countname=us "$i" > "${i:0:-23}_walltime.svg"
+    done
+
+    for i in *_with_overall_offcpu.data; do
+        adaptiveperf-flamegraph --title="Wall time flame chart (time-ordered)" --countname=us --flamechart "$i" > "${i:0:-25}_walltime_chart.svg"
     done
 }
 
