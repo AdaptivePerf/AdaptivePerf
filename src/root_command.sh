@@ -4,7 +4,10 @@ set -e
 touch /tmp/adaptiveperf.pid.$$
 trap 'rm -f /tmp/adaptiveperf.pid.$$' EXIT
 
-TO_PROFILE=$1
+TO_PROFILE="${args[command]}"
+
+# From https://stackoverflow.com/a/246128
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 function echo_sub() {
     if [[ $2 -eq 1 ]]; then
@@ -89,8 +92,10 @@ function check_numa() {
 
 function prepare_results_dir() {
     printf -v date "%(%Y_%m_%d_%H_%M_%S)T" -1  # Based on https://stackoverflow.com/a/1401495
-    RESULT_STORAGE=${date}_$(hostname)_$(basename $TO_PROFILE | cut -f1 -d ' ')
+    RESULT_STORAGE=${date}_$(hostname)_$(basename "$TO_PROFILE" | cut -f1 -d ' ')
     mkdir -p results/$RESULT_STORAGE
+
+    echo $RESULT_STORAGE
 }
 
 function perf_record() {
@@ -158,8 +163,13 @@ function clean_up_and_report() {
     mv out/*.data .
 
     jobs=$1
+
+    if [[ $jobs == "max" ]]; then
+        jobs=$(nproc)
+    fi
+
     perf script -i perf.data -F comm,tid,pid,time,event,ip,sym,dso,period --ns --no-demangle --max-stack=$(sysctl -n kernel.perf_event_max_stack) | c++filt -p | adaptiveperf-split-report $jobs
-    perf script -i syscalls.data --no-demangle --max-stack=$(sysctl -n kernel.perf_event_max_stack) $(dirname $0)/adaptiveperf-perf-get-callchain.py > new_proc_callchains.data
+    perf script -i syscalls.data --no-demangle --max-stack=$(sysctl -n kernel.perf_event_max_stack) $SCRIPT_DIR/adaptiveperf-perf-get-callchain.py > new_proc_callchains.data
 
     PIDS=()
     for i in $(seq 0 $((jobs-1))); do
@@ -211,10 +221,10 @@ echo_main "Preparing results directory..."
 prepare_results_dir
 
 echo_main "Profiling..."
-perf_record $3
+perf_record ${args[--freq]}
 
 echo_main "Cleaning up and creating collapsed reports..."
-clean_up_and_report $2
+clean_up_and_report ${args[--threads]}
 
 echo_main "Splitting reports into processes/threads..."
 split_reports

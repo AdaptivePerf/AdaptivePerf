@@ -1,0 +1,25 @@
+name: adaptiveperf
+help: perf-based tool for comprehensive profiling of programs
+version: 1.0b1
+
+args:
+- name: command
+  required: true
+  help: "Command to be profiled"
+
+flags:
+- long: --threads
+  short: -t
+  default: "max"
+  arg: num
+  help: "Number of threads for profiling data post-processing (use \"max\" for the number of CPUs in your system as returned by nproc)"
+- long: --freq
+  short: -F
+  arg: int
+  default: "10"
+  help: "Sampling frequency per second for wall time profiling"
+
+examples:
+- adaptiveperf ./a.out
+- adaptiveperf -t 32 -F 1000 ./a.out
+- adaptiveperf --freq 5 "python3 test_program.py"
