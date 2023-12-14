@@ -1,4 +1,4 @@
-.PHONY: all clean
+.PHONY: all clean install
 
 all: adaptiveperf adaptiveperf-merge adaptiveperf-split-ids adaptiveperf-stackcollapse adaptiveperf-flamegraph adaptiveperf-perf-get-callchain.py adaptiveperf-split-report
 
@@ -22,6 +22,9 @@ adaptiveperf-perf-get-callchain.py: src/adaptiveperf-perf-get-callchain.py
 
 adaptiveperf-split-report: src/adaptiveperf-split-report
 	cp src/adaptiveperf-split-report .
+
+install: all
+	install -D adaptiveperf* $(exec_prefix)/bin
 
 clean:
 	rm -f adaptiveperf*

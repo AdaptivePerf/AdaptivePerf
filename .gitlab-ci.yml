@@ -1,16 +1,60 @@
 stages:
-  - deploy-to-instances
+  - start-vm
+  - vm-setup
+  - test
+  - vm-deploy
+  - deploy
 
-deploy:
+start-vm:
   tags:
-    - gentoo-profiling
-  stage: deploy-to-instances
+    - gentoo-vm-host
+  stage: start-vm
   script:
     - |
-      for i in $CI_PROJECT_DIR/adaptiveperf*; do
-        if [[ "$CI_COMMIT_BRANCH" == "$CI_DEFAULT_BRANCH" ]]; then
-          sudo cp $i /usr/local/bin/
-        else
-          sudo cp $i "/usr/local/bin/$(basename $i)-$CI_COMMIT_BRANCH"
+      if sudo virsh start gentoo; then
+        sudo virsh shutdown gentoo
+        sudo virsh event gentoo --event lifecycle
+        sudo virsh start gentoo
+      fi
+
+vm-setup:
+  tags:
+    - gentoo-vm
+  stage: vm-setup
+  script:
+    - cd $CI_PROJECT_DIR
+    - bash ci/vm_setup.sh
+
+vm-test:
+  tags:
+    - gentoo-vm
+  stage: test
+  script:
+    - cd $CI_PROJECT_DIR
+    - bash ci/vm_test.sh
+
+vm-deploy:
+  tags:
+    - gentoo-vm
+  stage: vm-deploy
+  script:
+    - cd $CI_PROJECT_DIR
+    - bash ci/vm_deploy.sh
+
+make-vm-image:
+  tags:
+    - gentoo-vm-host
+  stage: deploy
+  artifacts:
+    paths:
+      - adaptiveperf.qcow2
+  script:
+    - |
+      if sudo virsh shutdown gentoo; then
+        if ! sudo virsh list | grep gentoo; then
+          exit 1
         fi
-      done
+      else
+        sudo virsh event gentoo --event lifecycle
+      fi
+    - TMPDIR=/data/gitlab-runner/tmp virt-sparsify /data/gitlab-runner/gentoo.qcow2 $CI_PROJECT_DIR/adaptiveperf.qcow2
