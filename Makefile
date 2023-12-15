@@ -1,4 +1,8 @@
-.PHONY: all clean install
+.PHONY: all clean install uninstall
+
+ifndef prefix
+prefix = /usr/local
+endif
 
 all: adaptiveperf adaptiveperf-merge adaptiveperf-split-ids adaptiveperf-stackcollapse adaptiveperf-flamegraph adaptiveperf-perf-get-callchain.py adaptiveperf-split-report
 
@@ -24,7 +28,10 @@ adaptiveperf-split-report: src/adaptiveperf-split-report
 	cp src/adaptiveperf-split-report .
 
 install: all
-	install -D adaptiveperf* $(exec_prefix)/bin
+	install -D adaptiveperf* $(bindir)
+
+uninstall:
+	rm -f $(bindir)/adaptiveperf*
 
 clean:
 	rm -f adaptiveperf*
