@@ -11,7 +11,7 @@ start-vm:
   stage: start-vm
   script:
     - |
-      if sudo virsh start gentoo; then
+      if ! sudo virsh start gentoo; then
         sudo virsh shutdown gentoo
         sudo virsh event gentoo --event lifecycle
         sudo virsh start gentoo
@@ -49,8 +49,8 @@ make-vm-image:
     - echo $KERBEROS_PASSWORD | kinit ${KERBEROS_USER}@CERN.CH
   script:
     - |
-      if sudo virsh shutdown gentoo; then
-        if ! sudo virsh list | grep gentoo; then
+      if ! sudo virsh shutdown gentoo; then
+        if sudo virsh list | grep gentoo; then
           exit 1
         fi
       else
