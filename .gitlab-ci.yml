@@ -57,8 +57,7 @@ make-vm-image:
         sudo virsh event gentoo --event lifecycle
       fi
     - TMPDIR=/data/gitlab-runner/tmp virt-sparsify /data/gitlab-runner/gentoo.qcow2 $CI_PROJECT_DIR/adaptiveperf.qcow2
-    - cd $CI_PROJECT_DIR && mkdir mnt
-    - guestmount -a adaptiveperf.qcow2 -m /dev/sda2 mnt
-    - rm mnt/etc/gitlab-runner/config.toml && echo "gentoo-adaptiveperf-vm" > mnt/etc/hostname
-    - guestunmount mnt
-    - xrdcp adaptiveperf.qcow2 root://eosuser.cern.ch/$WEB_STORAGE/adaptiveperf-$CI_COMMIT_SHORT_SHA.qcow2
+    #- guestmount -a adaptiveperf.qcow2 -m /dev/sda2 /data/gitlab-runner/mnt
+    #- rm /data/gitlab-runner/mnt/etc/gitlab-runner/config.toml && echo "gentoo-adaptiveperf-vm" > /data/gitlab-runner/mnt/etc/hostname
+    #- guestunmount /data/gitlab-runner/mnt
+    - xrdcp $CI_PROJECT_DIR/adaptiveperf.qcow2 root://eosuser.cern.ch/$WEB_STORAGE/adaptiveperf-$CI_COMMIT_SHORT_SHA.qcow2
