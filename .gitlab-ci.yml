@@ -14,6 +14,7 @@ start-vm:
       if ! sudo virsh start gentoo; then
         sudo virsh shutdown gentoo
         sudo virsh event gentoo --event lifecycle
+        sleep 1
         sudo virsh start gentoo
       fi
 
