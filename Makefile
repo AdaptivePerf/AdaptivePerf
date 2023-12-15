@@ -28,10 +28,10 @@ adaptiveperf-split-report: src/adaptiveperf-split-report
 	cp src/adaptiveperf-split-report .
 
 install: all
-	install -D adaptiveperf* $(bindir)
+	install -D adaptiveperf* $(prefix)/bin
 
 uninstall:
-	rm -f $(bindir)/adaptiveperf*
+	rm -f $(prefix)/bin/adaptiveperf*
 
 clean:
 	rm -f adaptiveperf*
