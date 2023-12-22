@@ -10,14 +10,21 @@ if __name__ == '__main__':
     blocks = []
 
     lines = []
+    empty = False
     for line in sys.stdin:
+        orig_line = line
         line = line.replace('\n', '')
 
         if len(line) == 0:
+            lines.append(orig_line)
+            empty = True
+        elif empty:
             blocks.append(lines)
-            lines = []
+            lines = [orig_line]
+            empty = False
         else:
-            lines.append(line)
+            lines.append(orig_line)
+            empty = False
 
     if len(lines) > 0:
         blocks.append(lines)
@@ -31,8 +38,5 @@ if __name__ == '__main__':
                 if index >= len(blocks):
                     break
 
-                if j > 0:
-                    f.write('\n')
-
-                f.write('\n'.join(blocks[index]) + '\n')
+                f.write(''.join(blocks[index]))
                 index += 1

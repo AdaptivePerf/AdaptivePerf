@@ -1,0 +1,7 @@
+test-5/5;a;b;c;d;e 9999
+test-5/5;x;y;[cold]_z 1
+test-5/5;a;b;c 10
+test-5/5;a 7
+[cold]_test-5/5;[cold]_a;[cold]_b 222
+[cold]_test-5/5;[cold]_x;[cold]_y;[cold]_z 11
+[cold]_test-5/5;[cold]_a;[cold]_b;[cold]_c;[cold]_d 5

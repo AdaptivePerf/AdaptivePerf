@@ -38,14 +38,17 @@ if __name__ == '__main__':
             for line in f:
                 process(line)
 
-    with open('overall_offcpu_collapsed.data', mode='w') as f:
-        for k, v in overall_offcpu_d.items():
-            f.write(f'{k} {v}\n')
-
-    for k, v in d:
+    def check_k(k):
         parts = k.split(';')
 
-        if len(parts) == 1:
-            k = f'{k};[cold]_(just thread/process)'
+        if len(parts) == 1 and parts[0].startswith('[cold]_'):
+            return f'{k[7:]};[cold]_(just thread/process)'
 
-        print(f'{k} {v}')
+        return k
+
+    with open('overall_offcpu_collapsed.data', mode='w') as f:
+        for k, v in overall_offcpu_d.items():
+            f.write(f'{check_k(k)} {v}\n')
+
+    for k, v in d:
+        print(f'{check_k(k)} {v}')

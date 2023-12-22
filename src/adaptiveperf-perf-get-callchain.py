@@ -23,13 +23,16 @@ cpp_filt = None
 
 
 def common_callback(stack, ret_value):
+    if int(ret_value) == 0:
+        return
+    
     def demangle(name):
         stdin = cpp_filt.stdin
         stdin.write((name + '\n').encode())
         stdin.flush()
 
         stdout = cpp_filt.stdout
-        return stdout.readline().decode()
+        return stdout.readline().decode().strip()
     
     tid_dict[ret_value] = list(map(
         lambda x: demangle(x['sym']['name']) if 'sym' in x else

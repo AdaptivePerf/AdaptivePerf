@@ -79,6 +79,12 @@ sub remember_stack {
 	my ($stack, $count, $overall_offcpu) = @_;
 
 	if ($overall_offcpu) {
+		if (defined $last_stack) {
+			push @collapsed, $last_stack . " " . $last_count;
+			undef $last_stack;
+			undef $last_count;
+	    	}
+
 		if (defined $last_overall_offcpu_stack) {
 			if ($last_overall_offcpu_stack ne $stack) {
 				push @collapsed, "$last_overall_offcpu_stack $last_overall_offcpu_count" . "#";
@@ -92,6 +98,12 @@ sub remember_stack {
 			$last_overall_offcpu_count = $count;
 		}
 	} else {
+		if (defined $last_overall_offcpu_stack) {
+			push @collapsed, "$last_overall_offcpu_stack $last_overall_offcpu_count" . "#";
+			undef $last_overall_offcpu_stack;
+			undef $last_overall_offcpu_count;
+		}
+
 		if (defined $last_stack) {
 			if ($last_stack ne $stack) {
 				push @collapsed, $last_stack . " " . $last_count;
@@ -439,7 +451,7 @@ while (defined($_ = <>)) {
 			#
 			# detect inlined from the @inline array
 			# detect kernel from the module name; eg, frames to parse include:
-			#          ffffffff8103ce3b native_safe_halt ([kernel.kallsyms]) 
+			#          ffffffff8103ce3b native_safe_halt ([kernel.kallsyms])
 			#          8c3453 tcp_sendmsg (/lib/modules/4.3.0-rc1-virtual/build/vmlinux)
 			#          7d8 ipv4_conntrack_local+0x7f8f80b8 ([nf_conntrack_ipv4])
 			# detect jit from the module name; eg:
@@ -472,7 +484,7 @@ while (defined($_ = <>)) {
 			#   | a.out 35081 252435.738373:     315813 cycles:
 			#   |             7f6d215ca51b __strlen_avx2+0x4b (/lib64/libc-2.33.so)
 			#   |   libc-2.33.so[16351b]
-			#   |             7ffc71ee9580 [unknown] ([unknown])			
+			#   |             7ffc71ee9580 [unknown] ([unknown])
 			#   |
 			#
 			#   | a.out 35081 252435.718940:     247984 cycles:
@@ -506,6 +518,26 @@ while (defined($_ = <>)) {
 	} else {
 		warn "Unrecognized line: $_";
 	}
+}
+
+if (@stack and $pname) {
+    if ($include_pname) {
+        if (defined $pname) {
+            unshift @stack, $pname;
+        } else {
+            unshift @stack, "";
+        }
+    }
+
+    if ($m_offcpu) {
+        $stack[-1] = "[cold]_" . $stack[-1];
+    }
+
+    $m_offcpu = 0;
+    remember_stack(join(";", @stack), $m_period, $m_overall_offcpu) if @stack;
+    $m_overall_offcpu = 0;
+    undef @stack;
+    undef $pname;
 }
 
 foreach (@collapsed) {

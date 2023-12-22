@@ -9,6 +9,8 @@ TO_PROFILE="${args[command]}"
 # From https://stackoverflow.com/a/246128
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
+source $SCRIPT_DIR/adaptiveperf-misc-funcs.sh
+
 function echo_sub() {
     if [[ $2 -eq 1 ]]; then
         echo -e "\033[0;31m-> $1\033[0m"
@@ -19,27 +21,6 @@ function echo_sub() {
 
 function echo_main() {
     echo -e "\033[1;32m==> $1\033[0m"
-}
-
-function convert_from_ns_to_us() {
-    while read -ra arr; do
-        if [[ ${arr[-1]} == *\# ]]; then
-            arr[-1]=${arr[-1]:0:-1}
-            overall_offcpu=true
-        else
-            overall_offcpu=false
-        fi
-
-        new_val=$(perl <<< "print ${arr[-1]}/1000")
-
-        if [[ $overall_offcpu == true ]]; then
-            new_val+=\#
-        fi
-
-        arr[-1]=$new_val
-
-        echo ${arr[@]}
-    done
 }
 
 function check_kernel_settings() {
@@ -106,24 +87,13 @@ function perf_record() {
 
     mkfifo $result_out/waitpipe
 
-    # stdout and stderr redirection based on https://unix.stackexchange.com/a/6431
-    # PID retrieval based on https://stackoverflow.com/a/3786955
     if [[ $NODE_NUM -eq -1 ]]; then
-        (cat $result_out/waitpipe > /dev/null && $TO_PROFILE & echo $! >&3) 3>pid | tee $result_out/stdout.log 3>&1 1>&2 2>&3 | tee $result_out/stderr.log &
+        cat $result_out/waitpipe > /dev/null && $TO_PROFILE 1> $result_out/stdout.log 2> $result_out/stderr.log &
     else
-        (cat $result_out/waitpipe > /dev/null && numactl --cpunodebind $NODE_NUM --membind $NODE_NUM $TO_PROFILE & echo $! >&3) 3>pid | tee $result_out/stdout.log 3>&1 1>&2 2>&3 | tee $result_out/stderr.log &
+        cat $result_out/waitpipe > /dev/null && numactl --cpunodebind $NODE_NUM --membind $NODE_NUM $TO_PROFILE 1> $result_out/stdout.log 2> $result_out/stderr.log &
     fi
 
-    to_profile_wait_pid=$!
-
-    while [[ ! -f pid ]]; do
-        true
-    done
-
-    to_profile_pid=$(<pid)
-
-    rm -f pid
-
+    to_profile_pid=$!
     syscall_list="syscalls:sys_exit_execve,syscalls:sys_exit_clone,syscalls:sys_exit_fork,syscalls:sys_exit_vfork,syscalls:sys_enter_exit,syscalls:sys_enter_exit_group"
 
     if [[ $(sudo perf list | grep syscalls:sys_exit_clone3 | wc -l) -gt 0 ]]; then
@@ -143,7 +113,7 @@ function perf_record() {
     start_time=$(date +%s%3N)
 
     echo 1 > $result_out/waitpipe
-    wait $to_profile_wait_pid
+    wait $to_profile_pid
 
     end_time=$(date +%s%3N)
     runtime_length=$(($end_time - $start_time))
@@ -202,13 +172,17 @@ function remove_leftovers_and_make_flame_graphs() {
     rm results/$RESULT_STORAGE/script*.data
     cd results/$RESULT_STORAGE/processed
 
-    for i in *_no_overall_offcpu.data; do
-        adaptiveperf-flamegraph --title="Wall time flame graph" --countname=us "$i" > "${i:0:-23}_walltime.svg"
-    done
+    if compgen -G "*_no_overall_offcpu.data" > /dev/null; then
+        for i in *_no_overall_offcpu.data; do
+            adaptiveperf-flamegraph --title="Wall time flame graph" --countname=us "$i" > "${i:0:-23}_walltime.svg"
+        done
+    fi
 
-    for i in *_with_overall_offcpu.data; do
-        adaptiveperf-flamegraph --title="Wall time flame chart (time-ordered)" --countname=us --flamechart "$i" > "${i:0:-25}_walltime_chart.svg"
-    done
+    if compgen -G "*_with_overall_offcpu.data" > /dev/null; then
+        for i in *_with_overall_offcpu.data; do
+            adaptiveperf-flamegraph --title="Wall time flame chart (time-ordered)" --countname=us --flamechart "$i" > "${i:0:-25}_walltime_chart.svg"
+        done
+    fi
 }
 
 echo_main "Checking kernel settings..."
