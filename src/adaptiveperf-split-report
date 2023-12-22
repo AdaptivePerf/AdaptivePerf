@@ -1,0 +1,60 @@
+#!/bin/env python3
+
+# AdaptivePerf: comprehensive profiling tool based on Linux perf
+# Copyright (C) 2023 CERN.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with this program; if not, write to the Free Software Foundation, Inc.,
+# 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+import sys
+import re
+import math
+
+
+if __name__ == '__main__':
+    parts = int(sys.argv[1])
+
+    blocks = []
+
+    lines = []
+    empty = False
+    for line in sys.stdin:
+        orig_line = line
+        line = line.replace('\n', '')
+
+        if len(line) == 0:
+            lines.append(orig_line)
+            empty = True
+        elif empty:
+            blocks.append(lines)
+            lines = [orig_line]
+            empty = False
+        else:
+            lines.append(orig_line)
+            empty = False
+
+    if len(lines) > 0:
+        blocks.append(lines)
+
+    block_cnt = math.ceil(len(blocks) / parts)
+
+    index = 0
+    for i in range(parts):
+        with open(f'script{i}.data', mode='w') as f:
+            for j in range(block_cnt):
+                if index >= len(blocks):
+                    break
+
+                f.write(''.join(blocks[index]))
+                index += 1

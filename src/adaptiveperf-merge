@@ -1,0 +1,72 @@
+#!/bin/env python3
+
+# AdaptivePerf: comprehensive profiling tool based on Linux perf
+# Copyright (C) 2023 CERN.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with this program; if not, write to the Free Software Foundation, Inc.,
+# 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+import re
+import sys
+from pathlib import Path
+from collections import defaultdict
+
+if __name__ == '__main__':
+    d = []
+    overall_offcpu_d = defaultdict(lambda: 0)
+
+    def process(line):
+        line = line.strip()
+
+        if len(line) == 0:
+            return
+
+        if line[-1] == '#':
+            line = line[:-1]
+            offcpu = True
+        else:
+            offcpu = False
+
+        match = re.search(r'^(.+) ([\d\.]+)$', line)
+
+        if match is None:
+            raise RuntimeError(line)
+
+        if offcpu:
+            overall_offcpu_d[match.group(1)] += float(match.group(2))
+        elif len(d) == 0 or d[-1][0] != match.group(1):
+            d.append([match.group(1), float(match.group(2))])
+        else:
+            d[-1][1] += float(match.group(2))
+
+    for s in sys.argv[1:]:
+        p = Path(s)
+        with p.open(mode='r') as f:
+            for line in f:
+                process(line)
+
+    def check_k(k):
+        parts = k.split(';')
+
+        if len(parts) == 1 and parts[0].startswith('[cold]_'):
+            return f'{k[7:]};[cold]_(just thread/process)'
+
+        return k
+
+    with open('overall_offcpu_collapsed.data', mode='w') as f:
+        for k, v in overall_offcpu_d.items():
+            f.write(f'{check_k(k)} {v}\n')
+
+    for k, v in d:
+        print(f'{check_k(k)} {v}')

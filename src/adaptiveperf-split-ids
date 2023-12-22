@@ -1,0 +1,84 @@
+#!/bin/env python3
+
+# AdaptivePerf: comprehensive profiling tool based on Linux perf
+# Copyright (C) 2023 CERN.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with this program; if not, write to the Free Software Foundation, Inc.,
+# 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+import sys
+import re
+import shutil
+from pathlib import Path
+from collections import defaultdict
+
+
+if __name__ == '__main__':
+    script_path = Path(sys.argv[1])
+    offcpu_path = Path(sys.argv[2])
+    script_dict = defaultdict(list)
+    script_dict_with_offcpu = defaultdict(list)
+    count_dict = defaultdict(lambda: 0)
+
+    def process(line, dest, separate_offcpu, count_dest=None):
+        line = line.strip()
+
+        if len(line) > 0:
+            match = re.search(r'^\S+?\-([\d/]+)', line)
+            identifier = match.group(1).replace('/', '_')
+
+            if separate_offcpu:
+                k_v_match = re.search(r'^(.+) ([\d\.]+)$', line)
+                k, v = k_v_match.group(1), k_v_match.group(2)
+                parts = k.split(';')
+
+                if len(parts) > 1:
+                    k = ';'.join(map(lambda x: f'[cold]_{x}', parts[:-1])) + ';' + parts[-1]
+
+                line = f'{k} {v}'
+
+            dest[identifier].append(line)
+
+            if count_dest is not None:
+                count_match = re.search(r' ([\d\.]+)$', line)
+                count_dict[identifier] += float(count_match.group(1))
+
+    with script_path.open(mode='r') as f:
+        for line in f:
+            process(line, script_dict, False)
+            process(line, script_dict_with_offcpu, False, count_dict)
+
+    with offcpu_path.open(mode='r') as f:
+        for line in f:
+            process(line, script_dict, False)
+            process(line, script_dict_with_offcpu, True, count_dict)
+
+    results_path = script_path.parent / 'processed'
+
+    if results_path.exists():
+        shutil.rmtree(results_path)
+
+    results_path.mkdir()
+
+    for k, v in script_dict.items():
+        with (results_path / f'{k}_no_overall_offcpu.data').open(mode='w') as f:
+            f.write('\n'.join(v))
+
+    for k, v in script_dict_with_offcpu.items():
+        with (results_path / f'{k}_with_overall_offcpu.data').open(mode='w') as f:
+            f.write('\n'.join(v))
+
+    for k, v in count_dict.items():
+        with (results_path / f'{k}_sampled_time.data').open(mode='w') as f:
+            f.write(str(v / 1000))
