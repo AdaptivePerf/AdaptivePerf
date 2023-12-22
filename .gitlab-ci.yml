@@ -29,6 +29,8 @@ vm-setup:
 vm-test:
   tags:
     - gentoo-vm
+  variables:
+    GIT_SUBMODULE_STRATEGY: recursive
   stage: test
   script:
     - cd $CI_PROJECT_DIR
