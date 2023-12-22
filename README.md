@@ -7,7 +7,7 @@ This is currently a beta version and the tool is under active development. The t
 All feedback is welcome.
 
 ## License
-See ```LICENSE```.
+Copyright (C) 2023 CERN. See ```LICENSE``` for more details.
 
 ## Current features
 * Profiling on-CPU and off-CPU activity with ```perf```, hot-and-cold flame graphs, and hot-and-cold time-ordered flame charts
@@ -22,7 +22,9 @@ Both single-threaded and multi-threaded programs are supported. All CPU architec
 ## Installation
 ### Requirements
 * Linux with kernel-specific packages enabling profiling (for RHEL/CentOS/AlmaLinux: ```kernel-headers```, ```kernel-modules```). For best reliability of off-CPU profiling, usage of the newest Linux kernel version is recommended.
-* [The patched ```perf```](https://gitlab.cern.ch/syclops/linux/-/tree/master/tools/perf) compiled with ```BUILD_BPF_SKEL=1```.
+* [The patched ```flamegraph.pl``` and ```stackcollapse-perf.pl``` scripts](https://gitlab.cern.ch/adaptiveperf/flamegraph)
+* [The patched ```perf```](https://gitlab.cern.ch/adaptiveperf/linux/-/tree/master/tools/perf) compiled with ```BUILD_BPF_SKEL=1```.
+* [Bashly](https://bashly.dannyb.co)
 * numactl
 * Python 3
 * Perl
@@ -70,4 +72,4 @@ The structure of ```results``` is as follows:
     * ```out```: the directory containing all output files produced by your profiled program (this includes stdout and stderr in ```stdout.log``` and ```stderr.log``` respectively)
     * ```processed```: the directory containing flame graphs and raw text data files that can be parsed by the flame graph tool, one set per thread/process in form of ```<PID>_<TID>_<type>.data```/```<PID>_<TID>_<type>.svg```
 
-It is recommended to use [AdaptivePerfHTML](https://gitlab.cern.ch/syclops/adaptiveperfhtml) for creating an interactive HTML summary of your profiling sessions (or setting up a web server displaying all profiling sessions run so far).
+It is recommended to use [AdaptivePerfHTML](https://gitlab.cern.ch/adaptiveperf/adaptiveperfhtml) for creating an interactive HTML summary of your profiling sessions (or setting up a web server displaying all profiling sessions run so far).

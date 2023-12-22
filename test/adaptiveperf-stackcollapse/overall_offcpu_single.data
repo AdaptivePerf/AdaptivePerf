@@ -1,5 +1,0 @@
-adaptiveperf   20000/15111   18446744069.414584320: 999 offcpu-time: 
-	    7f9e663421e3 __GI___wait4 (/lib64/libc.so.6)
-	    559920ef8dca wait_for (/bin/bash)
-	    559920ee49c7 execute_command_internal (/bin/bash)
-	    559920ee1919 start_me_up (/bin/bash)

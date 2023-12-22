@@ -1,4 +1,22 @@
 #!/bin/bash
+
+# AdaptivePerf: comprehensive profiling tool based on Linux perf
+# Copyright (C) 2023 CERN.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; either version 2 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License along
+# with this program; if not, write to the Free Software Foundation, Inc.,
+# 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
 set -e
 
 touch /tmp/adaptiveperf.pid.$$
@@ -10,6 +28,26 @@ TO_PROFILE="${args[command]}"
 SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
 
 source $SCRIPT_DIR/adaptiveperf-misc-funcs.sh
+
+function print_notice() {
+    echo "AdaptivePerf: comprehensive profiling tool based on Linux perf"
+    echo "Copyright (C) 2023 CERN."
+    echo ""
+    echo "This program is free software; you can redistribute it and/or modify"
+    echo "it under the terms of the GNU General Public License as published by"
+    echo "the Free Software Foundation; either version 2 of the License, or"
+    echo "(at your option) any later version."
+    echo ""
+    echo "This program is distributed in the hope that it will be useful,"
+    echo "but WITHOUT ANY WARRANTY; without even the implied warranty of"
+    echo "MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the"
+    echo "GNU General Public License for more details."
+    echo ""
+    echo "You should have received a copy of the GNU General Public License along"
+    echo "with this program; if not, write to the Free Software Foundation, Inc.,"
+    echo "51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA."
+    echo ""
+}
 
 function echo_sub() {
     if [[ $2 -eq 1 ]]; then
@@ -146,7 +184,7 @@ function clean_up_and_report() {
     for i in $(seq 0 $((jobs-1))); do
         script_i="script${i}.data"
         echo_sub "Starting $script_i..."
-        (cat $script_i | adaptiveperf-stackcollapse --tid | convert_from_ns_to_us > ${script_i:0:-5}_collapsed.data) && (cat $script_i | sed -nE 's/^\S*\s*([0-9]+)\/([0-9]+)\s+([0-9\.]+):\s+([0-9]+)\s+offcpu-time.*/\1 \2 \3 \4/p' > offcpu${i}.data) && rm $script_i && echo_sub "$script_i done!" &
+        (cat $script_i | stackcollapse-perf.pl --tid | convert_from_ns_to_us > ${script_i:0:-5}_collapsed.data) && (cat $script_i | sed -nE 's/^\S*\s*([0-9]+)\/([0-9]+)\s+([0-9\.]+):\s+([0-9]+)\s+offcpu-time.*/\1 \2 \3 \4/p' > offcpu${i}.data) && rm $script_i && echo_sub "$script_i done!" &
         PIDS+=($!)
     done
 
@@ -175,16 +213,18 @@ function remove_leftovers_and_make_flame_graphs() {
 
     if compgen -G "*_no_overall_offcpu.data" > /dev/null; then
         for i in *_no_overall_offcpu.data; do
-            adaptiveperf-flamegraph --title="Wall time flame graph" --countname=us "$i" > "${i:0:-23}_walltime.svg"
+            flamegraph.pl --title="Wall time flame graph" --countname=us "$i" > "${i:0:-23}_walltime.svg"
         done
     fi
 
     if compgen -G "*_with_overall_offcpu.data" > /dev/null; then
         for i in *_with_overall_offcpu.data; do
-            adaptiveperf-flamegraph --title="Wall time flame chart (time-ordered)" --countname=us --flamechart "$i" > "${i:0:-25}_walltime_chart.svg"
+            flamegraph.pl --title="Wall time flame chart (time-ordered)" --countname=us --flamechart "$i" > "${i:0:-25}_walltime_chart.svg"
         done
     fi
 }
+
+print_notice
 
 echo_main "Checking kernel settings..."
 check_kernel_settings
