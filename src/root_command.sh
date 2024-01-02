@@ -5,8 +5,7 @@
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
-# the Free Software Foundation; either version 2 of the License, or
-# (at your option) any later version.
+# the Free Software Foundation; only version 2 of the License.
 #
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -35,8 +34,7 @@ function print_notice() {
     echo ""
     echo "This program is free software; you can redistribute it and/or modify"
     echo "it under the terms of the GNU General Public License as published by"
-    echo "the Free Software Foundation; either version 2 of the License, or"
-    echo "(at your option) any later version."
+    echo "the Free Software Foundation; only version 2 of the License."
     echo ""
     echo "This program is distributed in the hope that it will be useful,"
     echo "but WITHOUT ANY WARRANTY; without even the implied warranty of"

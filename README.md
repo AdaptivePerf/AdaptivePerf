@@ -9,6 +9,8 @@ All feedback is welcome.
 ## License
 Copyright (C) 2023 CERN. See ```LICENSE``` for more details.
 
+**Please note that the project is licensed under GNU GPL v2 only (no other versions).**
+
 ## Current features
 * Profiling on-CPU and off-CPU activity with ```perf```, hot-and-cold flame graphs, and hot-and-cold time-ordered flame charts
 * Profiling thread/process tree by tracing relevant syscalls with ```perf```
