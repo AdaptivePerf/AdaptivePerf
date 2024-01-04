@@ -7,9 +7,9 @@ This is currently a beta version and the tool is under active development. The t
 All feedback is welcome.
 
 ## License
-Copyright (C) 2023 CERN. See ```LICENSE``` for more details.
+Copyright (C) CERN. 
 
-**Please note that the project is licensed under GNU GPL v2 only (no other versions).**
+The license of the project has not been confirmed yet, this will happen by 8 March 2024 at the very latest. In the meantime, do not distribute any code and binaries to people with no CERN status.
 
 ## Current features
 * Profiling on-CPU and off-CPU activity with ```perf```, hot-and-cold flame graphs, and hot-and-cold time-ordered flame charts
