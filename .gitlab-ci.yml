@@ -64,3 +64,14 @@ make-vm-image:
     - rm -rf /data/gitlab-runner/mnt/etc/gitlab-runner/config.toml /data/gitlab-runner/mnt/opt/gitlab-runner/* && echo "gentoo-adaptiveperf-vm" > /data/gitlab-runner/mnt/etc/hostname
     - guestunmount /data/gitlab-runner/mnt
     - xrdcp $CI_PROJECT_DIR/adaptiveperf.qcow2 root://eosuser.cern.ch/$WEB_STORAGE/adaptiveperf-$CI_COMMIT_SHORT_SHA.qcow2
+
+deploy-to-syclops-gentoo-profiling:
+  tags:
+    - gentoo-profiling
+  stage: deploy
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  script:
+    - cd $CI_PROJECT_DIR
+    - make
+    - sudo make install
