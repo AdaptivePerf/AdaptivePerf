@@ -44,12 +44,10 @@ vm-deploy:
     - cd $CI_PROJECT_DIR
     - bash ci/vm_deploy.sh
 
-make-vm-image:
+shutdown-vm:
   tags:
     - gentoo-vm-host
   stage: deploy
-  before_script:
-    - echo $KERBEROS_PASSWORD | kinit ${KERBEROS_USER}@CERN.CH
   script:
     - |
       if ! sudo virsh shutdown gentoo; then
@@ -59,6 +57,17 @@ make-vm-image:
       else
         sudo virsh event gentoo --event lifecycle
       fi
+
+make-vm-image:
+  tags:
+    - gentoo-vm-host
+  stage: deploy
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+  needs: ["shutdown-vm"]
+  before_script:
+    - echo $KERBEROS_PASSWORD | kinit ${KERBEROS_USER}@CERN.CH
+  script:
     - TMPDIR=/data/gitlab-runner/tmp virt-sparsify --compress /data/gitlab-runner/gentoo.qcow2 $CI_PROJECT_DIR/adaptiveperf.qcow2
     - guestmount -a $CI_PROJECT_DIR/adaptiveperf.qcow2 -m /dev/sda2 /data/gitlab-runner/mnt
     - rm -rf /data/gitlab-runner/mnt/etc/gitlab-runner/config.toml /data/gitlab-runner/mnt/opt/gitlab-runner/* && echo "gentoo-adaptiveperf-vm" > /data/gitlab-runner/mnt/etc/hostname
