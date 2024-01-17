@@ -46,9 +46,12 @@ if __name__ == '__main__':
 
         return k
 
-    with open('overall_offcpu_collapsed.data', mode='w') as f:
-        for k, v in overall_offcpu_d.items():
-            f.write(f'{check_k(k)} {v}\n')
+    overall_offcpu_path = Path('overall_offcpu_collapsed.data')
+
+    if not overall_offcpu_path.exists():
+        with overall_offcpu_path.open(mode='w') as f:
+            for k, v in overall_offcpu_d.items():
+                f.write(f'{check_k(k)} {v}\n')
 
     for k, v in d:
         print(f'{check_k(k)} {v}')

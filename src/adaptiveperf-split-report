@@ -33,7 +33,7 @@ if __name__ == '__main__':
 
     index = 0
     for i in range(parts):
-        with open(f'script{i}.data', mode='w') as f:
+        with open(sys.argv[2] + f'{i}.data', mode='w') as f:
             for j in range(block_cnt):
                 if index >= len(blocks):
                     break

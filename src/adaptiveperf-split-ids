@@ -9,9 +9,17 @@ from collections import defaultdict
 if __name__ == '__main__':
     script_path = Path(sys.argv[1])
     offcpu_path = Path(sys.argv[2])
+
+    if len(sys.argv) > 3:
+        extra_paths = list(map(Path, sys.argv[3:]))
+    else:
+        extra_paths = []
+
     script_dict = defaultdict(list)
     script_dict_with_offcpu = defaultdict(list)
     count_dict = defaultdict(lambda: 0)
+
+    extra_dict = defaultdict(lambda: defaultdict(list))
 
     def process(line, dest, separate_offcpu, count_dest=None):
         line = line.strip()
@@ -46,6 +54,14 @@ if __name__ == '__main__':
             process(line, script_dict, False)
             process(line, script_dict_with_offcpu, True, count_dict)
 
+    for extra_path in extra_paths:
+        event_name = re.search(r'^script_extra_(.+)_collapsed\.data$',
+                               extra_path.name).group(1)
+
+        with extra_path.open(mode='r') as f:
+            for line in f:
+                process(line, extra_dict[event_name], False)
+
     results_path = script_path.parent / 'processed'
 
     if results_path.exists():
@@ -60,6 +76,11 @@ if __name__ == '__main__':
     for k, v in script_dict_with_offcpu.items():
         with (results_path / f'{k}_with_overall_offcpu.data').open(mode='w') as f:
             f.write('\n'.join(v))
+
+    for k1, v1 in extra_dict.items():
+        for k2, v2 in v1.items():
+            with (results_path / f'{k2}_extra_{k1}.data').open(mode='w') as f:
+                f.write('\n'.join(v2))
 
     for k, v in count_dict.items():
         with (results_path / f'{k}_sampled_time.data').open(mode='w') as f:
