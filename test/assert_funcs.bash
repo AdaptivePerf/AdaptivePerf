@@ -18,11 +18,14 @@ function assert_file_count_prefix() {
     assert [ $(find $1 -mindepth 1 -maxdepth 1 -name "$2*" -type f | wc -l) -eq $3 ]
 }
 
-function assert_all_files_non_empty {
-    assert_file_count $1 $2 $(find $1 -mindepth 1 -maxdepth 1 -name "*$2" -type f ! -size 0 | wc -l)
+function assert_all_files_non_empty() {
+    count=$(find $1 -mindepth 1 -maxdepth 1 -name "*$2" -type f ! -size 0 | wc -l)
+
+    assert [ $count -gt 0 ]
+    assert_file_count $1 $2 $count
 }
 
-function assert_file_non_empty {
+function assert_file_non_empty() {
     assert [ -s $1 ]
 }
 

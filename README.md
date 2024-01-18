@@ -15,8 +15,9 @@ The license of the project has not been confirmed yet, this will happen by 8 Mar
 * Profiling on-CPU and off-CPU activity with ```perf```, hot-and-cold flame graphs, and hot-and-cold time-ordered flame charts
 * Profiling thread/process tree by tracing relevant syscalls with ```perf```
 * Profiling stack traces of functions spawning new threads/processes
+* Profiling any event supported by ```perf``` for sampling
 
-Both single-threaded and multi-threaded programs are supported. All CPU architectures and vendors should also be supported (provided that the requirements are met) since the main features of AdaptivePerf are based on kernel-based performance counters and portable stack unwinding methods.
+Both single-threaded and multi-threaded programs are supported. All CPU architectures and vendors should also be supported (provided that the requirements are met) since the main features of AdaptivePerf are based on kernel-based performance counters and portable stack unwinding methods. However, if extra ```perf``` events are used for sampling, the list of available events should be checked beforehand by running ```perf list``` as this is architecture-dependent.
 
 ## Current limitations
 * Support for CPUs only (GPUs coming soon!)
@@ -59,7 +60,7 @@ adaptiveperf "<command to be profiled>"
 ```
 (quoting is important if your command has whitespaces)
 
-You can adjust the sampling rate and the number of threads used for post-processing profiling data. See ```adaptiveperf --help``` for details (```man``` pages coming soon!).
+You can specify extra perf events for sampling and adjust the sampling rate and the number of threads used for post-processing profiling data. See ```adaptiveperf --help``` for details (```man``` pages coming soon!).
 
 After profiling is completed, you can check the results inside ```results```.
 
@@ -71,7 +72,9 @@ The structure of ```results``` is as follows:
     * ```syscalls.data```: the file containing raw syscall tracing data for post-processing by ```perf```
     * ```offcpu.data```: the file containing sampled off-CPU regions of threads/processes with timestamps
     * ```new_proc_callchains.data```: the file containing stack traces of functions spawning new threads/processes
+    * ```event_dict.data```: the file with friendly names for each extra ```perf``` event used for profiling
+    * ```extra_<event>.data```: the file containing raw sampling data of extra event of type ```<event>``` for post-processing by ```perf```
     * ```out```: the directory containing all output files produced by your profiled program (this includes stdout and stderr in ```stdout.log``` and ```stderr.log``` respectively)
-    * ```processed```: the directory containing flame graphs and raw text data files that can be parsed by the flame graph tool, one set per thread/process in form of ```<PID>_<TID>_<type>.data```/```<PID>_<TID>_<type>.svg```
+    * ```processed```: the directory containing flame graphs and raw text data files that can be parsed by the flame graph tool, one set per thread/process and type in form of ```<PID>_<TID>_<type>.data```/```<PID>_<TID>_<type>.svg```
 
 It is recommended to use [AdaptivePerfHTML](https://gitlab.cern.ch/adaptiveperf/adaptiveperfhtml) for creating an interactive HTML summary of your profiling sessions (or setting up a web server displaying all profiling sessions run so far).

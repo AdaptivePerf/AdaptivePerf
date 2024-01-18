@@ -14,7 +14,7 @@ setup() {
 }
 
 teardown() {
-    rm -rf results a.out perf_txt.data syscalls_txt.data
+    rm -rf results a.out *_txt.data
 }
 
 function asserts_after_adaptiveperf_run() {
@@ -22,7 +22,7 @@ function asserts_after_adaptiveperf_run() {
     assert_dir_count results 1
 
     run -0 mv results/* results/test
-    
+
     assert_file_exists results/test/perf.data
     assert_file_exists results/test/syscalls.data
     assert_file_exists results/test/overall_offcpu_collapsed.data
@@ -36,7 +36,7 @@ function asserts_after_adaptiveperf_run() {
     assert_file_count results/test/processed _walltime_chart.svg $1
 
     assert_file_non_empty results/test/new_proc_callchains.data
-    
+
     run -0 /bin/bash -c "perf script -i results/test/perf.data > perf_txt.data"
     run -0 /bin/bash -c "perf script -i results/test/syscalls.data > syscalls_txt.data"
 
@@ -53,9 +53,28 @@ function asserts_after_adaptiveperf_run() {
         assert_equal "$(cat perf_txt.data | sed -nE 's/.*\s+([0-9\.]+)\s+task-clock.*/\1/p' | sort | uniq)" "$2"
     fi
 
-    assert_equal "$((grep 'Starting script' <<< \"$4\") | wc -l)" "$3"
+    assert_equal "$((grep Starting\ script[0-9][0-9]* <<< \"$4\") | wc -l)" "$3"
 
     assert_file_count_prefix /tmp adaptiveperf.pid 0
+
+    if [[ $# -gt 4 ]]; then
+        assert_file_exists results/test/event_dict.data
+
+        for x in "${@:5}"; do
+            assert_equal "$((grep Starting\ script_extra_${x} <<< \"$4\") | wc -l)" "$3"
+
+            assert_all_files_non_empty results/test/processed _${x}.data
+            assert_all_files_non_empty results/test/processed _${x}.svg
+            assert_all_files_non_empty results/test/processed _${x}_chart.svg
+
+            assert_file_exists results/test/extra_${x}.data
+
+            run -0 /bin/bash -c "perf script -i results/test/extra_${x}.data > ${x}_txt.data"
+            assert_file_non_empty ${x}_txt.data
+
+            run -0 /bin/bash -c "cat results/test/event_dict.data | grep $x"
+        done
+    fi
 }
 
 @test "[Test 1] Profiling a single-threaded program with default settings" {
@@ -114,38 +133,66 @@ function asserts_after_adaptiveperf_run() {
     asserts_after_adaptiveperf_run 18 25000000 11 "$output"
 }
 
-@test "[Test 9] Profiling a very short-living program with default settings" {
+@test "[Test 9] Profiling a single-threaded program with sampling rate 50 Hz, 14 post-processing threads, and extra perf events: page-faults" {
+    g++ -g -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer test/adaptiveperf/single_threaded.cpp
+    run -0 ./adaptiveperf -t 14 -F 50 -e "page-faults,5,Page faults" ./a.out
+
+    asserts_after_adaptiveperf_run 2 20000000 14 "$output" "page-faults"
+}
+
+@test "[Test 10] Profiling a multi-threaded program with sampling rate 50 Hz, 14 post-processing threads, and extra perf events: page-faults" {
+    g++ -g -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer test/adaptiveperf/multi_threaded.cpp
+    run -0 ./adaptiveperf -t 14 -F 50 -e "page-faults,5,Page faults" ./a.out
+
+    asserts_after_adaptiveperf_run 18 20000000 14 "$output" "page-faults"
+}
+
+@test "[Test 11] Profiling a single-threaded program with sampling rate 50 Hz, 14 post-processing threads, and extra perf events: cpu-cycles, branch-misses" {
+    g++ -g -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer test/adaptiveperf/single_threaded.cpp
+    run -0 ./adaptiveperf -t 14 -F 50 -e "cpu-cycles,1000,CPU cycles" -e "branch-misses,900,Branch misses" ./a.out
+
+    asserts_after_adaptiveperf_run 2 20000000 14 "$output" "cpu-cycles" "branch-misses"
+}
+
+@test "[Test 12] Profiling a multi-threaded program with sampling rate 50 Hz, 14 post-processing threads, and extra perf events: cpu-cycles, branch-misses" {
+    g++ -g -fno-omit-frame-pointer -mno-omit-leaf-frame-pointer test/adaptiveperf/multi_threaded.cpp
+    run -0 ./adaptiveperf -t 14 -F 50 -e "cpu-cycles,1000,CPU cycles" -e "branch-misses,900,Branch misses" ./a.out
+
+    asserts_after_adaptiveperf_run 18 20000000 14 "$output" "cpu-cycles" "branch-misses"
+}
+
+@test "[Test 13] Profiling a very short-living program with default settings" {
     run -0 ./adaptiveperf ls
 
     asserts_after_adaptiveperf_run 1 0 $(nproc) "$output"
 }
 
-@test "[Test 10] Profiling a very short-living program with default settings and kernel.perf_event_paranoid not equal to -1" {
+@test "[Test 14] Profiling a very short-living program with default settings and kernel.perf_event_paranoid not equal to -1" {
     PATH=$(pwd)/test/adaptiveperf/mock_test10:$PATH run ! ./adaptiveperf ls
 }
 
-@test "[Test 11] Profiling a very short-living program with default settings and kernel.perf_event_max_stack set to 213" {
+@test "[Test 15] Profiling a very short-living program with default settings and kernel.perf_event_max_stack set to 213" {
     PATH=$(pwd)/test/adaptiveperf/mock_test11:$PATH run -0 ./adaptiveperf ls
 
     assert_line --partial "Note that stacks with more than 213 entries/entry"
     asserts_after_adaptiveperf_run 1 0 $(nproc) "$output"
 }
 
-@test "[Test 12] Profiling a very short-living program with default settings and NUMA balancing disabled" {
+@test "[Test 16] Profiling a very short-living program with default settings and NUMA balancing disabled" {
     PATH=$(pwd)/test/adaptiveperf/mock_test12:$PATH run -0 ./adaptiveperf ls
 
     assert_line --partial "NUMA balancing is disabled"
     asserts_after_adaptiveperf_run 1 0 $(nproc) "$output"
 }
 
-@test "[Test 13] Profiling a very short-living program with default settings and NUMA balancing enabled" {
+@test "[Test 17] Profiling a very short-living program with default settings and NUMA balancing enabled" {
     PATH=$(pwd)/test/adaptiveperf/mock_test13:$PATH run -0 ./adaptiveperf ls
 
     assert_line --partial "NUMA balancing is enabled"
     asserts_after_adaptiveperf_run 1 0 $(nproc) "$output"
 }
 
-@test "[Test 14] Profiling a very short-living program with default settings and NUMA balancing enabled with no available NUMA nodes" {
+@test "[Test 18] Profiling a very short-living program with default settings and NUMA balancing enabled with no available NUMA nodes" {
     PATH=$(pwd)/test/adaptiveperf/mock_test14:$PATH run ! ./adaptiveperf ls
 
     assert_line --partial "NUMA balancing is enabled"

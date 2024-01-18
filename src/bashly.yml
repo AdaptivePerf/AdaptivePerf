@@ -18,8 +18,14 @@ flags:
   arg: int
   default: "10"
   help: "Sampling frequency per second for wall time profiling"
+- long: --event
+  short: -e
+  arg: event,period,title
+  repeatable: true
+  help: "Extra perf event to be used for sampling with a given period (i.e. do a sample on every PERIOD occurrences of an event and display the results under the title TITLE in a website). Run \"perf list\" for the list of possible events. You can specify multiple events by specifying this flag more than once. Use quotes if you need to use spaces."
 
 examples:
 - adaptiveperf ./a.out
 - adaptiveperf -t 32 -F 1000 ./a.out
 - adaptiveperf --freq 5 "python3 test_program.py"
+- adaptiveperf -e "cache-misses,5,Misses" -e "page-faults,100,Page faults" ls
