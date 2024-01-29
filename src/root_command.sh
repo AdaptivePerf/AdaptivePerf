@@ -82,8 +82,6 @@ function prepare_results_dir() {
     printf -v date "%(%Y_%m_%d_%H_%M_%S)T" -1  # Based on https://stackoverflow.com/a/1401495
     RESULT_STORAGE=${date}_$(hostname)_$(basename "$TO_PROFILE" | cut -f1 -d ' ')
     mkdir -p results/$RESULT_STORAGE
-
-    echo $RESULT_STORAGE
 }
 
 function perf_record() {
