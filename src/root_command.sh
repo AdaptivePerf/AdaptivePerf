@@ -1,15 +1,14 @@
 #!/bin/bash
 set -e
 
-touch /tmp/adaptiveperf.pid.$$
-trap 'rm -f /tmp/adaptiveperf.pid.$$' EXIT
+mkdir /tmp/adaptiveperf.pid.$$
 
+CUR_DIR=$(pwd)
 TO_PROFILE="${args[command]}"
 
-# From https://stackoverflow.com/a/246128
-SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+cd /tmp/adaptiveperf.pid.$$
 
-source $SCRIPT_DIR/adaptiveperf-misc-funcs.sh
+trap 'rm -rf /tmp/adaptiveperf.pid.$$' EXIT
 
 function print_notice() {
     echo "AdaptivePerf: comprehensive profiling tool based on Linux perf"
@@ -47,216 +46,187 @@ function check_kernel_settings() {
     echo_sub "Remember that max stack values larger than 1024 are currently *NOT* supported for off-CPU stacks (they will be capped at 1024 entries)."
 }
 
+function check_cores() {
+    num_proc=$(nproc)
+
+    if [[ $1 -eq 0 ]]; then
+        echo_sub "AdaptivePerf called with -p 0, proceeding..."
+
+        PERF_MASK="0-$((num_proc - 1))"
+        PROFILE_MASK=$PERF_MASK
+    else
+        if [[ $num_proc -lt 4 ]]; then
+            echo_sub "Because there are fewer than 4 logical cores, the value of -p will be ignored unless it is 0."
+        fi
+
+        if [[ $num_proc -eq 1 ]]; then
+            if [[ $2 == "" && $3 == "" ]]; then
+                echo_sub "Running profiling along with post-processing is *NOT* recommended on a machine with only one logical core! You are very likely to get inconsistent results due to profiling threads interfering with the profiled program." 1
+                echo_sub "Please delegate post-processing to another machine via TCP/UDP by using the -p flag. If you want to proceed anyway, run AdaptivePerf with -p 0." 1
+                exit 1
+            else
+                echo_sub "1 logical core detected, running post-processing, perf, and the command on core #0 thanks to TCP/UDP delegation (you may still get inconsistent results, but it's less likely due to lighter on-site processing)."
+                PERF_MASK="0"
+                PROFILE_MASK="0"
+            fi
+        elif [[ $num_proc -eq 2 ]]; then
+            echo_sub "2 logical cores detected, running post-processing and perf on core #0 and the command on core #1."
+            PERF_MASK="0"
+            PROFILE_MASK="1"
+        elif [[ $num_proc -eq 3 ]]; then
+            echo_sub "3 logical cores detected, running post-processing and perf on cores #0 and #1 and the command on core #2."
+            PERF_MASK="0-1"
+            PROFILE_MASK="2"
+        elif [[ $1 -gt $((num_proc - 3)) ]]; then
+            echo_sub "The value of -p must be less than or equal to the number of logical cores minus 3 (i.e. $((num_proc - 3)))!" 1
+            exit 1
+        else
+            PERF_MASK="2-$((2 + $1 - 1))"
+            PROFILE_MASK="$((2 + $1))-$((num_proc - 1))"
+        fi
+    fi
+}
+
 function check_numa() {
     if ! command -v numactl &> /dev/null; then
-        echo_sub "numactl not found! Please install it first before using adaptiveperf." 1
+        echo_sub "numactl not found! Please install it first before using AdaptivePerf." 1
         exit 1
     fi
 
     numa_balancing=$(sysctl -n kernel.numa_balancing)
+    available_cpu_nodes=( $(numactl -s | sed -nE 's/^cpubind: ([0-9 ]+)/\1/p') )
+    available_mem_nodes=( $(numactl -s | sed -nE 's/^membind: ([0-9 ]+)/\1/p') )
 
-    if [[ $numa_balancing -eq 1 ]]; then
-        echo_sub "NUMA balancing is enabled, the code will be run on a single NUMA node only to avoid broken stacks."
-        echo_sub "If it's not desired, run \"sysctl kernel.numa_balancing=0\" to disable NUMA balancing."
+    if [[ $numa_balancing -eq 1 && (${#available_cpu_nodes[@]} -gt 1 || ${#available_mem_nodes[@]} -gt 1) ]]; then
+        echo_sub "NUMA balancing is enabled and AdaptivePerf is running on more than 1 NUMA node!" 1
+        echo_sub "As this will result in broken stacks, AdaptivePerf will not run." 1
+        echo_sub "Please disable balancing by running \"sysctl kernel.numa_balancing=0\"." 1
+        echo_sub "Alternatively, you can bind AdaptivePerf *both* CPU- and memory-wise to a single NUMA node, e.g. through numactl." 1
 
-        available_nodes=( $(numactl -H | sed -nE 's/node ([0-9]+) size:.*/\1/p') )
-        running_perf_instances=$(( $(ls /tmp/adaptiveperf.pid.* | wc -l) - 1))  # Do not count itself
-
-        if [[ $running_perf_instances -ge ${#available_nodes[@]} ]]; then
-            echo_sub "No more NUMA nodes available for profiling! Wait until at least one adaptiveperf instance finishes executing." 1
-            exit 1
-        fi
-
-        NODE_NUM=${available_nodes[$running_perf_instances]}
-
-        echo_sub "$((${#available_nodes[@]} - $running_perf_instances)) NUMA node(s) available for profiling, picking node number $NODE_NUM."
+        exit 1
     else
-        echo_sub "NUMA balancing is disabled, the code will be run on all NUMA nodes."
-        echo_sub "If it's not desired, run \"sysctl kernel.numa_balancing=1\" to enable NUMA balancing."
-
-        NODE_NUM=-1
+        echo_sub "NUMA balancing is disabled or AdaptivePerf is running on a single NUMA node, proceeding."
     fi
 }
 
 function prepare_results_dir() {
     printf -v date "%(%Y_%m_%d_%H_%M_%S)T" -1  # Based on https://stackoverflow.com/a/1401495
-    RESULT_STORAGE=${date}_$(hostname)_$(basename "$TO_PROFILE" | cut -f1 -d ' ')
-    mkdir -p results/$RESULT_STORAGE
+    PROFILED_FILENAME=$(basename "$TO_PROFILE" | cut -f1 -d ' ')
+    RESULT_NAME=${date}_$(hostname)_$PROFILED_FILENAME
+
+    RESULT_DIR=$CUR_DIR/results/$RESULT_NAME
+    RESULT_OUT=$CUR_DIR/results/$RESULT_NAME/out
+
+    mkdir -p $RESULT_DIR $RESULT_OUT
 }
 
 function perf_record() {
-    echo_sub "Starting tracers..."
-
-    mkdir results/$RESULT_STORAGE/out
-    result_out=$(pwd)/results/$RESULT_STORAGE/out
-
-    mkfifo $result_out/waitpipe
-
-    if [[ $NODE_NUM -eq -1 ]]; then
-        cat $result_out/waitpipe > /dev/null && $TO_PROFILE 1> $result_out/stdout.log 2> $result_out/stderr.log &
+    if [[ $1 == "" ]]; then
+        echo_sub "Starting adaptiveperf-server and tracers..."
     else
-        cat $result_out/waitpipe > /dev/null && numactl --cpunodebind $NODE_NUM --membind $NODE_NUM $TO_PROFILE 1> $result_out/stdout.log 2> $result_out/stderr.log &
+        echo_sub "Connecting to adaptiveperf-server and starting tracers..."
     fi
+
+    eval "event_args=($6)"
+    pipe_triggers=${event_args[@]}
+    pipe_triggers=$((pipe_triggers+2))
+
+    if [[ $1 == "" ]]; then
+        connected=0
+        serv_addr="127.0.0.1"
+        serv_port=5000
+        while [[ connected -eq 0 ]]; do
+            adaptiveperf-server -q -m 0 -p $serv_port &
+            serv_pid=$!
+
+            connected=1
+            while ! 2> /dev/null exec 3<> /dev/tcp/$serv_addr/$serv_port; do
+                if ! ps -p $serv_pid &> /dev/null; then
+                    set +e
+                    wait $serv_pid
+                    code=$?
+                    set -e
+
+                    if [[ $code -eq 100 ]]; then
+                        echo_sub "Port $serv_port is taken for adaptiveperf-server, trying $((serv_port+1))..."
+                        serv_port=$((serv_port+1))
+                        connected=0
+                        break
+                    else
+                        exit 1
+                    fi
+                fi
+            done
+        done
+    else
+        while IFS=':' read -ra addr_parts; do
+            serv_addr=${addr_parts[0]}
+            serv_port=${addr_parts[1]}
+        done <<< "$1"
+
+        exec 3<> /dev/tcp/$serv_addr/$serv_port
+    fi
+
+    echo "start${pipe_triggers} $RESULT_NAME" >&3
+    echo $PROFILED_FILENAME >&3
+    read -u 3 -ra event_ports
+
+    tracer_wait $pipe_triggers && cd $CUR_DIR && echo_sub "Executing the code..." && start_time=$(date +%s%3N) && taskset -c $PROFILE_MASK $TO_PROFILE 1> $RESULT_OUT/stdout.log 2> $RESULT_OUT/stderr.log && end_time=$(date +%s%3N) && echo_sub "Code execution completed in $(($end_time - $start_time)) ms!" &
 
     to_profile_pid=$!
-    syscall_list="syscalls:sys_exit_execve,syscalls:sys_exit_clone,syscalls:sys_exit_fork,syscalls:sys_exit_vfork,syscalls:sys_enter_exit,syscalls:sys_enter_exit_group"
 
-    if [[ $(sudo perf list | grep syscalls:sys_exit_clone3 | wc -l) -gt 0 ]]; then
-        syscall_list+=",syscalls:sys_exit_clone3"
-    fi
+    sudo APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT=${event_ports[0]} taskset -c $PERF_MASK perf script adaptiveperf-syscall-process " --pid=$to_profile_pid" &
+    SYSCALLS_PID=$!
 
-    sudo perf record --call-graph fp -e $syscall_list -o $result_out/syscalls.data --pid=$to_profile_pid -k CLOCK_MONOTONIC &
-    syscalls_pid=$!
-
-    sudo perf record --call-graph fp -e task-clock -F $1 -o $result_out/perf.data --off-cpu --pid=$to_profile_pid -k CLOCK_MONOTONIC &
-    sampling_pid=$!
+    sudo APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT=${event_ports[1]} taskset -c $PERF_MASK perf script adaptiveperf-process " -e task-clock -F $2 --off-cpu $3 --buffer-events $4 --buffer-off-cpu-events $5 --pid=$to_profile_pid" &
+    SAMPLING_PID=$!
 
     EXTRA_EVENTS=()
-    other_pids=()
-    eval "event_args=($2)"
+    OTHER_PIDS=()
+
+    eval "event_args=($6)"
+
     for ev in "${event_args[@]}"; do
         if [[ $ev == "" ]]; then
             continue
         fi
 
+        port_index=2
+
         # Based on https://stackoverflow.com/a/918931
         while IFS=',' read -ra event_parts; do
-            sudo perf record --call-graph fp -e ${event_parts[0]}/period=${event_parts[1]}/ -o $result_out/extra_${event_parts[0]}.data --pid=$to_profile_pid -k CLOCK_MONOTONIC &
-            other_pids+=($!)
+            sudo APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT=${event_ports[$port_index]} taskset -c $PERF_MASK perf script adaptiveperf-process " -e ${event_parts[0]}/period=${event_parts[1]}/ --pid=$to_profile_pid" &
+            OTHER_PIDS=($!)
 
-            echo ${event_parts[0]} ${event_parts[2]} >> $result_out/event_dict.data
+            echo ${event_parts[0]} ${event_parts[2]} >> $RESULT_OUT/event_dict.data
             EXTRA_EVENTS+=(${event_parts[0]})
+            port_index=$((port_index+1))
         done <<< "$ev"
     done
 
-    echo_sub "Waiting 10 seconds for the tracers to warm up..."
-    sleep 10
-
-    echo_sub "Executing the code..."
-
-    start_time=$(date +%s%3N)
-
-    echo 1 > $result_out/waitpipe
     wait $to_profile_pid
-
-    end_time=$(date +%s%3N)
-    runtime_length=$(($end_time - $start_time))
-
-    wait $syscalls_pid &> /dev/null
-    wait $sampling_pid &> /dev/null
-
-    for pid in ${other_pids[@]}; do
-        wait $pid &> /dev/null
-    done
-
-    rm $result_out/waitpipe
-
-    sudo chown $(whoami) $result_out/*.data
-
-    echo_sub "Code execution completed in $runtime_length ms!"
 }
 
-function clean_up_and_report() {
-    cd results/$RESULT_STORAGE
-    mv out/*.data .
+function process_results() {
+    read -u 3 -r final
+    exec 3>&-
 
-    jobs=$1
-
-    if [[ $jobs == "max" ]]; then
-        jobs=$(nproc)
+    if [[ $final != "finished" ]]; then
+        true
     fi
 
-    max_stack=$(sysctl -n kernel.perf_event_max_stack)
-
-    perf script -i perf.data -F comm,tid,pid,time,event,ip,sym,dso,period --ns --no-demangle --max-stack=$max_stack | c++filt -p | adaptiveperf-split-report $jobs script
-    perf script -i syscalls.data --no-demangle --max-stack=$max_stack $SCRIPT_DIR/adaptiveperf-perf-get-callchain.py > new_proc_callchains.data
-
-    for event in ${EXTRA_EVENTS[@]}; do
-        i="extra_$event.data"
-        perf script -i $i -F comm,tid,pid,time,event,ip,sym,dso,period --ns --no-demangle --max-stack=$max_stack | c++filt -p | adaptiveperf-split-report $jobs script_extra_$event
-    done
-
-    PIDS=()
-    echo_sub "Running wall time post-processing..."
-    for i in $(seq 0 $((jobs-1))); do
-        script_i="script${i}.data"
-        echo_sub "Starting $script_i..."
-        (cat $script_i | stackcollapse-perf.pl --tid | convert_from_ns_to_us > ${script_i:0:-5}_collapsed.data) && (cat $script_i | sed -nE 's/^\S*\s*([0-9]+)\/([0-9]+)\s+([0-9\.]+):\s+([0-9]+)\s+offcpu-time.*/\1 \2 \3 \4/p' > offcpu${i}.data) && rm $script_i && echo_sub "$script_i done!" &
-        PIDS+=($!)
-    done
-
-    for pid in ${PIDS[@]}; do
-        wait $pid &> /dev/null
-    done
-
-    for i in offcpu*.data; do
-        cat $i >> offcpu.data
-        rm $i
-    done
-
-    adaptiveperf-merge $(ls script*_collapsed.data | sort -V) > script_collapsed.data.tmp
-    rm script*_collapsed.data
-    mv script_collapsed.data.tmp script_collapsed.data
-
-    for i in ${EXTRA_EVENTS[@]}; do
-        PIDS=()
-        echo_sub "Running $i post-processing..."
-        for script_i in script_extra_${i}*.data; do
-            echo_sub "Starting $script_i..."
-            (cat $script_i | stackcollapse-perf.pl --tid > ${script_i:0:-5}_collapsed.data) && rm $script_i && echo_sub "$script_i done!" &
-            PIDS+=($!)
-        done
-
-        for pid in ${PIDS[@]}; do
-            wait $pid &> /dev/null
-        done
-
-        adaptiveperf-merge $(ls script_extra_${i}*_collapsed.data | sort -V) > script_extra_${i}_collapsed.data.tmp
-        rm script_extra_${i}*_collapsed.data
-        mv script_extra_${i}_collapsed.data.tmp script_extra_${i}_collapsed.data
-    done
+    cp -rT $RESULT_NAME/ $RESULT_DIR/
 }
 
-function split_reports() {
-    cd ../..
-
-    if compgen -G "results/$RESULT_STORAGE/script_extra*_collapsed.data" > /dev/null; then
-        adaptiveperf-split-ids results/$RESULT_STORAGE/script_collapsed.data results/$RESULT_STORAGE/overall_offcpu_collapsed.data results/$RESULT_STORAGE/script_extra*_collapsed.data
-    else
-        adaptiveperf-split-ids results/$RESULT_STORAGE/script_collapsed.data results/$RESULT_STORAGE/overall_offcpu_collapsed.data
-    fi
-}
-
-function remove_leftovers_and_make_flame_graphs() {
-    rm results/$RESULT_STORAGE/script*.data
-    cd results/$RESULT_STORAGE/processed
-
-    if compgen -G "*_no_overall_offcpu.data" > /dev/null; then
-        for i in *_no_overall_offcpu.data; do
-            flamegraph.pl --title="Wall time" --countname=us "$i" > "${i:0:-23}_walltime.svg"
-        done
-    fi
-
-    if compgen -G "*_with_overall_offcpu.data" > /dev/null; then
-        for i in *_with_overall_offcpu.data; do
-            flamegraph.pl --title="Wall time (time-ordered)" --countname=us --flamechart "$i" > "${i:0:-25}_walltime_chart.svg"
-        done
-    fi
-
-    if [[ ${#EXTRA_EVENTS[@]} -gt 0 ]]; then
-        for ev in ${EXTRA_EVENTS[@]}; do
-            for i in *_extra_${ev}.data; do
-                flamegraph.pl --title="$ev" --colors=green --countname="occurrence(s)" "$i" > "${i:0:-5}.svg"
-                flamegraph.pl --title="$ev (time-ordered)" --colors=green --countname="occurrence(s)" --flamechart "$i" > "${i:0:-5}_chart.svg"
-            done
-        done
-    fi
-}
+script_start_time=$(date +%s%3N)
 
 print_notice
 
 echo_main "Checking kernel settings..."
 check_kernel_settings
+
+echo_main "Checking CPU specification..."
+check_cores ${args[--post-process]} "${args[--tcp]}" "${args[--udp]}"
 
 echo_main "Checking for NUMA..."
 check_numa
@@ -265,15 +235,11 @@ echo_main "Preparing results directory..."
 prepare_results_dir
 
 echo_main "Profiling..."
-perf_record ${args[--freq]} "${args[--event]}"
+perf_record "${args[--address]}" ${args[--freq]} ${args[--off-cpu-freq]} ${args[--buffer]} ${args[--off-cpu-buffer]} "${args[--event]}"
 
-echo_main "Cleaning up and creating collapsed reports..."
-clean_up_and_report ${args[--threads]}
+echo_main "Processing results..."
+process_results
 
-echo_main "Splitting reports into processes/threads..."
-split_reports
+script_end_time=$(date +%s%3N)
 
-echo_main "Removing leftover files and producing flame graphs..."
-remove_leftovers_and_make_flame_graphs
-
-echo_main "All finished! You can check the results directory now."
+echo_main "Done in $(($script_end_time - $script_start_time)) ms in total! You can check the results directory now."

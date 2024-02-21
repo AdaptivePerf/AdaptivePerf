@@ -8,16 +8,35 @@ args:
   help: "Command to be profiled"
 
 flags:
-- long: --threads
-  short: -t
-  default: "max"
-  arg: num
-  help: "Number of threads for profiling data post-processing (use \"max\" for the number of CPUs in your system as returned by nproc)"
 - long: --freq
   short: -F
   arg: int
   default: "10"
-  help: "Sampling frequency per second for wall time profiling"
+  help: "Sampling frequency per second for on-CPU time profiling"
+- long: --buffer
+  short: -B
+  arg: int
+  default: "1"
+  help: "Buffer up to this number of events before sending data for post-processing (1 effectively disables buffering)"
+- long: --off-cpu-freq
+  short: -f
+  arg: int
+  default: "1000"
+  help: "Sampling frequency per second for off-CPU time profiling"
+- long: --off-cpu-buffer
+  short: -b
+  arg: int
+  default: "0"
+  help: "Buffer up to this number of off-CPU events before sending data for post-processing (0 leaves the default adaptive buffering, 1 effectively disables buffering)"
+- long: --post-process
+  short: -p
+  arg: int
+  default: "1"
+  help: "Number of threads isolated from profiled command to use for profilers and post-processing (must not be greater than the value of 'nproc' minus 3). Use 0 to not isolate profiler and post-processing threads from profiled command threads (NOT RECOMMENDED)."
+- long: --address
+  short: -a
+  arg: "address:port"
+  help: "Delegate post-processing to another machine running adaptiveperf-server. All results will be stored on that machine."
 - long: --event
   short: -e
   arg: event,period,title
@@ -26,6 +45,6 @@ flags:
 
 examples:
 - adaptiveperf ./a.out
-- adaptiveperf -t 32 -F 1000 ./a.out
-- adaptiveperf --freq 5 "python3 test_program.py"
+- adaptiveperf -F 1000 ./a.out
+- adaptiveperf --freq 5 -B 10 "python3 test_program.py"
 - adaptiveperf -e "cache-misses,5,Misses" -e "page-faults,100,Page faults" ls
