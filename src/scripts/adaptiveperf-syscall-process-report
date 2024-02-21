@@ -1,0 +1,3 @@
+#!/bin/bash
+# description: AdaptivePerf syscall processing
+perf script -s "$PERF_EXEC_PATH"/scripts/python/adaptiveperf-syscall-process.py --no-demangle --max-stack=$(sysctl -n kernel.perf_event_max_stack)
