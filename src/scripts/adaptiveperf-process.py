@@ -14,22 +14,34 @@ from perf_trace_context import *
 from Core import *
 
 
-event_sock = None
+event_socks = []
+next_index = 0
+
+
+def get_next_event_sock():
+    global event_socks, next_index
+    sock = event_socks[next_index]
+    next_index = (next_index + 1) % len(event_socks)
+    return sock
+
+
+event_sock_dict = defaultdict(lambda: defaultdict(get_next_event_sock))
 
 
 def trace_begin():
-    global event_sock
+    global event_socks
 
-    event_sock = socket.socket()
-    event_sock.connect((os.environ['APERF_SERV_ADDR'],
-                        int(os.environ['APERF_SERV_PORT'])))
+    ports = list(map(int, os.environ['APERF_SERV_PORT'].split(' ')))
 
-    sock = socket.socket(family=socket.AF_UNIX, type=socket.SOCK_DGRAM)
-    sock.sendto(b'\x00', 'start.sock')
-    sock.close()
+    for p in ports:
+        sock = socket.socket()
+        sock.connect((os.environ['APERF_SERV_ADDR'], p))
+        event_socks.append(sock)
 
 
 def process_event(param_dict):
+    global event_sock_dict
+
     event_type = param_dict['ev_name']
     comm = param_dict['comm']
     pid = param_dict['sample']['pid']
@@ -50,11 +62,15 @@ def process_event(param_dict):
 
     callchain.append(f'{comm}-{pid}/{tid}')
 
-    event_sock.sendall((json.dumps(
-        ['<SAMPLE>', re.search(r'^([^/]+)', event_type).group(1), pid, tid,
+    event_sock_dict[pid][tid].sendall((json.dumps(
+        ['<SAMPLE>', re.search(r'^([^/]+)', event_type).group(1),
+         str(pid), str(tid),
          timestamp, period, callchain[::-1]]) + '\n').encode('utf-8'))
 
 
 def trace_end():
-    event_sock.sendall('<STOP>\n'.encode('utf-8'))
-    event_sock.close()
+    global event_socks
+
+    for sock in event_socks:
+        sock.sendall('<STOP>\n'.encode('utf-8'))
+        sock.close()

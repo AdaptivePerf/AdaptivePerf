@@ -30,7 +30,7 @@ def syscall_callback(stack, ret_value):
         return
 
     event_sock.sendall((json.dumps([
-        '<SYSCALL>', ret_value, list(map(
+        '<SYSCALL>', str(ret_value), list(map(
             lambda x: x['sym']['name'] if 'sym' in x else
             '[' + Path(x['dso']).name + ']' if 'dso' in x else
             f'({x["ip"]:#x})', stack))
@@ -42,8 +42,13 @@ def syscall_tree_callback(syscall_type, comm_name, pid, tid, time,
     global event_sock
 
     event_sock.sendall((json.dumps([
-        '<SYSCALL_TREE>', syscall_type, comm_name, pid, tid, time, ret_value])
-                        + '\n').encode('utf-8'))
+        '<SYSCALL_TREE>',
+        syscall_type,
+        comm_name,
+        str(pid),
+        str(tid),
+        time,
+        str(ret_value)]) + '\n').encode('utf-8'))
 
 
 def trace_begin():
@@ -52,10 +57,6 @@ def trace_begin():
     event_sock = socket.socket()
     event_sock.connect((os.environ['APERF_SERV_ADDR'],
                         int(os.environ['APERF_SERV_PORT'])))
-
-    sock = socket.socket(family=socket.AF_UNIX, type=socket.SOCK_DGRAM)
-    sock.sendto(b'\x00', 'start.sock')
-    sock.close()
 
 
 def trace_end():

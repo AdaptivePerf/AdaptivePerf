@@ -54,6 +54,7 @@ function check_cores() {
 
         PERF_MASK="0-$((num_proc - 1))"
         PROFILE_MASK=$PERF_MASK
+        NUM_PERF_PROC=$num_proc
     else
         if [[ $num_proc -lt 4 ]]; then
             echo_sub "Because there are fewer than 4 logical cores, the value of -p will be ignored unless it is 0."
@@ -68,21 +69,25 @@ function check_cores() {
                 echo_sub "1 logical core detected, running post-processing, perf, and the command on core #0 thanks to TCP/UDP delegation (you may still get inconsistent results, but it's less likely due to lighter on-site processing)."
                 PERF_MASK="0"
                 PROFILE_MASK="0"
+                NUM_PERF_PROC=1
             fi
         elif [[ $num_proc -eq 2 ]]; then
             echo_sub "2 logical cores detected, running post-processing and perf on core #0 and the command on core #1."
             PERF_MASK="0"
             PROFILE_MASK="1"
+            NUM_PERF_PROC=1
         elif [[ $num_proc -eq 3 ]]; then
             echo_sub "3 logical cores detected, running post-processing and perf on cores #0 and #1 and the command on core #2."
             PERF_MASK="0-1"
             PROFILE_MASK="2"
+            NUM_PERF_PROC=2
         elif [[ $1 -gt $((num_proc - 3)) ]]; then
             echo_sub "The value of -p must be less than or equal to the number of logical cores minus 3 (i.e. $((num_proc - 3)))!" 1
             exit 1
         else
             PERF_MASK="2-$((2 + $1 - 1))"
             PROFILE_MASK="$((2 + $1))-$((num_proc - 1))"
+            NUM_PERF_PROC=$1
         fi
     fi
 }
@@ -130,6 +135,7 @@ function perf_record() {
     eval "event_args=($6)"
     pipe_triggers=${event_args[@]}
     pipe_triggers=$((pipe_triggers+2))
+    pipe_triggers=$((pipe_triggers > NUM_PERF_PROC ? pipe_triggers : NUM_PERF_PROC))
 
     if [[ $1 == "" ]]; then
         connected=0
@@ -171,14 +177,16 @@ function perf_record() {
     echo $PROFILED_FILENAME >&3
     read -u 3 -ra event_ports
 
-    tracer_wait $pipe_triggers && cd $CUR_DIR && echo_sub "Executing the code..." && start_time=$(date +%s%3N) && taskset -c $PROFILE_MASK $TO_PROFILE 1> $RESULT_OUT/stdout.log 2> $RESULT_OUT/stderr.log && end_time=$(date +%s%3N) && echo_sub "Code execution completed in $(($end_time - $start_time)) ms!" &
+    read -u 3 && [[ $REPLY == "start_profile" ]] && sleep 1 && cd $CUR_DIR && echo_sub "Executing the code..." && start_time=$(date +%s%3N) && taskset -c $PROFILE_MASK $TO_PROFILE 1> $RESULT_OUT/stdout.log 2> $RESULT_OUT/stderr.log && end_time=$(date +%s%3N) && echo_sub "Code execution completed in $(($end_time - $start_time)) ms!" &
 
     to_profile_pid=$!
 
-    sudo APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT=${event_ports[0]} taskset -c $PERF_MASK perf script adaptiveperf-syscall-process " --pid=$to_profile_pid" &
+    APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT=${event_ports[0]} sudo -E taskset -c $PERF_MASK perf script adaptiveperf-syscall-process " --pid=$to_profile_pid" 1> $RESULT_OUT/perf_syscall_stdout.log 2> $RESULT_OUT/perf_syscall_stderr.log &
     SYSCALLS_PID=$!
 
-    sudo APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT=${event_ports[1]} taskset -c $PERF_MASK perf script adaptiveperf-process " -e task-clock -F $2 --off-cpu $3 --buffer-events $4 --buffer-off-cpu-events $5 --pid=$to_profile_pid" &
+    echo ${event_ports[@]:1}
+
+    APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT="${event_ports[@]:1}" sudo -E taskset -c $PERF_MASK perf script adaptiveperf-process " -e task-clock -F $2 --off-cpu $3 --buffer-events $4 --buffer-off-cpu-events $5 --pid=$to_profile_pid" 1> $RESULT_OUT/perf_main_stdout.log 2> $RESULT_OUT/perf_main_stderr.log &
     SAMPLING_PID=$!
 
     EXTRA_EVENTS=()
@@ -191,16 +199,13 @@ function perf_record() {
             continue
         fi
 
-        port_index=2
-
         # Based on https://stackoverflow.com/a/918931
         while IFS=',' read -ra event_parts; do
-            sudo APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT=${event_ports[$port_index]} taskset -c $PERF_MASK perf script adaptiveperf-process " -e ${event_parts[0]}/period=${event_parts[1]}/ --pid=$to_profile_pid" &
+            APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT="${event_ports[@]:1}" sudo -E taskset -c $PERF_MASK perf script adaptiveperf-process " -e ${event_parts[0]}/period=${event_parts[1]}/ --pid=$to_profile_pid" 1> $RESULT_OUT/perf_${event_parts[0]}_stdout.log 2> $RESULT_OUT/perf_${event_parts[0]}_stderr.log &
             OTHER_PIDS=($!)
 
             echo ${event_parts[0]} ${event_parts[2]} >> $RESULT_OUT/event_dict.data
             EXTRA_EVENTS+=(${event_parts[0]})
-            port_index=$((port_index+1))
         done <<< "$ev"
     done
 
