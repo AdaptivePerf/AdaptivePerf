@@ -1,6 +1,9 @@
 #!/bin/bash
-set -e
 
+# AdaptivePerf: comprehensive profiling tool based on Linux perf
+# Copyright (C) CERN. See LICENSE for details.
+
+set +e
 mkdir /tmp/adaptiveperf.pid.$$
 
 CUR_DIR=$(pwd)
@@ -14,6 +17,20 @@ function print_notice() {
     echo "AdaptivePerf: comprehensive profiling tool based on Linux perf"
     echo "Copyright (C) CERN."
     echo ""
+    echo "This program is free software; you can redistribute it and/or"
+    echo "modify it under the terms of the GNU General Public License"
+    echo "as published by the Free Software Foundation; only version 2."
+    echo ""
+    echo "This program is distributed in the hope that it will be useful,"
+    echo "but WITHOUT ANY WARRANTY; without even the implied warranty of"
+    echo "MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the"
+    echo "GNU General Public License for more details."
+    echo ""
+    echo "You should have received a copy of the GNU General Public License"
+    echo "along with this program; if not, write to the Free Software"
+    echo "Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,"
+    echo "MA 02110-1301, USA."
+    echo ""
 }
 
 function echo_sub() {
@@ -25,17 +42,44 @@ function echo_sub() {
 }
 
 function echo_main() {
-    echo -e "\033[1;32m==> $1\033[0m"
+    if [[ $2 -eq 1 ]]; then
+        echo -e "\033[1;31m==> $1\033[0m"
+    else
+        echo -e "\033[1;32m==> $1\033[0m"
+    fi
+}
+
+function handle_unknown_error() {
+    echo_main "An unknown error has occurred! If the issue persists, please contact the AdaptivePerf developers, citing \"line $1\"." 1
+    exit 2
+}
+
+function enable_err_trap() {
+    trap 'handle_unknown_error $LINENO' ERR
+}
+
+function disable_err_trap() {
+    trap - ERR
 }
 
 function check_kernel_settings() {
     if ! grep -qs '/sys/kernel/debug ' /proc/mounts; then
         echo_sub "/sys/kernel/debug is not mounted, mounting..."
-        sudo mount -t debugfs none /sys/kernel/debug
+        if ! sudo mount -t debugfs none /sys/kernel/debug; then
+            echo_sub "Could not mount /sys/kernel/debug! Exiting." 1
+            exit 2
+        fi
     fi
 
-    paranoid=$(sysctl -n kernel.perf_event_paranoid)
-    max_stack=$(sysctl -n kernel.perf_event_max_stack)
+    if ! paranoid=$(sysctl -n kernel.perf_event_paranoid); then
+        echo_sub "Could not run \"sysctl -n kernel.perf_event_paranoid\"!. Exiting." 1
+        exit 2
+    fi
+
+    if ! max_stack=$(sysctl -n kernel.perf_event_max_stack); then
+        echo_sub "Could not run \"sysctl -n kernel.perf_event_max_stack\"!. Exiting." 1
+        exit 2
+    fi
 
     if [[ $paranoid -ne -1 ]]; then
         echo_sub "kernel.perf_event_paranoid is not -1! Please run \"sysctl kernel.perf_event_paranoid=-1\" before profiling." 1
@@ -48,6 +92,7 @@ function check_kernel_settings() {
 
 function check_cores() {
     num_proc=$(nproc)
+    POST_PROCESSING_PARAM=$1
 
     if [[ $1 -eq 0 ]]; then
         echo_sub "AdaptivePerf called with -p 0, proceeding..."
@@ -55,15 +100,16 @@ function check_cores() {
         PERF_MASK="0-$((num_proc - 1))"
         PROFILE_MASK=$PERF_MASK
         NUM_PERF_PROC=$num_proc
+        POST_PROCESSING_PARAM=$num_proc
     else
         if [[ $num_proc -lt 4 ]]; then
-            echo_sub "Because there are fewer than 4 logical cores, the value of -p will be ignored unless it is 0."
+            echo_sub "Because there are fewer than 4 logical cores, the value of -p will be ignored for the profiled program unless it is 0."
         fi
 
         if [[ $num_proc -eq 1 ]]; then
             if [[ $2 == "" && $3 == "" ]]; then
                 echo_sub "Running profiling along with post-processing is *NOT* recommended on a machine with only one logical core! You are very likely to get inconsistent results due to profiling threads interfering with the profiled program." 1
-                echo_sub "Please delegate post-processing to another machine via TCP/UDP by using the -p flag. If you want to proceed anyway, run AdaptivePerf with -p 0." 1
+                echo_sub "Please delegate post-processing to another machine via TCP/UDP by using the -a flag. If you want to proceed anyway, run AdaptivePerf with -p 0." 1
                 exit 1
             else
                 echo_sub "1 logical core detected, running post-processing, perf, and the command on core #0 thanks to TCP/UDP delegation (you may still get inconsistent results, but it's less likely due to lighter on-site processing)."
@@ -98,9 +144,20 @@ function check_numa() {
         exit 1
     fi
 
-    numa_balancing=$(sysctl -n kernel.numa_balancing)
-    available_cpu_nodes=( $(numactl -s | sed -nE 's/^cpubind: ([0-9 ]+)/\1/p') )
-    available_mem_nodes=( $(numactl -s | sed -nE 's/^membind: ([0-9 ]+)/\1/p') )
+    if ! numa_balancing=$(sysctl -n kernel.numa_balancing); then
+        echo_sub "Could not run \"sysctl -n kernel.numa_balancing\"! Exiting." 1
+        exit 2
+    fi
+
+    if ! available_cpu_nodes=( $(numactl -s | sed -nE 's/^cpubind: ([0-9 ]+)/\1/p') ); then
+        echo_sub "Could not run \"numactl -s\" to determine CPU NUMA nodes! Exiting." 1
+        exit 2
+    fi
+
+    if ! available_mem_nodes=( $(numactl -s | sed -nE 's/^membind: ([0-9 ]+)/\1/p') ); then
+        echo_sub "Could not run \"numactl -s\" to determine memory NUMA nodes! Exiting." 1
+        exit 2
+    fi
 
     if [[ $numa_balancing -eq 1 && (${#available_cpu_nodes[@]} -gt 1 || ${#available_mem_nodes[@]} -gt 1) ]]; then
         echo_sub "NUMA balancing is enabled and AdaptivePerf is running on more than 1 NUMA node!" 1
@@ -122,7 +179,10 @@ function prepare_results_dir() {
     RESULT_DIR=$CUR_DIR/results/$RESULT_NAME
     RESULT_OUT=$CUR_DIR/results/$RESULT_NAME/out
 
-    mkdir -p $RESULT_DIR $RESULT_OUT
+    if ! mkdir -p $RESULT_DIR $RESULT_OUT; then
+        echo_sub "Could not create $RESULT_DIR and/or $RESULT_OUT! Exiting." 1
+        exit 2
+    fi
 }
 
 function perf_record() {
@@ -133,25 +193,26 @@ function perf_record() {
     fi
 
     eval "event_args=($6)"
-    pipe_triggers=${event_args[@]}
-    pipe_triggers=$((pipe_triggers+2))
+    pipe_triggers=${#event_args[@]}
+    pipe_triggers=$(((pipe_triggers+1)*POST_PROCESSING_PARAM))
     pipe_triggers=$((pipe_triggers > NUM_PERF_PROC ? pipe_triggers : NUM_PERF_PROC))
 
     if [[ $1 == "" ]]; then
         connected=0
         serv_addr="127.0.0.1"
         serv_port=5000
+        serv_buf_size=$8
         while [[ connected -eq 0 ]]; do
-            adaptiveperf-server -q -m 0 -p $serv_port &
+            adaptiveperf-server -q -m 0 -p $serv_port -b $serv_buf_size &
             serv_pid=$!
 
             connected=1
             while ! 2> /dev/null exec 3<> /dev/tcp/$serv_addr/$serv_port; do
                 if ! ps -p $serv_pid &> /dev/null; then
-                    set +e
+                    disable_err_trap
                     wait $serv_pid
                     code=$?
-                    set -e
+                    enable_err_trap
 
                     if [[ $code -eq 100 ]]; then
                         echo_sub "Port $serv_port is taken for adaptiveperf-server, trying $((serv_port+1))..."
@@ -159,40 +220,60 @@ function perf_record() {
                         connected=0
                         break
                     else
-                        exit 1
+                        echo_sub "adaptiveperf-server has finished with non-zero exit code $code. Exiting." 1
+                        exit 2
                     fi
                 fi
             done
         done
     else
-        while IFS=':' read -ra addr_parts; do
-            serv_addr=${addr_parts[0]}
-            serv_port=${addr_parts[1]}
-        done <<< "$1"
+        IFS=':' read -ra addr_parts <<< "$1"
+        serv_addr=${addr_parts[0]}
+        serv_port=${addr_parts[1]}
 
-        exec 3<> /dev/tcp/$serv_addr/$serv_port
+        if ! exec 3<> /dev/tcp/$serv_addr/$serv_port; then
+            echo_sub "Could not connect to $serv_addr:$serv_port! Please check your address and try again." 1
+            exit 2
+        fi
     fi
 
-    echo "start${pipe_triggers} $RESULT_NAME" >&3
-    echo $PROFILED_FILENAME >&3
-    read -u 3 -ra event_ports
+    if ! echo "start${pipe_triggers} $RESULT_NAME" >&3; then
+        echo_sub "I/O error has occurred in the communication with adaptiveperf-server! Exiting." 1
+        exit 2
+    fi
 
-    read -u 3 && [[ $REPLY == "start_profile" ]] && sleep 1 && cd $CUR_DIR && echo_sub "Executing the code..." && start_time=$(date +%s%3N) && taskset -c $PROFILE_MASK $TO_PROFILE 1> $RESULT_OUT/stdout.log 2> $RESULT_OUT/stderr.log && end_time=$(date +%s%3N) && echo_sub "Code execution completed in $(($end_time - $start_time)) ms!" &
+    if ! echo $PROFILED_FILENAME >&3; then
+        echo_sub "I/O error has occurred in the communication with adaptiveperf-server! Exiting." 1
+        exit 2
+    fi
+
+    if ! read -u 3 -ra event_ports; then
+        echo_sub "I/O error has occurred in the communication with adaptiveperf-server! Exiting." 1
+        exit 2
+    fi
+
+    if [[ ${event_ports[0]} == error* ]]; then
+        echo_sub "adaptiveperf-server has encountered an error! Exiting." 1
+        exit 2
+    fi
+
+    sleep_time=$7
+
+    read -u 3 && [[ $REPLY == "start_profile" ]] && sleep $sleep_time && cd $CUR_DIR && echo_sub "Executing the code..." && start_time=$(date +%s%3N) && taskset -c $PROFILE_MASK $TO_PROFILE 1> $RESULT_OUT/stdout.log 2> $RESULT_OUT/stderr.log && end_time=$(date +%s%3N) && echo_sub "Code execution completed in $(($end_time - $start_time)) ms!" &
 
     to_profile_pid=$!
 
     APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT=${event_ports[0]} sudo -E taskset -c $PERF_MASK perf script adaptiveperf-syscall-process " --pid=$to_profile_pid" 1> $RESULT_OUT/perf_syscall_stdout.log 2> $RESULT_OUT/perf_syscall_stderr.log &
     SYSCALLS_PID=$!
 
-    echo ${event_ports[@]:1}
-
-    APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT="${event_ports[@]:1}" sudo -E taskset -c $PERF_MASK perf script adaptiveperf-process " -e task-clock -F $2 --off-cpu $3 --buffer-events $4 --buffer-off-cpu-events $5 --pid=$to_profile_pid" 1> $RESULT_OUT/perf_main_stdout.log 2> $RESULT_OUT/perf_main_stderr.log &
+    APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT="${event_ports[@]:1:$((POST_PROCESSING_PARAM-1))}" sudo -E taskset -c $PERF_MASK perf script adaptiveperf-process " -e task-clock -F $2 --off-cpu $3 --buffer-events $4 --buffer-off-cpu-events $5 --pid=$to_profile_pid" 1> $RESULT_OUT/perf_main_stdout.log 2> $RESULT_OUT/perf_main_stderr.log &
     SAMPLING_PID=$!
 
     EXTRA_EVENTS=()
     OTHER_PIDS=()
 
     eval "event_args=($6)"
+    start_index=$POST_PROCESSING_PARAM
 
     for ev in "${event_args[@]}"; do
         if [[ $ev == "" ]]; then
@@ -200,29 +281,52 @@ function perf_record() {
         fi
 
         # Based on https://stackoverflow.com/a/918931
-        while IFS=',' read -ra event_parts; do
-            APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT="${event_ports[@]:1}" sudo -E taskset -c $PERF_MASK perf script adaptiveperf-process " -e ${event_parts[0]}/period=${event_parts[1]}/ --pid=$to_profile_pid" 1> $RESULT_OUT/perf_${event_parts[0]}_stdout.log 2> $RESULT_OUT/perf_${event_parts[0]}_stderr.log &
-            OTHER_PIDS=($!)
+        IFS=',' read -ra event_parts <<< "$ev"
+        APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT="${event_ports[@]:$start_index:$POST_PROCESSING_PARAM}" sudo -E taskset -c $PERF_MASK perf script adaptiveperf-process " -e ${event_parts[0]}/period=${event_parts[1]}/ --pid=$to_profile_pid" 1> $RESULT_OUT/perf_${event_parts[0]}_stdout.log 2> $RESULT_OUT/perf_${event_parts[0]}_stderr.log &
+        OTHER_PIDS=($!)
 
-            echo ${event_parts[0]} ${event_parts[2]} >> $RESULT_OUT/event_dict.data
-            EXTRA_EVENTS+=(${event_parts[0]})
-        done <<< "$ev"
+        echo ${event_parts[0]} ${event_parts[2]} >> $RESULT_OUT/event_dict.data
+        EXTRA_EVENTS+=(${event_parts[0]})
+
+        start_index=$((start_index+POST_PROCESSING_PARAM))
     done
 
+    disable_err_trap
     wait $to_profile_pid
+    code=$?
+    enable_err_trap
+
+    if [[ $code -ne 0 ]]; then
+        echo_sub "Profiled program has finished with non-zero exit code $code. Exiting." 1
+        exit 2
+    fi
 }
 
 function process_results() {
-    read -u 3 -r final
-    exec 3>&-
-
-    if [[ $final != "finished" ]]; then
-        true
+    if ! read -u 3 -r final; then
+        echo_sub "I/O error has occurred in the communication with adaptiveperf-server! Exiting." 1
+        exit 2
     fi
 
-    cp -rT $RESULT_NAME/ $RESULT_DIR/
+    if ! exec 3>&-; then
+        echo_sub "Could not close the socket connection with adaptiveperf-server! Exiting." 1
+        exit 2
+    fi
+
+    if [[ $final != "finished" ]]; then
+        echo_sub "adaptiveperf-server has not indicated its successful completion! Exiting." 1
+        exit 2
+    fi
+
+    if [[ $1 == "" ]]; then
+        if ! cp -rT $RESULT_NAME/ $RESULT_DIR/; then
+            echo_sub "Could not copy the results to the final directory! Exiting."
+            exit 2
+        fi
+    fi
 }
 
+enable_err_trap
 script_start_time=$(date +%s%3N)
 
 print_notice
@@ -240,10 +344,10 @@ echo_main "Preparing results directory..."
 prepare_results_dir
 
 echo_main "Profiling..."
-perf_record "${args[--address]}" ${args[--freq]} ${args[--off-cpu-freq]} ${args[--buffer]} ${args[--off-cpu-buffer]} "${args[--event]}"
+perf_record "${args[--address]}" ${args[--freq]} ${args[--off-cpu-freq]} ${args[--buffer]} ${args[--off-cpu-buffer]} "${args[--event]}" ${args[--warmup]} ${args[--server-buffer]}
 
 echo_main "Processing results..."
-process_results
+process_results "${args[--address]}"
 
 script_end_time=$(date +%s%3N)
 
