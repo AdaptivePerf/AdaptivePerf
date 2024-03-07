@@ -1,7 +1,0 @@
-test-1/2;a;b;c;[cold]_d 58183.182
-test-1/1;a;b;[cold]_c 688.0
-test-1/2;[cold]_(just thread/process) 12.0
-test-1/1;a;b;c;[cold]_d 4819.0
-test-1/2;x;y;[cold]_z 21.7123
-test2-1/3;[cold]_(just thread/process) 4.73
-test2-1/3;d;[cold]_e 1284.0
