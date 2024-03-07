@@ -1,3 +1,3 @@
 #!/bin/bash
 # description: AdaptivePerf processing
-perf script -s "$PERF_EXEC_PATH"/scripts/python/adaptiveperf-process.py -F comm,tid,pid,time,event,ip,sym,dso,period --ns --no-demangle --max-stack=$(sysctl -n kernel.perf_event_max_stack)
+perf script -s "$PERF_EXEC_PATH"/scripts/python/adaptiveperf-process.py -F comm,tid,pid,time,event,ip,sym,dso,period --ns --demangle --demangle-kernel --max-stack=$(sysctl -n kernel.perf_event_max_stack)

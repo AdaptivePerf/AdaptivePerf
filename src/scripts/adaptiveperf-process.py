@@ -1,3 +1,6 @@
+# AdaptivePerf: comprehensive profiling tool based on Linux perf
+# Copyright (C) CERN. See LICENSE for details.
+
 import os
 import sys
 import subprocess
@@ -16,6 +19,8 @@ from Core import *
 
 event_socks = []
 next_index = 0
+cpp_filt = None
+cpp_filt_cache = {}
 
 
 def get_next_event_sock():
@@ -28,8 +33,28 @@ def get_next_event_sock():
 event_sock_dict = defaultdict(lambda: defaultdict(get_next_event_sock))
 
 
+def demangle(name):
+    global cpp_filt, cpp_filt_cache
+
+    if name in cpp_filt_cache:
+        return cpp_filt_cache[name]
+
+    stdin = cpp_filt.stdin
+    stdin.write((name + '\n').encode())
+    stdin.flush()
+
+    stdout = cpp_filt.stdout
+    result = stdout.readline().decode().strip()
+    cpp_filt_cache[name] = result
+    return result
+
+
 def trace_begin():
-    global event_socks
+    global event_socks, cpp_filt
+
+    cpp_filt = subprocess.Popen(['c++filt', '-p'],
+                                stdin=subprocess.PIPE,
+                                stdout=subprocess.PIPE)
 
     ports = list(map(int, os.environ['APERF_SERV_PORT'].split(' ')))
 
@@ -69,8 +94,10 @@ def process_event(param_dict):
 
 
 def trace_end():
-    global event_socks
+    global event_socks, cpp_filt
 
     for sock in event_socks:
         sock.sendall('<STOP>\n'.encode('utf-8'))
         sock.close()
+
+    cpp_filt.terminate()
