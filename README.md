@@ -1,21 +1,25 @@
 # AdaptivePerf
 A comprehensive profiling tool with Linux ```perf``` as its main foundation.
 
+## Recent redesign
+AdaptivePerf has been redesigned recently and its documentation and build system are not updated yet. All missing documentation is marked as "under construction" and will be completed soon!
+
 ## Disclaimer
-This is currently a beta version and the tool is under active development. The test coverage is limited in some areas and bugs are to be expected. Use at your own risk!
+This is currently a beta version and the tool is under active development. The test coverage is currently limited and bugs are to be expected. Use at your own risk!
 
 All feedback is welcome.
 
 ## License
 Copyright (C) CERN. 
 
-The license of the project has not been confirmed yet, this will happen by 8 March 2024 at the very latest. In the meantime, do not distribute any code and binaries to people with no CERN status.
+The project is distributed under the GNU GPL v2 license. See LICENSE for details. **Only version 2 of GNU GPL can be used!**
 
 ## Current features
 * Profiling on-CPU and off-CPU activity with ```perf```, hot-and-cold flame graphs, and hot-and-cold time-ordered flame charts
 * Profiling thread/process tree by tracing relevant syscalls with ```perf```
 * Profiling stack traces of functions spawning new threads/processes
 * Profiling any event supported by ```perf``` for sampling
+* Streaming profiling events in real-time through TCP to a different machine running adaptiveperf-server (part of this repository)
 
 Both single-threaded and multi-threaded programs are supported. All CPU architectures and vendors should also be supported (provided that the requirements are met) since the main features of AdaptivePerf are based on kernel-based performance counters and portable stack unwinding methods. However, if extra ```perf``` events are used for sampling, the list of available events should be checked beforehand by running ```perf list``` as this is architecture-dependent.
 
@@ -24,26 +28,16 @@ Both single-threaded and multi-threaded programs are supported. All CPU architec
 
 ## Installation
 ### Requirements
-* Linux with kernel-specific packages enabling profiling (for RHEL/CentOS/AlmaLinux: ```kernel-headers```, ```kernel-modules```). For best reliability of off-CPU profiling, usage of the newest Linux kernel version is recommended.
-* [The patched ```flamegraph.pl``` and ```stackcollapse-perf.pl``` scripts](https://gitlab.cern.ch/adaptiveperf/flamegraph)
-* [The patched ```perf```](https://gitlab.cern.ch/adaptiveperf/linux/-/tree/master/tools/perf) compiled with ```BUILD_BPF_SKEL=1```.
-* [Bashly](https://bashly.dannyb.co)
-* numactl
-* Python 3
-* Perl
-* [bats-core](https://github.com/bats-core/bats-core) (for testing)
-* Dependencies of your profiled code compiled with frame pointers (i.e. with the ```-fno-omit-frame-pointer``` and ```-mno-omit-leaf-frame-pointer``` gcc flags). It is recommended that everything in your system is compiled with frame pointers, otherwise you may get broken stacks in profiling results.
+Under construction.
 
 ### Local
-Clone this repository, run ```make``` followed by ```source setup.sh``` inside the repository directory (running ```make test``` before using AdaptivePerf is recommended)
+Under construction.
 
 ### Global / System-wide
-Clone this repository and run ```make``` followed by ```make install``` (running ```make test``` before the install command is recommended).
+Under construction.
 
 ### Gentoo-based virtual machine image with frame pointers
-Given the complexity of setting up a machine with frame pointers, patched ```perf``` etc., we make available ready-to-use Gentoo-based qcow2 images with AdaptivePerf set up. They're also configured for out-of-the-box reliable ```perf``` profiling, such as permanently-set profiling-related kernel parameters and ensuring that everything in the system is compiled with frame pointers.
-
-The images are denoted by commit tags and can be downloaded from https://cernbox.cern.ch/s/FalGlNqzsdj0K5P.
+Under construction.
 
 ## How to use
 Before running AdaptivePerf for the first time, run ```sysctl kernel.perf_event_paranoid=-1```. Otherwise, the tool will refuse to run due to its inability to reliably obtain kernel stack traces. This is already done for the VM image.
@@ -67,14 +61,6 @@ After profiling is completed, you can check the results inside ```results```.
 You can run ```adaptiveperf``` multiple times, all profiling results will be saved inside the same ```results``` directory provided that every ```adaptiveperf``` execution is done inside the same working directory.
 
 The structure of ```results``` is as follows:
-* ```<year>_<month>_<day>_<hour>_<minute>_<second>_<executor> <profiled process name>```: the directory corresponding to your profiling session
-    * ```perf.data```: the file containing raw sampling data for post-processing by ```perf```
-    * ```syscalls.data```: the file containing raw syscall tracing data for post-processing by ```perf```
-    * ```offcpu.data```: the file containing sampled off-CPU regions of threads/processes with timestamps
-    * ```new_proc_callchains.data```: the file containing stack traces of functions spawning new threads/processes
-    * ```event_dict.data```: the file with friendly names for each extra ```perf``` event used for profiling
-    * ```extra_<event>.data```: the file containing raw sampling data of extra event of type ```<event>``` for post-processing by ```perf```
-    * ```out```: the directory containing all output files produced by your profiled program (this includes stdout and stderr in ```stdout.log``` and ```stderr.log``` respectively)
-    * ```processed```: the directory containing flame graphs and raw text data files that can be parsed by the flame graph tool, one set per thread/process and type in form of ```<PID>_<TID>_<type>.data```/```<PID>_<TID>_<type>.svg```
+(under construction)
 
 It is recommended to use [AdaptivePerfHTML](https://gitlab.cern.ch/adaptiveperf/adaptiveperfhtml) for creating an interactive HTML summary of your profiling sessions (or setting up a web server displaying all profiling sessions run so far).
