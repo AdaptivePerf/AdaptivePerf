@@ -1,5 +1,5 @@
 name: adaptiveperf
-help: perf-based tool for comprehensive profiling of programs
+help: comprehensive profiling tool based on Linux perf
 version: 1.0b1
 
 args:
@@ -33,10 +33,20 @@ flags:
   arg: int
   default: "1"
   help: "Number of threads isolated from profiled command to use for profilers and post-processing (must not be greater than the value of 'nproc' minus 3). Use 0 to not isolate profiler and post-processing threads from profiled command threads (NOT RECOMMENDED)."
+- long: --server-buffer
+  short: -s
+  arg: int
+  default: "1024"
+  help: "Communication buffer size in bytes for internal adaptiveperf-server. Ignored when -a is used."
 - long: --address
   short: -a
   arg: "address:port"
   help: "Delegate post-processing to another machine running adaptiveperf-server. All results will be stored on that machine."
+- long: --warmup
+  short: -w
+  arg: int
+  default: "1"
+  help: "Warmup time in seconds between adaptiveperf-server signalling readiness for receiving data and starting the profiled program. Increase this value if you see missing information after profiling (note that adaptiveperf-server is also used internally if no -a option is specified)."
 - long: --event
   short: -e
   arg: event,period,title
