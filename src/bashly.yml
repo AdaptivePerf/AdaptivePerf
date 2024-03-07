@@ -1,3 +1,6 @@
+# AdaptivePerf: comprehensive profiling tool based on Linux perf
+# Copyright (C) CERN. See LICENSE for details.
+
 name: adaptiveperf
 help: comprehensive profiling tool based on Linux perf
 version: 1.0b1
