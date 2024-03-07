@@ -30,8 +30,22 @@ Both single-threaded and multi-threaded programs are supported. All CPU architec
 ### Requirements
 Under construction.
 
+However, please note that you need Linux 5.8 or newer. Additionally, the [CLI11](https://github.com/CLIUtils/CLI11), [nlohmann-json](https://github.com/nlohmann/json), and [PocoNet + PocoFoundation](https://pocoproject.org) dependencies are required for compiling adaptiveperf-server in ```src/server```.
+
 ### Local
-Under construction.
+(temporary instructions until the build system is updated)
+
+1. Clone this repository.
+2. Run ```make``` inside.
+3. Download CLI11 and nlohmann-json in form of ```CLI11.hpp``` and ```json.hpp``` files and put them inside ```src/server```.
+4. Compile adaptiveperf-server inside ```src/server``` using the following command:
+```
+g++ server.cpp socket.cpp -lPocoNet -lPocoFoundation -o adaptiveperf-server
+```
+5. Copy ```adaptiveperf-process-record```, ```adaptiveperf-syscall-process-record```, ```adaptiveperf-process-report```, ```adaptiveperf-syscall-process-report``` to ```/usr/libexec/perf-core/scripts/python/bin``` (or equivalent, depending on your ```perf``` installation).
+6. Copy ```adaptiveperf-process.py``` and ```adaptiveperf-syscall-process.py``` to ```/usr/libexec/perf-core/scripts/python``` (or equivalent, depending on your ```perf``` installation).
+7. Verify that ```perf``` detects the AdaptivePerf scripts by running ```perf script -l``` (look for ```adaptiveperf-process``` and ```adaptiveperf-syscall-process```).
+8. Update your PATH environment variable so that you can run ```adaptiveperf``` in the root directory of the repository and ```adaptiveperf-server``` compiled in ```src/server```.
 
 ### Global / System-wide
 Under construction.
