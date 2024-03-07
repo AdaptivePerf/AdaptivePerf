@@ -75,6 +75,7 @@ function asserts_after_adaptiveperf_run() {
     #         run -0 /bin/bash -c "cat results/test/event_dict.data | grep $x"
     #     done
     # fi
+    true
 }
 
 @test "[Test 1] Profiling a single-threaded program with default settings" {
