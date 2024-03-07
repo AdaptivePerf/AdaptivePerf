@@ -1,3 +1,6 @@
+// AdaptivePerf: comprehensive profiling tool based on Linux perf
+// Copyright (C) CERN. See LICENSE for details.
+
 #ifndef SOCKET_HPP_
 #define SOCKET_HPP_
 
@@ -13,6 +16,11 @@ namespace aperf {
 
   class AlreadyInUseException : std::exception {
 
+  };
+
+  class SocketException : public std::exception {
+  public:
+    SocketException(std::exception &other) : std::exception(other) { }
   };
 
   class Socket {
