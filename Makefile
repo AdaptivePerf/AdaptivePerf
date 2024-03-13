@@ -1,4 +1,4 @@
-.PHONY: all clean install test uninstall
+.PHONY: all install uninstall clean
 
 ifndef prefix
 prefix = /usr/local
@@ -10,13 +10,10 @@ adaptiveperf: src/bashly.yml src/root_command.sh
 	bashly generate
 
 install: all
-	install -D adaptiveperf* $(prefix)/bin
-
-test: all
-	./test.sh
+	install -D adaptiveperf $(prefix)/bin
 
 uninstall:
-	rm -f $(prefix)/bin/adaptiveperf*
+	rm $(prefix)/bin/adaptiveperf
 
 clean:
-	rm -f adaptiveperf*
+	rm adaptiveperf

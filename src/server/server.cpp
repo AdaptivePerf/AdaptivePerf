@@ -1,8 +1,8 @@
 // AdaptivePerf: comprehensive profiling tool based on Linux perf
 // Copyright (C) CERN. See LICENSE for details.
 
-#include "CLI11.hpp"
-#include "json.hpp"
+#include <CLI/CLI.hpp>
+#include <nlohmann/json.hpp>
 #include "socket.hpp"
 #include <string>
 #include <iostream>
