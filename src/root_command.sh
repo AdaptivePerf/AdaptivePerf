@@ -280,7 +280,7 @@ function perf_record() {
     OTHER_PIDS=()
 
     eval "event_args=($6)"
-    start_index=$POST_PROCESSING_PARAM
+    start_index=$((POST_PROCESSING_PARAM+1))
 
     for ev in "${event_args[@]}"; do
         if [[ $ev == "" ]]; then
