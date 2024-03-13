@@ -716,7 +716,7 @@ namespace aperf {
         try {
           threads[i].get();
         } catch (aperf::SocketException &e) {
-          std::cerr << "Warning: Socket error in client " << i << ", you will not " << std::endl;
+          std::cerr << "Warning: Socket error in client " << i << ", you will not ";
           std::cerr << "get reliable results from them!" << std::endl;
         }
       }
@@ -780,7 +780,9 @@ int main(int argc, char **argv) {
     }
 
     return 100;
-  } catch (...) {
+  } catch (aperf::SocketException &e) {
     return 1;
+  } catch (...) {
+    std::rethrow_exception(std::current_exception());
   }
 }
