@@ -72,12 +72,12 @@ function check_kernel_settings() {
     fi
 
     if ! paranoid=$(sysctl -n kernel.perf_event_paranoid); then
-        echo_sub "Could not run \"sysctl -n kernel.perf_event_paranoid\"!. Exiting." 1
+        echo_sub "Could not run \"sysctl -n kernel.perf_event_paranoid\"! Exiting." 1
         exit 2
     fi
 
     if ! max_stack=$(sysctl -n kernel.perf_event_max_stack); then
-        echo_sub "Could not run \"sysctl -n kernel.perf_event_max_stack\"!. Exiting." 1
+        echo_sub "Could not run \"sysctl -n kernel.perf_event_max_stack\"! Exiting." 1
         exit 2
     fi
 
@@ -176,10 +176,17 @@ function prepare_results_dir() {
     PROFILED_FILENAME=$(basename "$TO_PROFILE" | cut -f1 -d ' ')
     RESULT_NAME=${date}_$(hostname)_$PROFILED_FILENAME
 
-    RESULT_DIR=$CUR_DIR/results/$RESULT_NAME
-    RESULT_OUT=$CUR_DIR/results/$RESULT_NAME/out
+    if [[ $1 == "" ]]; then
+        RESULT_DIR=$CUR_DIR/results/$RESULT_NAME
+        RESULT_OUT=$CUR_DIR/results/$RESULT_NAME/out
+        RESULT_PROCESSED=$CUR_DIR/results/$RESULT_NAME/processed
+    else
+        RESULT_DIR=/tmp/adaptiveperf.pid.$$/results/$RESULT_NAME
+        RESULT_OUT=/tmp/adaptiveperf.pid.$$/results/$RESULT_NAME/out
+        RESULT_PROCESSED=/tmp/adaptiveperf.pid.$$/results/$RESULT_NAME/processed
+    fi
 
-    if ! mkdir -p $RESULT_DIR $RESULT_OUT; then
+    if ! mkdir -p $RESULT_DIR $RESULT_OUT $RESULT_PROCESSED; then
         echo_sub "Could not create $RESULT_DIR and/or $RESULT_OUT! Exiting." 1
         exit 2
     fi
@@ -194,7 +201,7 @@ function perf_record() {
 
     eval "event_args=($6)"
     pipe_triggers=${#event_args[@]}
-    pipe_triggers=$(((pipe_triggers+1)*POST_PROCESSING_PARAM))
+    pipe_triggers=$(((pipe_triggers+1)*POST_PROCESSING_PARAM+1))
     pipe_triggers=$((pipe_triggers > NUM_PERF_PROC ? pipe_triggers : NUM_PERF_PROC))
 
     if [[ $1 == "" ]]; then
@@ -238,17 +245,17 @@ function perf_record() {
     fi
 
     if ! echo "start${pipe_triggers} $RESULT_NAME" >&3; then
-        echo_sub "I/O error has occurred in the communication with adaptiveperf-server! Exiting." 1
+        echo_sub "I/O error has occurred in the communication with adaptiveperf-server (start)! Exiting." 1
         exit 2
     fi
 
     if ! echo $PROFILED_FILENAME >&3; then
-        echo_sub "I/O error has occurred in the communication with adaptiveperf-server! Exiting." 1
+        echo_sub "I/O error has occurred in the communication with adaptiveperf-server (filename)! Exiting." 1
         exit 2
     fi
 
     if ! read -u 3 -ra event_ports; then
-        echo_sub "I/O error has occurred in the communication with adaptiveperf-server! Exiting." 1
+        echo_sub "I/O error has occurred in the communication with adaptiveperf-server (event_ports)! Exiting." 1
         exit 2
     fi
 
@@ -266,7 +273,7 @@ function perf_record() {
     APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT=${event_ports[0]} sudo -E taskset -c $PERF_MASK perf script adaptiveperf-syscall-process " --pid=$to_profile_pid" 1> $RESULT_OUT/perf_syscall_stdout.log 2> $RESULT_OUT/perf_syscall_stderr.log &
     SYSCALLS_PID=$!
 
-    APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT="${event_ports[@]:1:$((POST_PROCESSING_PARAM-1))}" sudo -E taskset -c $PERF_MASK perf script adaptiveperf-process " -e task-clock -F $2 --off-cpu $3 --buffer-events $4 --buffer-off-cpu-events $5 --pid=$to_profile_pid" 1> $RESULT_OUT/perf_main_stdout.log 2> $RESULT_OUT/perf_main_stderr.log &
+    APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT="${event_ports[@]:1:$POST_PROCESSING_PARAM}" sudo -E taskset -c $PERF_MASK perf script adaptiveperf-process " -e task-clock -F $2 --off-cpu $3 --buffer-events $4 --buffer-off-cpu-events $5 --pid=$to_profile_pid" 1> $RESULT_OUT/perf_main_stdout.log 2> $RESULT_OUT/perf_main_stderr.log &
     SAMPLING_PID=$!
 
     EXTRA_EVENTS=()
@@ -303,8 +310,122 @@ function perf_record() {
 }
 
 function process_results() {
+    disable_err_trap
+
+    wait $SYSCALLS_PID
+    syscalls_code=$?
+
+    wait $SAMPLING_PID
+    sampling_code=$?
+
+    other_codes=()
+    for i in ${OTHER_PIDS[@]}; do
+        wait $i
+        other_codes+=($?)
+    done
+
+    enable_err_trap
+
+    error=false
+
+    if [[ $syscalls_code -ne 0 ]]; then
+        echo_sub "The syscall profiler has returned non-zero exit code $syscalls_code." 1
+        error=true
+    fi
+
+    if [[ $sampling_code -ne 0 ]]; then
+        echo_sub "The on-CPU/off-CPU profiler has returned non-zero exit code $sampling_code." 1
+        error=true
+    fi
+
+    index=0
+    for i in ${other_codes[@]}; do
+        if [[ $i -ne 0 ]]; then
+            echo_sub "The custom event profiler with ID $index has returned non-zero exit code $i." 1
+            error=true
+        fi
+        index=$((index+1))
+    done
+
+    if [[ $error == true ]]; then
+        echo_sub "One or more profilers have encountered an error. Exiting." 1
+        exit 2
+    fi
+
+    if ! read -u 3 -r msg; then
+        echo_sub "I/O error has occurred in the communication with adaptiveperf-server (first_after_profile)! Exiting." 1
+        exit 2
+    fi
+
+    if [[ $msg != "out_files" ]]; then
+        echo_sub "adaptiveperf-server has not indicated its successful completion! Exiting." 1
+        exit 2
+    fi
+
+    if [[ $1 != "" ]]; then
+        for filename in *.json; do
+            len=$(wc -c < "$filename")
+
+            if ! echo "$len p $filename" >&3; then
+                echo_sub "I/O error has occurred in the communication with adaptiveperf-server (processed_file)! Exiting." 1
+                exit 2
+            fi
+
+            if ! read -u 3 -r msg; then
+                echo_sub "I/O error has occurred in the communication with adaptiveperf-server (processed_file_confirm)! Exiting." 1
+                exit 2
+            fi
+
+            if [[ $msg != "ok" ]]; then
+                echo_sub "Could not transmit processed file details to adaptiveperf-server! Exiting." 1
+                exit 2
+            fi
+        done
+
+        for file in $RESULT_OUT/*; do
+            filename=$(basename $file)
+            len=$(wc -c < "$file")
+
+            if ! echo "$len o $filename" >&3; then
+                echo_sub "I/O error has occurred in the communication with adaptiveperf-server (out_file)! Exiting." 1
+                exit 2
+            fi
+
+            if ! read -u 3 -r msg; then
+                echo_sub "I/O error has occurred in the communication with adaptiveperf-server (out_file_confirm)! Exiting." 1
+                exit 2
+            fi
+
+            if [[ $msg != "ok" ]]; then
+                echo_sub "Could not transmit out file details to adaptiveperf-server! Exiting." 1
+                exit 2
+            fi
+        done
+    fi
+
+    if ! echo "<STOP>" >&3; then
+        echo_sub "I/O error has occurred in the communication with adaptiveperf-server (file_stop)! Exiting." 1
+        exit 2
+    fi
+
+    if [[ $1 != "" ]]; then
+        for file in *.json; do
+            if ! cat $filename >&3; then
+                echo_sub "I/O error has occurred in the communication with adaptiveperf-server (processed_file_send)! Exiting." 1
+                exit 2
+            fi
+        done
+
+        for file in $RESULT_OUT/*; do
+            if ! cat $file >&3; then
+                echo_sub "I/O error has occurred in the communication with adaptiveperf-server (out_file_send)! Exiting." 1
+                exit 2
+            fi
+        done
+    fi
+
     if ! read -u 3 -r final; then
-        echo_sub "I/O error has occurred in the communication with adaptiveperf-server! Exiting." 1
+        echo_sub "I/O error has occurred in the communication with adaptiveperf-server (final)! Exiting." 1
         exit 2
     fi
 
@@ -320,7 +441,12 @@ function process_results() {
 
     if [[ $1 == "" ]]; then
         if ! cp -rT $RESULT_NAME/ $RESULT_DIR/; then
-            echo_sub "Could not copy the results to the final directory! Exiting."
+            echo_sub "Could not copy the results to the final directory! Exiting." 1
+            exit 2
+        fi
+
+        if ! cp *.json $RESULT_PROCESSED; then
+            echo_sub "Could not copy the callchain dictionaries to the final directory! Exiting." 1
             exit 2
         fi
     fi
@@ -341,7 +467,7 @@ echo_main "Checking for NUMA..."
 check_numa
 
 echo_main "Preparing results directory..."
-prepare_results_dir
+prepare_results_dir "${args[--address]}"
 
 echo_main "Profiling..."
 perf_record "${args[--address]}" ${args[--freq]} ${args[--off-cpu-freq]} ${args[--buffer]} ${args[--off-cpu-buffer]} "${args[--event]}" ${args[--warmup]} ${args[--server-buffer]}

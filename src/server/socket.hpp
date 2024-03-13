@@ -36,6 +36,7 @@ namespace aperf {
     ~Socket();
     unsigned short get_port();
     void close();
+    int read(char *buf, unsigned int len);
     std::string read();
     void write(std::string msg, bool new_line = true);
   };

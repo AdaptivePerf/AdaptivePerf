@@ -448,11 +448,15 @@ namespace aperf {
 
       fs::path result_path(result_dir);
       fs::path processed_path = result_path / "processed";
+      fs::path out_path = result_path / "out";
 
       try {
         fs::create_directory(result_dir);
         fs::create_directory(processed_path);
+        fs::create_directory(out_path);
       } catch (std::exception &e) {
+        std::cerr << "Could not create " << result_dir << "! Error details:";
+        std::cerr << std::endl;
         std::cerr << e.what() << std::endl;
         socket->write("error_result_dir");
         socket->close();
@@ -549,7 +553,122 @@ namespace aperf {
         futures[i].get();
       }
 
-      socket->write("finished");
+      socket->write("out_files");
+
+      std::vector<std::pair<std::string, unsigned int> > out_files;
+      std::vector<std::pair<std::string, unsigned int> > processed_files;
+
+      while (true) {
+        std::string x = socket->read();
+
+        if (x == "<STOP>") {
+          break;
+        }
+
+        std::string len_str = "";
+        int index = 0;
+        bool error = false;
+
+        for (; index < x.size(); index++) {
+          if (x[index] >= '0' && x[index] <= '9') {
+            len_str += x[index];
+          } else {
+            if (x[index++] != ' ') {
+              socket->write("error_wrong_file_format");
+              error = true;
+            } else {
+              socket->write("ok");
+            }
+
+            break;
+          }
+        }
+
+        if (index >= x.size() - 2) {
+          socket->write("error_wrong_file_format");
+          error = true;
+        }
+
+        bool processed;
+
+        if (x[index] == 'p') {
+          processed = true;
+        } else if (x[index] == 'o') {
+          processed = false;
+        } else {
+          socket->write("error_wrong_file_format");
+          error = true;
+        }
+
+        if (x[index + 1] != ' ') {
+          socket->write("error_wrong_file_format");
+          error = true;
+        }
+
+        if (!error) {
+          if (processed) {
+            processed_files.push_back(std::make_pair(x.substr(index + 2),
+                                                     std::stoi(len_str)));
+          } else {
+            out_files.push_back(std::make_pair(x.substr(index + 2),
+                                               std::stoi(len_str)));
+          }
+        }
+      }
+
+      bool error = false;
+
+      auto process_file = [&processed_path, &out_path, &error, &socket]
+        (std::string &name,
+         unsigned int len,
+         bool processed) {
+        char buf[len];
+        int bytes_received = socket->read(buf, len);
+        fs::path path = (processed ? processed_path : out_path) / name;
+
+        if (bytes_received != len) {
+          std::cerr << "Warning for out file " << path << ": ";
+          std::cerr << "Expected " << len << " byte(s), got " << bytes_received << ".";
+          std::cerr << std::endl;
+        }
+
+        std::ofstream f(path, std::ios_base::out | std::ios_base::binary);
+
+        if (!f) {
+          std::cerr << "Error for out file " << path << ": ";
+          std::cerr << "Could not open the output stream." << std::endl;
+          error = true;
+          return;
+        }
+
+        f.write(buf, bytes_received);
+
+        if (!f) {
+          std::cerr << "Error for out file " << path << ": ";
+          std::cerr << "Could not write to the output stream." << std::endl;
+          error = true;
+          return;
+        }
+
+        f.close();
+      };
+
+      for (int i = 0; i < processed_files.size(); i++) {
+        process_file(processed_files[i].first,
+                     processed_files[i].second, true);
+      }
+
+      for (int i = 0; i < out_files.size(); i++) {
+        process_file(out_files[i].first,
+                     out_files[i].second, false);
+      }
+
+      if (error) {
+        socket->write("out_file_error");
+      } else {
+        socket->write("finished");
+      }
+
       socket->close();
     } catch (...) {
       std::rethrow_exception(std::current_exception());

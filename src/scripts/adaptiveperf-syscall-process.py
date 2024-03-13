@@ -9,14 +9,36 @@ import json
 import subprocess
 import socket
 from pathlib import Path
+from collections import defaultdict
 
 sys.path.append(os.environ['PERF_EXEC_PATH'] +
                 '/scripts/python/Perf-Trace-Util/lib/Perf/Trace')
+
+cur_code = [32]
+
+def next_code():
+    global cur_code
+    res = ''.join(map(chr, cur_code))
+
+    for i in range(len(cur_code)):
+        cur_code[i] += 1
+
+        if cur_code[i] <= 126:
+            break
+        else:
+            cur_code[i] = 32
+
+            if i == len(cur_code) - 1:
+                cur_code.append(32)
+
+    return res
+
 
 event_sock = None
 tid_dict = {}
 cpp_filt = None
 cpp_filt_cache = {}
+callchain_dict = defaultdict(next_code)
 
 
 def demangle(name):
@@ -43,7 +65,7 @@ def syscall_callback(stack, ret_value):
 
     event_sock.sendall((json.dumps([
         '<SYSCALL>', str(ret_value), list(map(
-            lambda x: x['sym']['name'] if 'sym' in x else
+            lambda x: callchain_dict[x['sym']['name']] if 'sym' in x else
             '[' + Path(x['dso']).name + ']' if 'dso' in x else
             f'({x["ip"]:#x})', stack))
         ]) + '\n').encode('utf-8'))
@@ -76,12 +98,17 @@ def trace_begin():
 
 
 def trace_end():
-    global event_sock, cpp_filt
+    global event_sock, cpp_filt, callchain_dict
 
     event_sock.sendall('<STOP>\n'.encode('utf-8'))
     event_sock.close()
 
     cpp_filt.terminate()
+
+    reverse_callchain_dict = {v: k for k, v in callchain_dict.items()}
+
+    with open('syscall_callchains.json', mode='w') as f:
+        f.write(json.dumps(reverse_callchain_dict) + '\n')
 
 
 def syscalls__sys_exit_clone3(event_name, context, common_cpu, common_secs,

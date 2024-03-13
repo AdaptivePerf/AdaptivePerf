@@ -92,6 +92,14 @@ namespace aperf {
     this->socket.close();
   }
 
+  int Socket::read(char *buf, unsigned int len) {
+    try {
+      return this->socket.receiveBytes(buf, len);
+    } catch (net::NetException &e) {
+      throw SocketException(e);
+    }
+  }
+
   std::string Socket::read() {
     try {
       if (!this->buffered_msgs.empty()) {

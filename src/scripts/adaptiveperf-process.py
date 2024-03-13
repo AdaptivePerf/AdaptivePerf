@@ -16,11 +16,32 @@ sys.path.append(os.environ['PERF_EXEC_PATH'] +
 from perf_trace_context import *
 from Core import *
 
+cur_code = [32]
+
+def next_code():
+    global cur_code
+    res = ''.join(map(chr, cur_code))
+
+    for i in range(len(cur_code)):
+        cur_code[i] += 1
+
+        if cur_code[i] <= 126:
+            break
+        else:
+            cur_code[i] = 32
+
+            if i == len(cur_code) - 1:
+                cur_code.append(32)
+
+    return res
+
 
 event_socks = []
 next_index = 0
 cpp_filt = None
 cpp_filt_cache = {}
+callchain_dict = defaultdict(next_code)
+overall_event_type = None
 
 
 def get_next_event_sock():
@@ -65,7 +86,7 @@ def trace_begin():
 
 
 def process_event(param_dict):
-    global event_sock_dict
+    global event_sock_dict, overall_event_type
 
     event_type = param_dict['ev_name']
     comm = param_dict['comm']
@@ -75,11 +96,19 @@ def process_event(param_dict):
     period = param_dict['sample']['period']
     raw_callchain = param_dict['callchain']
 
+    parsed_event_type = re.search(r'^([^/]+)', event_type).group(1)
+
+    if overall_event_type is None:
+        if parsed_event_type in ['task-clock', 'offcpu-time']:
+            overall_event_type = 'walltime'
+        else:
+            overall_event_type = parsed_event_type
+
     callchain = []
 
     for elem in raw_callchain:
         if 'sym' in elem and 'name' in elem['sym']:
-            callchain.append(elem['sym']['name'])
+            callchain.append(callchain_dict[elem['sym']['name']])
         elif 'dso' in elem:
             callchain.append('[' + Path(elem['dso']).name + ']')
         else:
@@ -88,16 +117,22 @@ def process_event(param_dict):
     callchain.append(f'{comm}-{pid}/{tid}')
 
     event_sock_dict[pid][tid].sendall((json.dumps(
-        ['<SAMPLE>', re.search(r'^([^/]+)', event_type).group(1),
+        ['<SAMPLE>', parsed_event_type,
          str(pid), str(tid),
          timestamp, period, callchain[::-1]]) + '\n').encode('utf-8'))
 
 
 def trace_end():
-    global event_socks, cpp_filt
+    global event_socks, cpp_filt, callchain_dict, overall_event_type
 
     for sock in event_socks:
         sock.sendall('<STOP>\n'.encode('utf-8'))
         sock.close()
 
     cpp_filt.terminate()
+
+    if overall_event_type is not None:
+        reverse_callchain_dict = {v: k for k, v in callchain_dict.items()}
+
+        with open(f'{overall_event_type}_callchains.json', mode='w') as f:
+            f.write(json.dumps(reverse_callchain_dict) + '\n')
