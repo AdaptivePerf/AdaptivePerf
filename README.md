@@ -73,4 +73,4 @@ You can run ```adaptiveperf``` multiple times, all profiling results will be sav
 The structure of ```results``` is as follows:
 (under construction)
 
-It is recommended to use [AdaptivePerfHTML](https://gitlab.cern.ch/adaptiveperf/adaptiveperfhtml) for creating an interactive HTML summary of your profiling sessions (or setting up a web server displaying all profiling sessions run so far).
+It is recommended to use [AdaptivePerfHTML](https://gitlab.cern.ch/adaptiveperf/adaptiveperfhtml) for creating an interactive HTML summary of your profiling sessions.
