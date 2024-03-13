@@ -70,6 +70,7 @@ namespace aperf {
          new_elem["name"] = p;
          new_elem["value"] = 0;
          new_elem["children"] = nlohmann::json::array();
+         new_elem["cold"] = offcpu;
          arr.push_back(new_elem);
        }
 
@@ -89,6 +90,7 @@ namespace aperf {
         new_elem["name"] = p;
         new_elem["value"] = 0;
         new_elem["children"] = nlohmann::json::array();
+        new_elem["cold"] = offcpu;
 
         arr.push_back(new_elem);
         elem = &arr.back();
