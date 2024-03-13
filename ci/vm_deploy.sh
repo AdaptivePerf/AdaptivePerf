@@ -1,3 +1,3 @@
 #!/bin/bash
-make
-sudo make install
+./build.sh
+./install.sh
