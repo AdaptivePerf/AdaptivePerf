@@ -29,7 +29,8 @@ Both single-threaded and multi-threaded programs are supported. All CPU architec
 ## Installation
 ### Requirements
 * Linux 5.8 or newer
-* [Patched perf](https://gitlab.cern.ch/adaptiveperf/linux) compiled with Python support and the BPF skeletons
+* [Patched perf](https://github.com/AdaptivePerf/linux) compiled with Python support and the BPF skeletons
+* numactl
 * Python 3
 * CMake 3.9.6 or newer
 * [bashly](https://bashly.dannyb.co)
@@ -56,7 +57,7 @@ You may also want to run ```sysctl kernel.perf_event_max_stack=<value>``` if you
 
 **IMPORTANT:** Max stack sizes larger than 1024 are currently not supported for off-CPU stacks! The maximum number of entries in off-CPU stacks is always set to 1024, regardless of the value of ```kernel.perf_event_max_stack```.
 
-If your machine has NUMA (non-uniform memory access), you should note that NUMA memory balancing in Linux limits the reliability of obtaining complete stacks across all CPUs / CPU cores. In this case, AdaptivePerf will run only on a single NUMA node to avoid that. If it's not desired, you need to disable NUMA balancing by running ```sysctl kernel.numa_balancing=0```.
+If your machine has NUMA (non-uniform memory access), you should note that NUMA memory balancing in Linux limits the reliability of obtaining complete stacks across all CPUs / CPU cores. In this case, you must either disable NUMA balancing by running ```sysctl kernel.numa_balancing=0``` or run AdaptivePerf on a single NUMA node (for **both** CPU and memory).
 
 To profile your program, please run the following command:
 ```
@@ -73,4 +74,4 @@ You can run ```adaptiveperf``` multiple times, all profiling results will be sav
 The structure of ```results``` is as follows:
 (under construction)
 
-It is recommended to use [AdaptivePerfHTML](https://gitlab.cern.ch/adaptiveperf/adaptiveperfhtml) for creating an interactive HTML summary of your profiling sessions.
+It is recommended to use [AdaptivePerfHTML](https://github.com/AdaptivePerf/adaptiveperfhtml) for creating an interactive HTML summary of your profiling sessions.
