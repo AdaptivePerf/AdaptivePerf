@@ -30,7 +30,6 @@ Both single-threaded and multi-threaded programs are supported. All CPU architec
 ### Requirements
 * Linux 5.8 or newer
 * [Patched perf](https://gitlab.cern.ch/adaptiveperf/linux) compiled with Python support and the BPF skeletons
-* numactl
 * Python 3
 * CMake 3.9.6 or newer
 * [bashly](https://bashly.dannyb.co)

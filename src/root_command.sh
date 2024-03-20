@@ -140,34 +140,35 @@ function check_cores() {
 
 function check_numa() {
     if ! command -v numactl &> /dev/null; then
-        echo_sub "numactl not found! Please install it first before using AdaptivePerf." 1
-        exit 1
-    fi
-
-    if ! numa_balancing=$(sysctl -n kernel.numa_balancing); then
-        echo_sub "Could not run \"sysctl -n kernel.numa_balancing\"! Exiting." 1
-        exit 2
-    fi
-
-    if ! available_cpu_nodes=( $(numactl -s | sed -nE 's/^cpubind: ([0-9 ]+)/\1/p') ); then
-        echo_sub "Could not run \"numactl -s\" to determine CPU NUMA nodes! Exiting." 1
-        exit 2
-    fi
-
-    if ! available_mem_nodes=( $(numactl -s | sed -nE 's/^membind: ([0-9 ]+)/\1/p') ); then
-        echo_sub "Could not run \"numactl -s\" to determine memory NUMA nodes! Exiting." 1
-        exit 2
-    fi
-
-    if [[ $numa_balancing -eq 1 && (${#available_cpu_nodes[@]} -gt 1 || ${#available_mem_nodes[@]} -gt 1) ]]; then
-        echo_sub "NUMA balancing is enabled and AdaptivePerf is running on more than 1 NUMA node!" 1
-        echo_sub "As this will result in broken stacks, AdaptivePerf will not run." 1
-        echo_sub "Please disable balancing by running \"sysctl kernel.numa_balancing=0\"." 1
-        echo_sub "Alternatively, you can bind AdaptivePerf *both* CPU- and memory-wise to a single NUMA node, e.g. through numactl." 1
-
-        exit 1
+        echo_sub "numactl not found! No NUMA checks will be performed."
+        echo_sub "If you do not have NUMA, you can safely ignore this message."
+        echo_sub "Otherwise, it is *STRONGLY* recommended to install numactl so that AdaptivePerf can perform the necessary checks."
     else
-        echo_sub "NUMA balancing is disabled or AdaptivePerf is running on a single NUMA node, proceeding."
+        if ! numa_balancing=$(sysctl -n kernel.numa_balancing); then
+            echo_sub "Could not run \"sysctl -n kernel.numa_balancing\"! Exiting." 1
+            exit 2
+        fi
+
+        if ! available_cpu_nodes=( $(numactl -s | sed -nE 's/^cpubind: ([0-9 ]+)/\1/p') ); then
+            echo_sub "Could not run \"numactl -s\" to determine CPU NUMA nodes! Exiting." 1
+            exit 2
+        fi
+
+        if ! available_mem_nodes=( $(numactl -s | sed -nE 's/^membind: ([0-9 ]+)/\1/p') ); then
+            echo_sub "Could not run \"numactl -s\" to determine memory NUMA nodes! Exiting." 1
+            exit 2
+        fi
+
+        if [[ $numa_balancing -eq 1 && (${#available_cpu_nodes[@]} -gt 1 || ${#available_mem_nodes[@]} -gt 1) ]]; then
+            echo_sub "NUMA balancing is enabled and AdaptivePerf is running on more than 1 NUMA node!" 1
+            echo_sub "As this will result in broken stacks, AdaptivePerf will not run." 1
+            echo_sub "Please disable balancing by running \"sysctl kernel.numa_balancing=0\"." 1
+            echo_sub "Alternatively, you can bind AdaptivePerf *both* CPU- and memory-wise to a single NUMA node, e.g. through numactl." 1
+
+            exit 1
+        else
+            echo_sub "NUMA balancing is disabled or AdaptivePerf is running on a single NUMA node, proceeding."
+        fi
     fi
 }
 
