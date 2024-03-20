@@ -200,6 +200,9 @@ function perf_record() {
         echo_sub "Connecting to adaptiveperf-server and starting tracers..."
     fi
 
+    echo_sub "If AdaptivePerf hangs here, checking the logs in the path below *BEFORE* exiting may provide hints why this happens."
+    echo_sub $RESULT_OUT
+
     eval "event_args=($6)"
     pipe_triggers=${#event_args[@]}
     pipe_triggers=$(((pipe_triggers+1)*POST_PROCESSING_PARAM+1))
