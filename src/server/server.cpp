@@ -60,11 +60,19 @@ namespace aperf {
     nlohmann::json &arr = cur_elem["children"];
     nlohmann::json *elem;
 
+    bool last_block = callchain_index == callchain_parts.size() - 1;
+
+    if (!offcpu) {
+      cur_elem["cold"] = false;
+    }
+
     if (time_ordered) {
        if (arr.empty() || arr.back()["name"] != p ||
-           (callchain_index == callchain_parts.size() - 1 &&
+           (last_block &&
+            arr.back()["cold"] != offcpu) ||
+           (last_block &&
             !arr.back()["children"].empty()) ||
-           (callchain_index < callchain_parts.size() - 1 &&
+           (!last_block &&
             arr.back()["children"].empty())) {
          nlohmann::json new_elem;
          new_elem["name"] = p;
@@ -77,15 +85,32 @@ namespace aperf {
        elem = &arr.back();
     } else {
       bool found = false;
+      int cold_index = -1;
+      int hot_index = -1;
+
       for (int i = 0; i < arr.size(); i++) {
-        if (arr[i]["name"] == p) {
-          elem = &arr[i];
+        if (arr[i]["name"] == p && (!last_block || arr[i]["cold"] == offcpu)) {
           found = true;
-          break;
+
+          if (arr[i]["cold"]) {
+            cold_index = i;
+          } else {
+            hot_index = i;
+          }
         }
       }
 
-      if (!found) {
+      if (found) {
+        if (cold_index == -1) {
+          elem = &arr[hot_index];
+        } else if (hot_index == -1) {
+          elem = &arr[cold_index];
+        } else if (offcpu) {
+          elem = &arr[cold_index];
+        } else {
+          elem = &arr[hot_index];
+        }
+      } else {
         nlohmann::json new_elem;
         new_elem["name"] = p;
         new_elem["value"] = 0;
@@ -99,11 +124,9 @@ namespace aperf {
 
     (*elem)["value"] = (unsigned long long)(*elem)["value"] + period;
 
-    if (callchain_index < callchain_parts.size() - 1) {
+    if (!last_block) {
       recurse(*elem, callchain_parts, callchain_index + 1, period,
               time_ordered, offcpu);
-    } else {
-      (*elem)["cold"] = offcpu;
     }
   }
 

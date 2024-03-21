@@ -175,7 +175,7 @@ function check_numa() {
 function prepare_results_dir() {
     printf -v date "%(%Y_%m_%d_%H_%M_%S)T" -1  # Based on https://stackoverflow.com/a/1401495
     PROFILED_FILENAME=$(basename "$TO_PROFILE" | cut -f1 -d ' ')
-    RESULT_NAME=${date}_$(hostname)_$PROFILED_FILENAME
+    RESULT_NAME=${date}_$(hostname)__$PROFILED_FILENAME
 
     if [[ $1 == "" ]]; then
         RESULT_DIR=$CUR_DIR/results/$RESULT_NAME
