@@ -5,7 +5,7 @@ prefix := /usr/local
 endif
 
 ifndef version
-version := "1.0.dev+$(shell git rev-parse --short HEAD)"
+version := "0.1.dev+$(shell git rev-parse --short HEAD)"
 endif
 
 all: adaptiveperf
