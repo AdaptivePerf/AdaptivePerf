@@ -19,7 +19,7 @@ install: all
 	install -D adaptiveperf $(prefix)/bin
 
 uninstall:
-	rm $(prefix)/bin/adaptiveperf
+	rm -f $(prefix)/bin/adaptiveperf
 
 clean:
-	rm adaptiveperf
+	rm -f adaptiveperf
