@@ -1,19 +1,25 @@
 .PHONY: all install uninstall clean
 
 ifndef prefix
-prefix = /usr/local
+prefix := /usr/local
+endif
+
+ifndef version
+version := "0.1.dev+$(shell git rev-parse --short HEAD)"
 endif
 
 all: adaptiveperf
 
-adaptiveperf: src/bashly.yml src/root_command.sh
+adaptiveperf: src/bashly_template.yml src/root_command.sh
+	APERF_VERSION=$(version) envsubst < src/bashly_template.yml > src/bashly.yml
 	bashly generate
+	rm src/bashly.yml
 
 install: all
 	install -D adaptiveperf $(prefix)/bin
 
 uninstall:
-	rm $(prefix)/bin/adaptiveperf
+	rm -f $(prefix)/bin/adaptiveperf
 
 clean:
-	rm adaptiveperf
+	rm -f adaptiveperf

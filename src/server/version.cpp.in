@@ -1,0 +1,5 @@
+#include "version.hpp"
+
+namespace aperf {
+  const char *version = "0.1.dev+@GIT_COMMIT@";
+};

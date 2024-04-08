@@ -3,7 +3,7 @@
 
 name: adaptiveperf
 help: comprehensive profiling tool based on Linux perf
-version: 1.0b1
+version: $APERF_VERSION
 
 args:
 - name: command

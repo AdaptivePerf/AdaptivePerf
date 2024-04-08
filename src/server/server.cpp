@@ -4,6 +4,7 @@
 #include <CLI/CLI.hpp>
 #include <nlohmann/json.hpp>
 #include "socket.hpp"
+#include "version.hpp"
 #include <string>
 #include <iostream>
 #include <thread>
@@ -772,6 +773,9 @@ namespace aperf {
 int main(int argc, char **argv) {
   CLI::App app("Post-processing server for AdaptivePerf");
 
+  bool version = false;
+  app.add_flag("-v,--version", version, "Print version and exit");
+
   std::string address = "127.0.0.1";
   app.add_option("-a", address, "Address to bind to (default: 127.0.0.1)");
 
@@ -793,19 +797,24 @@ int main(int argc, char **argv) {
 
   CLI11_PARSE(app, argc, argv);
 
-  try {
-    aperf::run_server(address, port, quiet, max_connections, buf_size);
+  if (version) {
+    std::cout << aperf::version << std::endl;
     return 0;
-  } catch (aperf::AlreadyInUseException &e) {
-    if (!quiet) {
-      std::cerr << address << ":" << port << " is in use! Please use a ";
-      std::cerr << "different address and/or port." << std::endl;
-    }
+  } else {
+    try {
+      aperf::run_server(address, port, quiet, max_connections, buf_size);
+      return 0;
+    } catch (aperf::AlreadyInUseException &e) {
+      if (!quiet) {
+        std::cerr << address << ":" << port << " is in use! Please use a ";
+        std::cerr << "different address and/or port." << std::endl;
+      }
 
-    return 100;
-  } catch (aperf::SocketException &e) {
-    return 1;
-  } catch (...) {
-    std::rethrow_exception(std::current_exception());
+      return 100;
+    } catch (aperf::SocketException &e) {
+      return 1;
+    } catch (...) {
+      std::rethrow_exception(std::current_exception());
+    }
   }
 }
