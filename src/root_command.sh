@@ -283,10 +283,18 @@ function perf_record() {
 
     to_profile_pid=$!
 
-    APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT=${event_ports[0]} sudo -E taskset -c $PERF_MASK perf script adaptiveperf-syscall-process " --pid=$to_profile_pid" 1> $RESULT_OUT/perf_syscall_stdout.log 2> $RESULT_OUT/perf_syscall_stderr.log &
+    if ! APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT=${event_ports[0]} sudo -E taskset -c $PERF_MASK perf script adaptiveperf-syscall-process " --pid=$to_profile_pid" 1> $RESULT_OUT/perf_syscall_stdout.log 2> $RESULT_OUT/perf_syscall_stderr.log; then
+        cp $RESULT_OUT/perf_syscall_*.log $CUR_DIR
+        echo_sub "Syscall profiling has failed! The logs (perf_syscall...) have been copied to the current directory." 1
+        kill $to_profile_pid
+    fi &
     SYSCALLS_PID=$!
 
-    APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT="${event_ports[@]:1:$POST_PROCESSING_PARAM}" sudo -E taskset -c $PERF_MASK perf script adaptiveperf-process " -e task-clock -F $2 --off-cpu $3 --buffer-events $4 --buffer-off-cpu-events $5 --pid=$to_profile_pid" 1> $RESULT_OUT/perf_main_stdout.log 2> $RESULT_OUT/perf_main_stderr.log &
+    if ! APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT="${event_ports[@]:1:$POST_PROCESSING_PARAM}" sudo -E taskset -c $PERF_MASK perf script adaptiveperf-process " -e task-clock -F $2 --off-cpu $3 --buffer-events $4 --buffer-off-cpu-events $5 --pid=$to_profile_pid" 1> $RESULT_OUT/perf_main_stdout.log 2> $RESULT_OUT/perf_main_stderr.log; then
+        cp $RESULT_OUT/perf_main_*.log $CUR_DIR
+        echo_sub "Wall time profiling has failed! The logs (perf_main...) have been copied to the current directory." 1
+        kill $to_profile_pid
+    fi &
     SAMPLING_PID=$!
 
     EXTRA_EVENTS=()
@@ -302,7 +310,12 @@ function perf_record() {
 
         # Based on https://stackoverflow.com/a/918931
         IFS=',' read -ra event_parts <<< "$ev"
-        APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT="${event_ports[@]:$start_index:$POST_PROCESSING_PARAM}" sudo -E taskset -c $PERF_MASK perf script adaptiveperf-process " -e ${event_parts[0]}/period=${event_parts[1]}/ --pid=$to_profile_pid" 1> $RESULT_OUT/perf_${event_parts[0]}_stdout.log 2> $RESULT_OUT/perf_${event_parts[0]}_stderr.log &
+
+        if ! APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT="${event_ports[@]:$start_index:$POST_PROCESSING_PARAM}" sudo -E taskset -c $PERF_MASK perf script adaptiveperf-process " -e ${event_parts[0]}/period=${event_parts[1]}/ --pid=$to_profile_pid" 1> $RESULT_OUT/perf_${event_parts[0]}_stdout.log 2> $RESULT_OUT/perf_${event_parts[0]}_stderr.log; then
+            cp $RESULT_OUT/perf_${event_parts[0]}_*.log $CUR_DIR
+            echo_sub "${event_parts[0]} profiling has failed! The logs (perf_${event_parts[0]}...) have been copied to the current directory." 1
+            kill $to_profile_pid
+        fi &
         OTHER_PIDS=($!)
 
         echo ${event_parts[0]} ${event_parts[2]} >> $RESULT_OUT/event_dict.data
@@ -317,7 +330,13 @@ function perf_record() {
     code=$?
 
     if [[ $code -ne 0 ]]; then
-        echo_sub "Profiled program has finished with non-zero exit code $code. Exiting." 1
+        wait $SYSCALLS_PID
+        wait $SAMPLING_PID
+        for i in ${OTHER_PIDS[@]}; do
+            wait $i
+        done
+
+        echo_sub "Profiled program has finished with non-zero exit code $code. This is expected if you have seen \"Profiling has failed\" errors. Exiting." 1
         exit 2
     fi
 
