@@ -11,7 +11,12 @@ TO_PROFILE="${args[command]}"
 
 cd /tmp/adaptiveperf.pid.$$
 
-trap 'rm -rf /tmp/adaptiveperf.pid.$$' EXIT
+function cleanup() {
+    pkill -P $$
+    rm -rf /tmp/adaptiveperf.pid.$$
+}
+
+trap 'cleanup' EXIT
 
 function print_notice() {
     echo "AdaptivePerf: comprehensive profiling tool based on Linux perf"
