@@ -59,13 +59,9 @@ function handle_unknown_error() {
     exit 2
 }
 
-function enable_err_trap() {
-    trap 'handle_unknown_error $LINENO' ERR
-}
+ENABLE_ERR_TRAP="trap 'handle_unknown_error \$LINENO' ERR"
+DISABLE_ERR_TRAP="trap - ERR"
 
-function disable_err_trap() {
-    trap - ERR
-}
 
 function check_kernel_settings() {
     if ! grep -qs '/sys/kernel/debug ' /proc/mounts; then
@@ -225,10 +221,10 @@ function perf_record() {
             connected=1
             while ! 2> /dev/null exec 3<> /dev/tcp/$serv_addr/$serv_port; do
                 if ! ps -p $serv_pid &> /dev/null; then
-                    disable_err_trap
+                    eval $DISABLE_ERR_TRAP
                     wait $serv_pid
                     code=$?
-                    enable_err_trap
+                    eval $ENABLE_ERR_TRAP
 
                     if [[ $code -eq 100 ]]; then
                         echo_sub "Port $serv_port is taken for adaptiveperf-server, trying $((serv_port+1))..."
@@ -307,19 +303,21 @@ function perf_record() {
         start_index=$((start_index+POST_PROCESSING_PARAM))
     done
 
-    disable_err_trap
+    eval $DISABLE_ERR_TRAP
+
     wait $to_profile_pid
     code=$?
-    enable_err_trap
 
     if [[ $code -ne 0 ]]; then
         echo_sub "Profiled program has finished with non-zero exit code $code. Exiting." 1
         exit 2
     fi
+
+    eval $ENABLE_ERR_TRAP
 }
 
 function process_results() {
-    disable_err_trap
+    eval $DISABLE_ERR_TRAP
 
     wait $SYSCALLS_PID
     syscalls_code=$?
@@ -333,7 +331,7 @@ function process_results() {
         other_codes+=($?)
     done
 
-    enable_err_trap
+    eval $ENABLE_ERR_TRAP
 
     error=false
 
@@ -461,7 +459,7 @@ function process_results() {
     fi
 }
 
-enable_err_trap
+eval $ENABLE_ERR_TRAP
 script_start_time=$(date +%s%3N)
 
 print_notice
