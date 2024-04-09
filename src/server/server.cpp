@@ -736,6 +736,8 @@ namespace aperf {
         }
       }
 
+      acceptor.close();
+
       for (int i = 0; i < threads.size(); i++) {
         try {
           threads[i].get();
@@ -744,8 +746,6 @@ namespace aperf {
           std::cerr << "get reliable results from them!" << std::endl;
         }
       }
-
-      acceptor.close();
     } catch (aperf::AlreadyInUseException &e) {
       throw e;
     } catch (aperf::SocketException &e) {

@@ -62,8 +62,12 @@ function handle_unknown_error() {
 ENABLE_ERR_TRAP="trap 'handle_unknown_error \$LINENO' ERR"
 DISABLE_ERR_TRAP="trap - ERR"
 
+function check_system_config() {
+    if ! command -v ss &> /dev/null; then
+        echo_sub "ss not found! Please install it before using AdaptivePerf." 1
+        exit 1
+    fi
 
-function check_kernel_settings() {
     if ! grep -qs '/sys/kernel/debug ' /proc/mounts; then
         echo_sub "/sys/kernel/debug is not mounted, mounting..."
         if ! sudo mount -t debugfs none /sys/kernel/debug; then
@@ -214,7 +218,12 @@ function perf_record() {
         serv_addr="127.0.0.1"
         serv_port=5000
         serv_buf_size=$8
-        while [[ connected -eq 0 ]]; do
+
+        while [[ $connected -eq 0 ]]; do
+            while ss -tulpn | grep LISTEN | grep ":${serv_port}" &> /dev/null; do
+                serv_port=$((serv_port+1))
+            done
+
             adaptiveperf-server -q -m 0 -p $serv_port -b $serv_buf_size &
             serv_pid=$!
 
@@ -227,7 +236,6 @@ function perf_record() {
                     eval $ENABLE_ERR_TRAP
 
                     if [[ $code -eq 100 ]]; then
-                        echo_sub "Port $serv_port is taken for adaptiveperf-server, trying $((serv_port+1))..."
                         serv_port=$((serv_port+1))
                         connected=0
                         break
@@ -464,8 +472,8 @@ script_start_time=$(date +%s%3N)
 
 print_notice
 
-echo_main "Checking kernel settings..."
-check_kernel_settings
+echo_main "Checking system configuration..."
+check_system_config
 
 echo_main "Checking CPU specification..."
 check_cores ${args[--post-process]} "${args[--tcp]}" "${args[--udp]}"
