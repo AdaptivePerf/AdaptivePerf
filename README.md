@@ -28,7 +28,7 @@ Both single-threaded and multi-threaded programs are supported. All CPU architec
 
 ## Installation
 ### Requirements
-* Linux 5.8 or newer
+* Linux 5.8 or newer with [the ss command](https://man7.org/linux/man-pages/man8/ss.8.html)
 * [Patched perf](https://gitlab.cern.ch/adaptiveperf/linux) compiled with Python support and the BPF skeletons
 * Python 3
 * CMake 3.9.6 or newer
