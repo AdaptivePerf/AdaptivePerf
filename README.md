@@ -28,7 +28,7 @@ Both single-threaded and multi-threaded programs are supported. All CPU architec
 
 ## Installation
 ### Requirements
-* Linux 5.8 or newer with [the ss command](https://man7.org/linux/man-pages/man8/ss.8.html)
+* Linux 5.8 or newer with [the ss command](https://man7.org/linux/man-pages/man8/ss.8.html) and compiled with ```CONFIG_DEBUG_INFO_BTF=y``` (or equivalent)
 * [Patched perf](https://gitlab.cern.ch/adaptiveperf/linux) compiled with Python support and the BPF skeletons
 * Python 3
 * CMake 3.9.6 or newer
@@ -45,7 +45,7 @@ Please clone this repository and run ```./build.sh``` (recommended: as non-root)
 AdaptivePerf is installed in ```/usr/local``` by default. If you want to change this path, specify it as an argument to ```install.sh```, e.g. ```./install.sh /usr```.
 
 ### Gentoo-based virtual machine image with frame pointers
-Given the complexity of setting up a machine with a recent enough Linux kernel, frame pointers, patched ```perf``` etc., we make available ready-to-use Gentoo-based qcow2 images with AdaptivePerf set up. They're also configured for out-of-the-box reliable ```perf``` profiling, such as permanently-set profiling-related kernel parameters and ensuring that everything in the system is compiled with frame pointers.
+Given the complexity of setting up a machine with a recent enough Linux kernel, frame pointers, patched ```perf``` etc., we make available ready-to-use x86 Gentoo-based qcow2 images with AdaptivePerf set up. They're also configured for out-of-the-box reliable ```perf``` profiling, such as permanently-set profiling-related kernel parameters and ensuring that everything in the system is compiled with frame pointers.
 
 The images are denoted by commit tags and can be downloaded from https://cernbox.cern.ch/s/FalGlNqzsdj0K5P.
 
