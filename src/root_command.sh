@@ -247,7 +247,7 @@ function perf_record() {
             done
         done
     else
-        IFS=':' read -ra addr_parts <<< "$1"
+        IFS=':' read -ra addr_parts <<< "$1"  # Based on https://stackoverflow.com/a/918931
         serv_addr=${addr_parts[0]}
         serv_port=${addr_parts[1]}
 
@@ -308,8 +308,7 @@ function perf_record() {
             continue
         fi
 
-        # Based on https://stackoverflow.com/a/918931
-        IFS=',' read -ra event_parts <<< "$ev"
+        IFS=',' read -ra event_parts <<< "$ev"  # Based on https://stackoverflow.com/a/918931
 
         if ! APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT="${event_ports[@]:$start_index:$POST_PROCESSING_PARAM}" sudo -E taskset -c $PERF_MASK perf script adaptiveperf-process " -e ${event_parts[0]}/period=${event_parts[1]}/ --pid=$to_profile_pid" 1> $RESULT_OUT/perf_${event_parts[0]}_stdout.log 2> $RESULT_OUT/perf_${event_parts[0]}_stderr.log; then
             cp $RESULT_OUT/perf_${event_parts[0]}_*.log $CUR_DIR
@@ -336,7 +335,7 @@ function perf_record() {
             wait $i
         done
 
-        echo_sub "Profiled program has finished with non-zero exit code $code. This is expected if you have seen \"Profiling has failed\" errors. Exiting." 1
+        echo_sub "Profiled program or its wrapper has finished with non-zero exit code $code. This is expected if you have seen \"Profiling has failed\" errors. Exiting." 1
         exit 2
     fi
 
