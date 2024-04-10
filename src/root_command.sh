@@ -11,7 +11,12 @@ TO_PROFILE="${args[command]}"
 
 cd /tmp/adaptiveperf.pid.$$
 
-trap 'rm -rf /tmp/adaptiveperf.pid.$$' EXIT
+function cleanup() {
+    pkill -P $$
+    rm -rf /tmp/adaptiveperf.pid.$$
+}
+
+trap 'cleanup' EXIT
 
 function print_notice() {
     echo "AdaptivePerf: comprehensive profiling tool based on Linux perf"
@@ -54,15 +59,15 @@ function handle_unknown_error() {
     exit 2
 }
 
-function enable_err_trap() {
-    trap 'handle_unknown_error $LINENO' ERR
-}
+ENABLE_ERR_TRAP="trap 'handle_unknown_error \$LINENO' ERR"
+DISABLE_ERR_TRAP="trap - ERR"
 
-function disable_err_trap() {
-    trap - ERR
-}
+function check_system_config() {
+    if ! command -v ss &> /dev/null; then
+        echo_sub "ss not found! Please install it before using AdaptivePerf." 1
+        exit 1
+    fi
 
-function check_kernel_settings() {
     if ! grep -qs '/sys/kernel/debug ' /proc/mounts; then
         echo_sub "/sys/kernel/debug is not mounted, mounting..."
         if ! sudo mount -t debugfs none /sys/kernel/debug; then
@@ -213,20 +218,24 @@ function perf_record() {
         serv_addr="127.0.0.1"
         serv_port=5000
         serv_buf_size=$8
-        while [[ connected -eq 0 ]]; do
+
+        while [[ $connected -eq 0 ]]; do
+            while ss -tulpn | grep LISTEN | grep ":${serv_port}" &> /dev/null; do
+                serv_port=$((serv_port+1))
+            done
+
             adaptiveperf-server -q -m 0 -p $serv_port -b $serv_buf_size &
             serv_pid=$!
 
             connected=1
             while ! 2> /dev/null exec 3<> /dev/tcp/$serv_addr/$serv_port; do
                 if ! ps -p $serv_pid &> /dev/null; then
-                    disable_err_trap
+                    eval $DISABLE_ERR_TRAP
                     wait $serv_pid
                     code=$?
-                    enable_err_trap
+                    eval $ENABLE_ERR_TRAP
 
                     if [[ $code -eq 100 ]]; then
-                        echo_sub "Port $serv_port is taken for adaptiveperf-server, trying $((serv_port+1))..."
                         serv_port=$((serv_port+1))
                         connected=0
                         break
@@ -238,7 +247,7 @@ function perf_record() {
             done
         done
     else
-        IFS=':' read -ra addr_parts <<< "$1"
+        IFS=':' read -ra addr_parts <<< "$1"  # Based on https://stackoverflow.com/a/918931
         serv_addr=${addr_parts[0]}
         serv_port=${addr_parts[1]}
 
@@ -274,10 +283,18 @@ function perf_record() {
 
     to_profile_pid=$!
 
-    APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT=${event_ports[0]} sudo -E taskset -c $PERF_MASK perf script adaptiveperf-syscall-process " --pid=$to_profile_pid" 1> $RESULT_OUT/perf_syscall_stdout.log 2> $RESULT_OUT/perf_syscall_stderr.log &
+    if ! APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT=${event_ports[0]} sudo -E taskset -c $PERF_MASK perf script adaptiveperf-syscall-process " --pid=$to_profile_pid" 1> $RESULT_OUT/perf_syscall_stdout.log 2> $RESULT_OUT/perf_syscall_stderr.log; then
+        cp $RESULT_OUT/perf_syscall_*.log $CUR_DIR
+        echo_sub "Syscall profiling has failed! The logs (perf_syscall...) have been copied to the current directory." 1
+        kill $to_profile_pid
+    fi &
     SYSCALLS_PID=$!
 
-    APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT="${event_ports[@]:1:$POST_PROCESSING_PARAM}" sudo -E taskset -c $PERF_MASK perf script adaptiveperf-process " -e task-clock -F $2 --off-cpu $3 --buffer-events $4 --buffer-off-cpu-events $5 --pid=$to_profile_pid" 1> $RESULT_OUT/perf_main_stdout.log 2> $RESULT_OUT/perf_main_stderr.log &
+    if ! APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT="${event_ports[@]:1:$POST_PROCESSING_PARAM}" sudo -E taskset -c $PERF_MASK perf script adaptiveperf-process " -e task-clock -F $2 --off-cpu $3 --buffer-events $4 --buffer-off-cpu-events $5 --pid=$to_profile_pid" 1> $RESULT_OUT/perf_main_stdout.log 2> $RESULT_OUT/perf_main_stderr.log; then
+        cp $RESULT_OUT/perf_main_*.log $CUR_DIR
+        echo_sub "Wall time profiling has failed! The logs (perf_main...) have been copied to the current directory." 1
+        kill $to_profile_pid
+    fi &
     SAMPLING_PID=$!
 
     EXTRA_EVENTS=()
@@ -291,9 +308,13 @@ function perf_record() {
             continue
         fi
 
-        # Based on https://stackoverflow.com/a/918931
-        IFS=',' read -ra event_parts <<< "$ev"
-        APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT="${event_ports[@]:$start_index:$POST_PROCESSING_PARAM}" sudo -E taskset -c $PERF_MASK perf script adaptiveperf-process " -e ${event_parts[0]}/period=${event_parts[1]}/ --pid=$to_profile_pid" 1> $RESULT_OUT/perf_${event_parts[0]}_stdout.log 2> $RESULT_OUT/perf_${event_parts[0]}_stderr.log &
+        IFS=',' read -ra event_parts <<< "$ev"  # Based on https://stackoverflow.com/a/918931
+
+        if ! APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT="${event_ports[@]:$start_index:$POST_PROCESSING_PARAM}" sudo -E taskset -c $PERF_MASK perf script adaptiveperf-process " -e ${event_parts[0]}/period=${event_parts[1]}/ --pid=$to_profile_pid" 1> $RESULT_OUT/perf_${event_parts[0]}_stdout.log 2> $RESULT_OUT/perf_${event_parts[0]}_stderr.log; then
+            cp $RESULT_OUT/perf_${event_parts[0]}_*.log $CUR_DIR
+            echo_sub "${event_parts[0]} profiling has failed! The logs (perf_${event_parts[0]}...) have been copied to the current directory." 1
+            kill $to_profile_pid
+        fi &
         OTHER_PIDS=($!)
 
         echo ${event_parts[0]} ${event_parts[2]} >> $RESULT_OUT/event_dict.data
@@ -302,19 +323,27 @@ function perf_record() {
         start_index=$((start_index+POST_PROCESSING_PARAM))
     done
 
-    disable_err_trap
+    eval $DISABLE_ERR_TRAP
+
     wait $to_profile_pid
     code=$?
-    enable_err_trap
 
     if [[ $code -ne 0 ]]; then
-        echo_sub "Profiled program has finished with non-zero exit code $code. Exiting." 1
+        wait $SYSCALLS_PID
+        wait $SAMPLING_PID
+        for i in ${OTHER_PIDS[@]}; do
+            wait $i
+        done
+
+        echo_sub "Profiled program or its wrapper has finished with non-zero exit code $code. This is expected if you have seen \"Profiling has failed\" errors. Exiting." 1
         exit 2
     fi
+
+    eval $ENABLE_ERR_TRAP
 }
 
 function process_results() {
-    disable_err_trap
+    eval $DISABLE_ERR_TRAP
 
     wait $SYSCALLS_PID
     syscalls_code=$?
@@ -328,7 +357,7 @@ function process_results() {
         other_codes+=($?)
     done
 
-    enable_err_trap
+    eval $ENABLE_ERR_TRAP
 
     error=false
 
@@ -456,13 +485,13 @@ function process_results() {
     fi
 }
 
-enable_err_trap
+eval $ENABLE_ERR_TRAP
 script_start_time=$(date +%s%3N)
 
 print_notice
 
-echo_main "Checking kernel settings..."
-check_kernel_settings
+echo_main "Checking system configuration..."
+check_system_config
 
 echo_main "Checking CPU specification..."
 check_cores ${args[--post-process]} "${args[--tcp]}" "${args[--udp]}"

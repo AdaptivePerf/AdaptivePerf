@@ -736,16 +736,18 @@ namespace aperf {
         }
       }
 
+      acceptor.close();
+
       for (int i = 0; i < threads.size(); i++) {
         try {
           threads[i].get();
         } catch (aperf::SocketException &e) {
           std::cerr << "Warning: Socket error in client " << i << ", you will not ";
           std::cerr << "get reliable results from them!" << std::endl;
+
+          std::cerr << "Error details: " << e.what() << std::endl;
         }
       }
-
-      acceptor.close();
     } catch (aperf::AlreadyInUseException &e) {
       throw e;
     } catch (aperf::SocketException &e) {
