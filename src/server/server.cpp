@@ -744,6 +744,8 @@ namespace aperf {
         } catch (aperf::SocketException &e) {
           std::cerr << "Warning: Socket error in client " << i << ", you will not ";
           std::cerr << "get reliable results from them!" << std::endl;
+
+          std::cerr << "Error details: " << e.what() << std::endl;
         }
       }
     } catch (aperf::AlreadyInUseException &e) {
