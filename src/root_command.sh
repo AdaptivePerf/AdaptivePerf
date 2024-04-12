@@ -68,6 +68,10 @@ function check_system_config() {
         exit 1
     fi
 
+    if ! command -v c++filt &> /dev/null; then
+        echo_sub "c++filt not found! C++ names will not be demangled in perf symbol maps (used e.g. for JIT-ed codes)."
+    fi
+
     if ! grep -qs '/sys/kernel/debug ' /proc/mounts; then
         echo_sub "/sys/kernel/debug is not mounted, mounting..."
         if ! sudo mount -t debugfs none /sys/kernel/debug; then
@@ -395,8 +399,24 @@ function process_results() {
         exit 2
     fi
 
+    if ! compgen -G "perf_map_paths_*.data" > /dev/null; then
+        echo_sub "perf_map_paths_\*.data files have not been produced! Exiting." 1
+        exit 2
+    fi
+
+    perf_map_paths=$(cat perf_map_paths_*.data | sort | uniq)
+    rm perf_map_paths_*.data
+
+    for perf_map_path in "$perf_map_paths"; do
+        if command -v c++filt &> /dev/null; then
+            cat $perf_map_path | c++filt > $(basename $perf_map_path)
+        else
+            cp $perf_map_path .
+        fi
+    done
+
     if [[ $1 != "" ]]; then
-        for filename in *.json; do
+        for filename in *.map *.json; do
             len=$(wc -c < "$filename")
 
             if ! echo "$len p $filename" >&3; then
@@ -442,8 +462,8 @@ function process_results() {
     fi
 
     if [[ $1 != "" ]]; then
-        for file in *.json; do
-            if ! cat $filename >&3; then
+        for file in *.map *.json; do
+            if ! cat $file >&3; then
                 echo_sub "I/O error has occurred in the communication with adaptiveperf-server (processed_file_send)! Exiting." 1
                 exit 2
             fi
@@ -478,8 +498,8 @@ function process_results() {
             exit 2
         fi
 
-        if ! cp *.json $RESULT_PROCESSED; then
-            echo_sub "Could not copy the callchain dictionaries to the final directory! Exiting." 1
+        if ! cp *.map *.json $RESULT_PROCESSED; then
+            echo_sub "Could not copy the callchain dictionaries and perf symbol maps to the final directory! Exiting." 1
             exit 2
         fi
     fi

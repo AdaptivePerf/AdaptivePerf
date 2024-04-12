@@ -36,38 +36,32 @@ def next_code():
 
 event_sock = None
 tid_dict = {}
-cpp_filt = None
-cpp_filt_cache = {}
 callchain_dict = defaultdict(next_code)
-
-
-def demangle(name):
-    global cpp_filt, cpp_filt_cache
-
-    if name in cpp_filt_cache:
-        return cpp_filt_cache[name]
-
-    stdin = cpp_filt.stdin
-    stdin.write((name + '\n').encode())
-    stdin.flush()
-
-    stdout = cpp_filt.stdout
-    result = stdout.readline().decode().strip()
-    cpp_filt_cache[name] = result
-    return result
+perf_map_paths = set()
 
 
 def syscall_callback(stack, ret_value):
-    global event_sock, cpp_filt
+    global event_sock, cpp_filt, perf_map_paths
 
     if int(ret_value) == 0:
         return
 
+    def process_callchain_elem(elem):
+        if 'dso' in elem and \
+           re.search(r'^perf\-\d+\.map$', Path(elem['dso']).name) is not None:
+            p = Path(elem['dso'])
+            perf_map_paths.add(str(p))
+            return f'({elem["ip"]:#x};{p.name})'
+        elif 'sym' in elem and 'name' in elem['sym']:
+            return callchain_dict[elem['sym']['name']]
+        elif 'dso' in elem:
+            p = Path(elem['dso'])
+            return '[' + p.name + ']'
+        else:
+            return f'({x["ip"]:#x})'
+
     event_sock.sendall((json.dumps([
-        '<SYSCALL>', str(ret_value), list(map(
-            lambda x: callchain_dict[x['sym']['name']] if 'sym' in x else
-            '[' + Path(x['dso']).name + ']' if 'dso' in x else
-            f'({x["ip"]:#x})', stack))
+        '<SYSCALL>', str(ret_value), list(map(process_callchain_elem, stack))
         ]) + '\n').encode('utf-8'))
 
 
@@ -86,11 +80,7 @@ def syscall_tree_callback(syscall_type, comm_name, pid, tid, time,
 
 
 def trace_begin():
-    global event_sock, cpp_filt
-
-    cpp_filt = subprocess.Popen(['c++filt', '-p'],
-                                stdin=subprocess.PIPE,
-                                stdout=subprocess.PIPE)
+    global event_sock
 
     event_sock = socket.socket()
     event_sock.connect((os.environ['APERF_SERV_ADDR'],
@@ -98,17 +88,18 @@ def trace_begin():
 
 
 def trace_end():
-    global event_sock, cpp_filt, callchain_dict
+    global event_sock, callchain_dict, perf_map_paths
 
     event_sock.sendall('<STOP>\n'.encode('utf-8'))
     event_sock.close()
-
-    cpp_filt.terminate()
 
     reverse_callchain_dict = {v: k for k, v in callchain_dict.items()}
 
     with open('syscall_callchains.json', mode='w') as f:
         f.write(json.dumps(reverse_callchain_dict) + '\n')
+
+    with open('perf_map_paths_syscalls.data', mode='w') as f:
+        f.write('\n'.join(perf_map_paths) + '\n')
 
 
 def syscalls__sys_exit_clone3(event_name, context, common_cpu, common_secs,
