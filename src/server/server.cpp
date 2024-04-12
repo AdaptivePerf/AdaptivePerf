@@ -457,7 +457,8 @@ namespace aperf {
   }
 
   void process_client(std::shared_ptr<Socket> socket, std::string address,
-                      unsigned short port, unsigned int buf_size) {
+                      unsigned short port, unsigned int buf_size,
+                      long file_timeout_seconds) {
     try {
       std::string msg = socket->read();
       std::regex start_regex("^start(\\d+) (.+)$");
@@ -644,39 +645,47 @@ namespace aperf {
 
       bool error = false;
 
-      auto process_file = [&processed_path, &out_path, &error, &socket]
+      auto process_file = [&processed_path, &out_path, &error, &socket,
+                           &file_timeout_seconds]
         (std::string &name,
          unsigned int len,
          bool processed) {
-        char buf[len];
-        int bytes_received = socket->read(buf, len);
         fs::path path = (processed ? processed_path : out_path) / name;
 
-        if (bytes_received != len) {
-          std::cerr << "Warning for out file " << path << ": ";
-          std::cerr << "Expected " << len << " byte(s), got " << bytes_received << ".";
+        try {
+          char buf[len];
+          int bytes_received = socket->read(buf, len, file_timeout_seconds);
+
+          if (bytes_received != len) {
+            std::cerr << "Warning for out/processed file " << path << ": ";
+            std::cerr << "Expected " << len << " byte(s), got " << bytes_received << ".";
+            std::cerr << std::endl;
+          }
+
+          std::ofstream f(path, std::ios_base::out | std::ios_base::binary);
+
+          if (!f) {
+            std::cerr << "Error for out/processed file " << path << ": ";
+            std::cerr << "Could not open the output stream." << std::endl;
+            error = true;
+            return;
+          }
+
+          f.write(buf, bytes_received);
+
+          if (!f) {
+            std::cerr << "Error for out/processed file " << path << ": ";
+            std::cerr << "Could not write to the output stream." << std::endl;
+            error = true;
+            return;
+          }
+
+          f.close();
+        } catch (TimeoutException &e) {
+          std::cerr << "Warning for out/processed file " << path << ": ";
+          std::cerr << "Timeout of " << file_timeout_seconds << " s has been reached, no data saved.";
           std::cerr << std::endl;
         }
-
-        std::ofstream f(path, std::ios_base::out | std::ios_base::binary);
-
-        if (!f) {
-          std::cerr << "Error for out file " << path << ": ";
-          std::cerr << "Could not open the output stream." << std::endl;
-          error = true;
-          return;
-        }
-
-        f.write(buf, bytes_received);
-
-        if (!f) {
-          std::cerr << "Error for out file " << path << ": ";
-          std::cerr << "Could not write to the output stream." << std::endl;
-          error = true;
-          return;
-        }
-
-        f.close();
       };
 
       for (int i = 0; i < processed_files.size(); i++) {
@@ -702,8 +711,8 @@ namespace aperf {
   }
 
   void run_server(std::string address, unsigned short port,
-                 bool quiet, unsigned int max_connections,
-                 unsigned int buf_size) {
+                  bool quiet, unsigned int max_connections,
+                  unsigned int buf_size, long file_timeout_seconds) {
     try {
       Acceptor acceptor(address, port, false);
       std::vector<std::future<void> > threads;
@@ -728,7 +737,8 @@ namespace aperf {
           accepted_socket->close();
         } else {
           threads.push_back(std::async(process_client, accepted_socket,
-                                       address, port, buf_size));
+                                       address, port, buf_size,
+                                       file_timeout_seconds));
 
           if (max_connections == 0) {
             break;
@@ -794,6 +804,11 @@ int main(int argc, char **argv) {
                  "Buffer size for communication with clients in bytes "
                  "(default: 1024)");
 
+  long file_timeout_seconds = 120;
+  app.add_option("-t", file_timeout_seconds,
+                 "Timeout for receiving out and processed data from clients "
+                 "in seconds (default: 120)");
+
   bool quiet = false;
   app.add_flag("-q", quiet, "Do not print anything except non-port-in-use errors");
 
@@ -804,7 +819,8 @@ int main(int argc, char **argv) {
     return 0;
   } else {
     try {
-      aperf::run_server(address, port, quiet, max_connections, buf_size);
+      aperf::run_server(address, port, quiet, max_connections, buf_size,
+                        file_timeout_seconds);
       return 0;
     } catch (aperf::AlreadyInUseException &e) {
       if (!quiet) {

@@ -23,6 +23,10 @@ namespace aperf {
     SocketException(std::exception &other) : std::exception(other) { }
   };
 
+  class TimeoutException : std::exception {
+
+  };
+
   class Socket {
   private:
     net::StreamSocket socket;
@@ -36,7 +40,7 @@ namespace aperf {
     ~Socket();
     unsigned short get_port();
     void close();
-    int read(char *buf, unsigned int len);
+    int read(char *buf, unsigned int len, long timeout_seconds);
     std::string read();
     void write(std::string msg, bool new_line = true);
   };
