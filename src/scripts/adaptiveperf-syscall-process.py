@@ -58,7 +58,7 @@ def syscall_callback(stack, ret_value):
             p = Path(elem['dso'])
             return f'({elem["ip"]:#x};{p.name})'
         else:
-            return f'({x["ip"]:#x})'
+            return f'({elem["ip"]:#x})'
 
     event_sock.sendall((json.dumps([
         '<SYSCALL>', str(ret_value), list(map(process_callchain_elem, stack))
