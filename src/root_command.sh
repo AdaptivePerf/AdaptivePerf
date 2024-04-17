@@ -287,19 +287,58 @@ function perf_record() {
 
     to_profile_pid=$!
 
-    if ! APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT=${event_ports[0]} sudo -E taskset -c $PERF_MASK perf script adaptiveperf-syscall-process " --pid=$to_profile_pid" 1> $RESULT_OUT/perf_syscall_stdout.log 2> $RESULT_OUT/perf_syscall_stderr.log; then
-        cp $RESULT_OUT/perf_syscall_*.log $CUR_DIR
-        echo_sub "Syscall profiling has failed! The logs (perf_syscall...) have been copied to the current directory." 1
-        kill $to_profile_pid
-    fi &
-    SYSCALLS_PID=$!
+    alternative_perf=$9
 
-    if ! APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT="${event_ports[@]:1:$POST_PROCESSING_PARAM}" sudo -E taskset -c $PERF_MASK perf script adaptiveperf-process " -e task-clock -F $2 --off-cpu $3 --buffer-events $4 --buffer-off-cpu-events $5 --pid=$to_profile_pid" 1> $RESULT_OUT/perf_main_stdout.log 2> $RESULT_OUT/perf_main_stderr.log; then
-        cp $RESULT_OUT/perf_main_*.log $CUR_DIR
-        echo_sub "Wall time profiling has failed! The logs (perf_main...) have been copied to the current directory." 1
-        kill $to_profile_pid
-    fi &
-    SAMPLING_PID=$!
+    if [[ $alternative_perf != "" && ! -n "$PERF_PYTHON_PATH" ]]; then
+        perf_path=$(which perf)
+        if [[ -d /libexec/perf-core/scripts/python && $perf_path == /bin/* ]]; then
+            PERF_PYTHON_PATH=/libexec/perf-core/scripts/python
+        elif [[ -d /usr/libexec/perf-core/scripts/python && $perf_path == /usr/bin/* ]]; then
+            PERF_PYTHON_PATH=/usr/libexec/perf-core/scripts/python
+        elif [[ -d /usr/local/libexec/perf-core/scripts/python && $perf_path == /usr/local/bin/* ]]; then
+            PERF_PYTHON_PATH=/usr/local/libexec/perf-core/scripts/python
+        else
+            echo_sub "perf with Python support is either not installed or installed in a custom directory!" 1
+            echo_sub "" 1
+            echo_sub "Please install it or set the PERF_PYTHON_PATH environment variable to where Python" 1
+            echo_sub "scripts for perf are stored (usually your perf setup prefix + libexec/perf-core/scripts/python)." 1
+            echo_sub "" 1
+            echo_sub "Alternatively, run AdaptivePerf without the -l flag." 1
+            exit 1
+        fi
+    fi
+
+    if [[ $alternative_perf != "" ]]; then
+        if ! (sudo taskset -c $PERF_MASK $PERF_PYTHON_PATH/bin/adaptiveperf-syscall-process-record "-o - --pid=$to_profile_pid" | APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT=${event_ports[0]} PERF_EXEC_PATH=$PERF_PYTHON_PATH/../.. taskset -c $PERF_MASK $PERF_PYTHON_PATH/bin/adaptiveperf-syscall-process-report) 1> $RESULT_OUT/perf_syscall_stdout.log 2> $RESULT_OUT/perf_syscall_stderr.log; then
+            cp $RESULT_OUT/perf_syscall_*.log $CUR_DIR
+            echo_sub "Syscall profiling has failed! The logs (perf_syscall...) have been copied to the current directory." 1
+            kill $to_profile_pid
+        fi &
+        SYSCALLS_PID=$!
+    else
+        if ! APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT=${event_ports[0]} sudo -E taskset -c $PERF_MASK perf script adaptiveperf-syscall-process " --pid=$to_profile_pid" 1> $RESULT_OUT/perf_syscall_stdout.log 2> $RESULT_OUT/perf_syscall_stderr.log; then
+            cp $RESULT_OUT/perf_syscall_*.log $CUR_DIR
+            echo_sub "Syscall profiling has failed! The logs (perf_syscall...) have been copied to the current directory." 1
+            kill $to_profile_pid
+        fi
+        SYSCALLS_PID=$!
+    fi
+
+    if [[ $alternative_perf != "" ]]; then
+        if ! (sudo taskset -c $PERF_MASK $PERF_PYTHON_PATH/bin/adaptiveperf-process-record "-e task-clock -F $2 --off-cpu $3 --buffer-events $4 --buffer-off-cpu-events $5 -o - --pid=$to_profile_pid" | APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT="${event_ports[@]:1:$POST_PROCESSING_PARAM}" PERF_EXEC_PATH=$PERF_PYTHON_PATH/../.. taskset -c $PERF_MASK $PERF_PYTHON_PATH/bin/adaptiveperf-process-report) 1> $RESULT_OUT/perf_main_stdout.log 2> $RESULT_OUT/perf_main_stderr.log; then
+            cp $RESULT_OUT/perf_main_*.log $CUR_DIR
+            echo_sub "Wall time profiling has failed! The logs (perf_main...) have been copied to the current directory." 1
+            kill $to_profile_pid
+        fi &
+        SAMPLING_PID=$!
+    else
+        if ! APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT="${event_ports[@]:1:$POST_PROCESSING_PARAM}" sudo -E taskset -c $PERF_MASK perf script adaptiveperf-process " -e task-clock -F $2 --off-cpu $3 --buffer-events $4 --buffer-off-cpu-events $5 --pid=$to_profile_pid" 1> $RESULT_OUT/perf_main_stdout.log 2> $RESULT_OUT/perf_main_stderr.log; then
+            cp $RESULT_OUT/perf_main_*.log $CUR_DIR
+            echo_sub "Wall time profiling has failed! The logs (perf_main...) have been copied to the current directory." 1
+            kill $to_profile_pid
+        fi &
+        SAMPLING_PID=$!
+    fi
 
     EXTRA_EVENTS=()
     OTHER_PIDS=()
@@ -314,12 +353,21 @@ function perf_record() {
 
         IFS=',' read -ra event_parts <<< "$ev"  # Based on https://stackoverflow.com/a/918931
 
-        if ! APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT="${event_ports[@]:$start_index:$POST_PROCESSING_PARAM}" sudo -E taskset -c $PERF_MASK perf script adaptiveperf-process " -e ${event_parts[0]}/period=${event_parts[1]}/ --pid=$to_profile_pid" 1> $RESULT_OUT/perf_${event_parts[0]}_stdout.log 2> $RESULT_OUT/perf_${event_parts[0]}_stderr.log; then
-            cp $RESULT_OUT/perf_${event_parts[0]}_*.log $CUR_DIR
-            echo_sub "${event_parts[0]} profiling has failed! The logs (perf_${event_parts[0]}...) have been copied to the current directory." 1
-            kill $to_profile_pid
-        fi &
-        OTHER_PIDS=($!)
+        if [[ $alternative_perf != "" ]]; then
+            if ! (sudo taskset -c $PERF_MASK $PERF_PYTHON_PATH/bin/adaptiveperf-process-record "-e ${event_parts[0]}/period=${event_parts[1]}/ --pid=$to_profile_pid -o -" | APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT="${event_ports[@]:$start_index:$POST_PROCESSING_PARAM}" PERF_EXEC_PATH=$PERF_PYTHON_PATH/../.. taskset -c $PERF_MASK $PERF_PYTHON_PATH/bin/adaptiveperf-process-report) 1> $RESULT_OUT/perf_${event_parts[0]}_stdout.log 2> $RESULT_OUT/perf_${event_parts[0]}_stderr.log; then
+                cp $RESULT_OUT/perf_${event_parts[0]}_*.log $CUR_DIR
+                echo_sub "${event_parts[0]} profiling has failed! The logs (perf_${event_parts[0]}...) have been copied to the current directory." 1
+                kill $to_profile_pid
+            fi &
+            OTHER_PIDS+=($!)
+        else
+            if ! APERF_SERV_ADDR=$serv_addr APERF_SERV_PORT="${event_ports[@]:$start_index:$POST_PROCESSING_PARAM}" sudo -E taskset -c $PERF_MASK perf script adaptiveperf-process " -e ${event_parts[0]}/period=${event_parts[1]}/ --pid=$to_profile_pid" 1> $RESULT_OUT/perf_${event_parts[0]}_stdout.log 2> $RESULT_OUT/perf_${event_parts[0]}_stderr.log; then
+                cp $RESULT_OUT/perf_${event_parts[0]}_*.log $CUR_DIR
+                echo_sub "${event_parts[0]} profiling has failed! The logs (perf_${event_parts[0]}...) have been copied to the current directory." 1
+                kill $to_profile_pid
+            fi &
+            OTHER_PIDS+=($!)
+        fi
 
         echo ${event_parts[0]} ${event_parts[2]} >> $RESULT_OUT/event_dict.data
         EXTRA_EVENTS+=(${event_parts[0]})
@@ -523,7 +571,7 @@ echo_main "Preparing results directory..."
 prepare_results_dir "${args[--address]}"
 
 echo_main "Profiling..."
-perf_record "${args[--address]}" ${args[--freq]} ${args[--off-cpu-freq]} ${args[--buffer]} ${args[--off-cpu-buffer]} "${args[--event]}" ${args[--warmup]} ${args[--server-buffer]}
+perf_record "${args[--address]}" ${args[--freq]} ${args[--off-cpu-freq]} ${args[--buffer]} ${args[--off-cpu-buffer]} "${args[--event]}" ${args[--warmup]} ${args[--server-buffer]} "${args[--alternative]}"
 
 echo_main "Processing results..."
 process_results "${args[--address]}"
