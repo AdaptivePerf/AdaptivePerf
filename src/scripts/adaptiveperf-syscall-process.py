@@ -56,7 +56,7 @@ def syscall_callback(stack, ret_value):
             return callchain_dict[elem['sym']['name']]
         elif 'dso' in elem:
             p = Path(elem['dso'])
-            return '[' + p.name + ']'
+            return f'({elem["ip"]:#x};{p.name})'
         else:
             return f'({x["ip"]:#x})'
 

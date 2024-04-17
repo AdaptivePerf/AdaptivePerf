@@ -95,7 +95,7 @@ def process_event(param_dict):
             callchain.append(callchain_dict[elem['sym']['name']])
         elif 'dso' in elem:
             p = Path(elem['dso'])
-            callchain.append('[' + p.name + ']')
+            callchain.append(f'({elem["ip"]:#x};{p.name})')
         else:
             callchain.append(f'({elem["ip"]:#x})')
 
