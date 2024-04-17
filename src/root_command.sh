@@ -453,13 +453,15 @@ function process_results() {
     fi
 
     perf_map_paths=$(cat perf_map_paths_*.data | sort | uniq)
-    rm perf_map_paths_*.data
+    rm -f perf_map_paths_*.data
 
     for perf_map_path in "$perf_map_paths"; do
-        if command -v c++filt &> /dev/null; then
-            cat $perf_map_path | c++filt > $(basename $perf_map_path)
-        else
-            cp $perf_map_path .
+        if [[ -f $perf_map_path ]]; then
+            if command -v c++filt &> /dev/null; then
+                cat $perf_map_path | c++filt > $(basename $perf_map_path)
+            else
+                cp $perf_map_path .
+            fi
         fi
     done
 
@@ -546,9 +548,18 @@ function process_results() {
             exit 2
         fi
 
-        if ! cp *.map *.json $RESULT_PROCESSED; then
-            echo_sub "Could not copy the callchain dictionaries and perf symbol maps to the final directory! Exiting." 1
-            exit 2
+        if compgen -G "*.map" > /dev/null; then
+            if ! cp *.map $RESULT_PROCESSED; then
+                echo_sub "Could not copy the perf symbol maps to the final directory! Exiting." 1
+                exit 2
+            fi
+        fi
+
+        if compgen -G "*.json" > /dev/null; then
+            if ! cp *.json $RESULT_PROCESSED; then
+                echo_sub "Could not copy the callchain dictionaries to the final directory! Exiting." 1
+                exit 2
+            fi
         fi
     fi
 }
