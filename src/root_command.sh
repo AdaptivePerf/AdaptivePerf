@@ -283,7 +283,7 @@ function perf_record() {
 
     sleep_time=$7
 
-    read -u 3 && [[ $REPLY == "start_profile" ]] && sleep $sleep_time && cd $CUR_DIR && echo_sub "Executing the code..." && start_time=$(date +%s%3N) && taskset -c $PROFILE_MASK $TO_PROFILE 1> $RESULT_OUT/stdout.log 2> $RESULT_OUT/stderr.log && end_time=$(date +%s%3N) && echo_sub "Code execution completed in $(($end_time - $start_time)) ms!" &
+    read -u 3 && [[ $REPLY == "start_profile" ]] && echo_sub "All tracers have signalled their readiness, starting the code in $sleep_time second(s)..." && sleep $sleep_time && cd $CUR_DIR && echo_sub "Executing the code..." && start_time=$(date +%s%3N) && taskset -c $PROFILE_MASK $TO_PROFILE 1> $RESULT_OUT/stdout.log 2> $RESULT_OUT/stderr.log && end_time=$(date +%s%3N) && echo_sub "Code execution completed in $(($end_time - $start_time)) ms!" &
 
     to_profile_pid=$!
 
