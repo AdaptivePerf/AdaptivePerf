@@ -21,6 +21,8 @@
 #include <queue>
 #include <functional>
 
+#define CLONE_THREAD 0x10000
+
 namespace aperf {
   using namespace std::chrono_literals;
   namespace fs = std::filesystem;
@@ -159,6 +161,8 @@ namespace aperf {
       std::string extra_event_name = "";
       std::vector<std::pair<unsigned long long, std::string> > added_list;
 
+      std::unordered_map<std::string, std::string> last_clone_flags;
+
       while (true) {
         std::string line = socket->read();
 
@@ -211,22 +215,24 @@ namespace aperf {
             continue;
           }
 
-          if (syscall_type == "clone3" ||
+          std::string pid_tid = pid + "/" + tid;
+
+          if (syscall_type == "clone_enter" ||
+              syscall_type == "clone3_enter") {
+            last_clone_flags[pid_tid] = ret_value;
+          } else if (syscall_type == "clone3" ||
               syscall_type == "clone" ||
               syscall_type == "vfork" ||
               syscall_type == "fork") {
-            if (ret_value == "0") {
-              combo_dict[tid] = pid + "/" + tid;
-              process_group_dict[tid] = pid;
-
-              if (time_dict.find(tid) == time_dict.end()) {
-                time_dict[tid] = time;
+            if (ret_value != "0") {
+              if ((syscall_type == "clone3" ||
+                   syscall_type == "clone") &&
+                  last_clone_flags.find(pid_tid) == last_clone_flags.end()) {
+                std::cerr << "Exit from clone/clone3 detected without the corresponding entrance, ";
+                std::cerr << "this should not happen, ignoring! (" << pid_tid << ")" << std::endl;
+                continue;
               }
 
-              if (name_dict.find(tid) == name_dict.end()) {
-                name_dict[tid] = comm_name;
-              }
-            } else {
               if (tree.find(tid) == tree.end()) {
                 tree[tid] = "";
                 added_list.push_back(std::make_pair(time, tid));
@@ -244,6 +250,32 @@ namespace aperf {
               }
 
               tree[ret_value] = tid;
+
+              if (syscall_type == "clone3" ||
+                  syscall_type == "clone") {
+                long flags = std::stol(last_clone_flags[pid_tid]);
+
+                if (flags & CLONE_THREAD) {
+                  combo_dict[ret_value] = pid + "/" + ret_value;
+                  process_group_dict[ret_value] = pid;
+                } else {
+                  combo_dict[ret_value] = ret_value + "/" + ret_value;
+                  process_group_dict[ret_value] = ret_value;
+                }
+
+                last_clone_flags.erase(pid_tid);
+              } else {
+                combo_dict[ret_value] = pid + "/" + ret_value;
+                process_group_dict[ret_value] = pid;
+              }
+
+              if (time_dict.find(ret_value) == time_dict.end()) {
+                time_dict[ret_value] = time;
+              }
+
+              if (name_dict.find(ret_value) == name_dict.end()) {
+                name_dict[ret_value] = comm_name;
+              }
             }
           } else if (syscall_type == "execve") {
             time_dict[tid] = time;

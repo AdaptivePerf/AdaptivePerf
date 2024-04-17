@@ -102,6 +102,16 @@ def trace_end():
         f.write('\n'.join(perf_map_paths) + '\n')
 
 
+def syscalls__sys_enter_clone3(event_name, context, common_cpu, common_secs,
+                               common_nsecs, common_pid, common_comm,
+                               common_callchain, __syscall_nr, clone_flags,
+                               newsp, parent_tidptr, tls, child_tidptr,
+                               perf_sample_dict):
+    syscall_tree_callback('clone3_enter', common_comm, perf_sample_dict['sample']['pid'],
+                          perf_sample_dict['sample']['tid'],
+                          perf_sample_dict['sample']['time'], clone_flags)
+
+
 def syscalls__sys_exit_clone3(event_name, context, common_cpu, common_secs,
                               common_nsecs, common_pid, common_comm,
                               common_callchain, __syscall_nr, ret,
@@ -110,6 +120,16 @@ def syscalls__sys_exit_clone3(event_name, context, common_cpu, common_secs,
     syscall_tree_callback('clone3', common_comm, perf_sample_dict['sample']['pid'],
                           perf_sample_dict['sample']['tid'],
                           perf_sample_dict['sample']['time'], ret)
+
+
+def syscalls__sys_enter_clone(event_name, context, common_cpu, common_secs,
+                              common_nsecs, common_pid, common_comm,
+                              common_callchain, __syscall_nr, clone_flags,
+                              newsp, parent_tidptr, tls, child_tidptr,
+                              perf_sample_dict):
+    syscall_tree_callback('clone_enter', common_comm, perf_sample_dict['sample']['pid'],
+                          perf_sample_dict['sample']['tid'],
+                          perf_sample_dict['sample']['time'], clone_flags)
 
 
 def syscalls__sys_exit_clone(event_name, context, common_cpu, common_secs,
