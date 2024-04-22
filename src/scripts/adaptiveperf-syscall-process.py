@@ -102,64 +102,24 @@ def trace_end():
         f.write('\n'.join(perf_map_paths) + '\n')
 
 
-def syscalls__sys_enter_clone3(event_name, context, common_cpu, common_secs,
-                               common_nsecs, common_pid, common_comm,
-                               common_callchain, __syscall_nr, clone_flags,
-                               newsp, parent_tidptr, tls, child_tidptr,
-                               perf_sample_dict):
-    syscall_tree_callback('clone3_enter', common_comm, perf_sample_dict['sample']['pid'],
+def sched__sched_process_fork(event_name, context, common_cpu,
+	                          common_secs, common_nsecs, common_pid,
+                              common_comm, common_callchain, parent_comm,
+                              parent_pid, child_comm, child_pid,
+		                      perf_sample_dict):
+    syscall_callback(perf_sample_dict['callchain'], child_pid)
+    syscall_tree_callback('new_proc', common_comm, perf_sample_dict['sample']['pid'],
+                          perf_sample_dict['sample']['tid'], perf_sample_dict['sample']['time'],
+                          child_pid)
+
+
+def sched__sched_process_exit(event_name, context, common_cpu,
+	                          common_secs, common_nsecs, common_pid,
+                              common_comm, common_callchain, comm, pid,
+                              prio, perf_sample_dict):
+    syscall_tree_callback('exit', common_comm, perf_sample_dict['sample']['pid'],
                           perf_sample_dict['sample']['tid'],
-                          perf_sample_dict['sample']['time'], clone_flags)
-
-
-def syscalls__sys_exit_clone3(event_name, context, common_cpu, common_secs,
-                              common_nsecs, common_pid, common_comm,
-                              common_callchain, __syscall_nr, ret,
-                              perf_sample_dict):
-    syscall_callback(perf_sample_dict['callchain'], ret)
-    syscall_tree_callback('clone3', common_comm, perf_sample_dict['sample']['pid'],
-                          perf_sample_dict['sample']['tid'],
-                          perf_sample_dict['sample']['time'], ret)
-
-
-def syscalls__sys_enter_clone(event_name, context, common_cpu, common_secs,
-                              common_nsecs, common_pid, common_comm,
-                              common_callchain, __syscall_nr, clone_flags,
-                              newsp, parent_tidptr, tls, child_tidptr,
-                              perf_sample_dict):
-    syscall_tree_callback('clone_enter', common_comm, perf_sample_dict['sample']['pid'],
-                          perf_sample_dict['sample']['tid'],
-                          perf_sample_dict['sample']['time'], clone_flags)
-
-
-def syscalls__sys_exit_clone(event_name, context, common_cpu, common_secs,
-                             common_nsecs, common_pid, common_comm,
-                             common_callchain, __syscall_nr, ret,
-                             perf_sample_dict):
-    syscall_callback(perf_sample_dict['callchain'], ret)
-    syscall_tree_callback('clone', common_comm, perf_sample_dict['sample']['pid'],
-                          perf_sample_dict['sample']['tid'],
-                          perf_sample_dict['sample']['time'], ret)
-
-
-def syscalls__sys_exit_vfork(event_name, context, common_cpu, common_secs,
-                             common_nsecs, common_pid, common_comm,
-                             common_callchain, __syscall_nr, ret,
-                             perf_sample_dict):
-    syscall_callback(perf_sample_dict['callchain'], ret)
-    syscall_tree_callback('vfork', common_comm, perf_sample_dict['sample']['pid'],
-                          perf_sample_dict['sample']['tid'],
-                          perf_sample_dict['sample']['time'], ret)
-
-
-def syscalls__sys_exit_fork(event_name, context, common_cpu, common_secs,
-                            common_nsecs, common_pid, common_comm,
-                            common_callchain, __syscall_nr, ret,
-                            perf_sample_dict):
-    syscall_callback(perf_sample_dict['callchain'], ret)
-    syscall_tree_callback('fork', common_comm, perf_sample_dict['sample']['pid'],
-                          perf_sample_dict['sample']['tid'],
-                          perf_sample_dict['sample']['time'], ret)
+                          perf_sample_dict['sample']['time'], 0)
 
 
 def syscalls__sys_exit_execve(event_name, context, common_cpu, common_secs,
@@ -169,21 +129,3 @@ def syscalls__sys_exit_execve(event_name, context, common_cpu, common_secs,
     syscall_tree_callback('execve', common_comm, perf_sample_dict['sample']['pid'],
                           perf_sample_dict['sample']['tid'],
                           perf_sample_dict['sample']['time'], ret)
-
-
-def syscalls__sys_enter_exit(event_name, context, common_cpu, common_secs,
-                             common_nsecs, common_pid, common_comm,
-                             common_callchain, __syscall_nr, error_code,
-                             perf_sample_dict):
-    syscall_tree_callback('exit', common_comm, perf_sample_dict['sample']['pid'],
-                          perf_sample_dict['sample']['tid'],
-                          perf_sample_dict['sample']['time'], error_code)
-
-
-def syscalls__sys_enter_exit_group(event_name, context, common_cpu,
-                                   common_secs, common_nsecs, common_pid,
-                                   common_comm, common_callchain, __syscall_nr,
-                                   error_code, perf_sample_dict):
-    syscall_tree_callback('exit_group', common_comm, perf_sample_dict['sample']['pid'],
-                          perf_sample_dict['sample']['tid'],
-                          perf_sample_dict['sample']['time'], error_code)

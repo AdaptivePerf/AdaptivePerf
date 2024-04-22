@@ -145,8 +145,7 @@ namespace aperf {
           std::string,
           struct sample_result > > subprocesses;
       std::unordered_map<std::string, std::string> combo_dict;
-      std::unordered_map<std::string, std::string> process_group_dict;
-      std::unordered_map<std::string, unsigned long long> time_dict, exit_time_dict, exit_group_time_dict;
+      std::unordered_map<std::string, unsigned long long> time_dict, exit_time_dict;
       std::unordered_map<std::string, std::string> name_dict;
       std::unordered_map<std::string, std::string> tree;
 
@@ -209,73 +208,37 @@ namespace aperf {
 
           std::string pid_tid = pid + "/" + tid;
 
-          if (syscall_type == "clone_enter" ||
-              syscall_type == "clone3_enter") {
-            last_clone_flags[pid_tid] = ret_value;
-          } else if (syscall_type == "clone3" ||
-              syscall_type == "clone" ||
-              syscall_type == "vfork" ||
-              syscall_type == "fork") {
-            if (ret_value != "0") {
-              if ((syscall_type == "clone3" ||
-                   syscall_type == "clone") &&
-                  last_clone_flags.find(pid_tid) == last_clone_flags.end()) {
-                std::cerr << "Exit from clone/clone3 detected without the corresponding entrance, ";
-                std::cerr << "this should not happen, ignoring! (" << pid_tid << ")" << std::endl;
-                continue;
+          if (syscall_type == "new_proc") {
+            if (tree.find(tid) == tree.end()) {
+              tree[tid] = "";
+              added_list.push_back(std::make_pair(time, tid));
+
+              combo_dict[tid] = pid + "/" + tid;
+
+              if (name_dict.find(tid) == name_dict.end()) {
+                name_dict[tid] = comm_name;
               }
+            }
 
-              if (tree.find(tid) == tree.end()) {
-                tree[tid] = "";
-                added_list.push_back(std::make_pair(time, tid));
+            if (tree.find(ret_value) == tree.end()) {
+              added_list.push_back(std::make_pair(time, ret_value));
+            }
 
-                combo_dict[tid] = pid + "/" + tid;
-                process_group_dict[tid] = pid;
+            tree[ret_value] = tid;
 
-                if (name_dict.find(tid) == name_dict.end()) {
-                  name_dict[tid] = comm_name;
-                }
-              }
+            if (time_dict.find(ret_value) == time_dict.end()) {
+              time_dict[ret_value] = time;
+            }
 
-              if (tree.find(ret_value) == tree.end()) {
-                added_list.push_back(std::make_pair(time, ret_value));
-              }
-
-              tree[ret_value] = tid;
-
-              if (syscall_type == "clone3" ||
-                  syscall_type == "clone") {
-                long flags = std::stol(last_clone_flags[pid_tid]);
-
-                if (flags & CLONE_THREAD) {
-                  combo_dict[ret_value] = pid + "/" + ret_value;
-                  process_group_dict[ret_value] = pid;
-                } else {
-                  combo_dict[ret_value] = ret_value + "/" + ret_value;
-                  process_group_dict[ret_value] = ret_value;
-                }
-
-                last_clone_flags.erase(pid_tid);
-              } else {
-                combo_dict[ret_value] = pid + "/" + ret_value;
-                process_group_dict[ret_value] = pid;
-              }
-
-              if (time_dict.find(ret_value) == time_dict.end()) {
-                time_dict[ret_value] = time;
-              }
-
-              if (name_dict.find(ret_value) == name_dict.end()) {
-                name_dict[ret_value] = comm_name;
-              }
+            if (name_dict.find(ret_value) == name_dict.end()) {
+              name_dict[ret_value] = comm_name;
             }
           } else if (syscall_type == "execve") {
             time_dict[tid] = time;
             name_dict[tid] = comm_name;
-          } else if (syscall_type == "exit_group") {
-            exit_group_time_dict[pid] = time;
           } else if (syscall_type == "exit") {
             exit_time_dict[tid] = time;
+            combo_dict[tid] = pid + "/" + tid;
           }
         } else if (arr[0] == "<SAMPLE>") {
           std::string event_type, pid, tid;
@@ -407,9 +370,6 @@ namespace aperf {
 
             if (exit_time_dict.find(k) != exit_time_dict.end()) {
               elem["tag"][3] = exit_time_dict[k] - time_dict[k];
-            } else if (process_group_dict.find(k) != process_group_dict.end() &&
-                       exit_group_time_dict.find(process_group_dict[k]) != exit_group_time_dict.end()) {
-              elem["tag"][3] = exit_group_time_dict[process_group_dict[k]] - time_dict[k];
             } else {
               elem["tag"][3] = -1;
             }
