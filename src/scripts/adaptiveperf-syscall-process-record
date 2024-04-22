@@ -18,4 +18,4 @@ if [[ $(grep syscalls:sys_enter_clone3 <<< "$perf_list" | wc -l) -gt 0 ]]; then
     syscall_list+=",syscalls:sys_enter_clone3"
 fi
 
-perf record --call-graph fp -k CLOCK_MONOTONIC --buffer-events 1 -e $syscall_list $@
+perf record --call-graph fp -k CLOCK_MONOTONIC --buffer-events 1 -e $syscall_list --sorted-stream $@

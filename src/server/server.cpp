@@ -32,18 +32,10 @@ namespace aperf {
     unsigned long long period;
   };
 
-  struct out_time_ordered {
-    unsigned long long timestamp;
-    std::vector<std::string> callchain_parts;
-    unsigned long long period;
-    bool offcpu;
-  };
-
   struct sample_result {
     std::string event_type;
     nlohmann::json output;
     nlohmann::json output_time_ordered;
-    std::vector<struct out_time_ordered> to_output_time_ordered;
     unsigned long long total_period = 0;
     std::vector<struct offcpu_region> offcpu_regions;
   };
@@ -333,20 +325,16 @@ namespace aperf {
             }
 
             struct offcpu_region reg;
-            reg.timestamp = timestamp;
+            reg.timestamp = timestamp - period;
             reg.period = period;
             res.offcpu_regions.push_back(reg);
           }
 
           recurse(res.output, callchain, 0, period, false,
                   event_type == "offcpu-time");
+          recurse(res.output_time_ordered, callchain, 0, period,
+                  true, event_type == "offcpu-time");
 
-          struct out_time_ordered new_elem;
-          new_elem.timestamp = timestamp;
-          new_elem.callchain_parts = callchain;
-          new_elem.period = period;
-          new_elem.offcpu = event_type == "offcpu-time";
-          res.to_output_time_ordered.push_back(new_elem);
           res.total_period += period;
         }
       }
@@ -440,19 +428,6 @@ namespace aperf {
               struct sample_result &res = elem2.second;
               res.output["value"] = res.total_period;
               res.output_time_ordered["value"] = res.total_period;
-
-              std::sort(res.to_output_time_ordered.begin(),
-                        res.to_output_time_ordered.end(),
-                        [] (struct out_time_ordered &a, struct out_time_ordered &b) {
-                          return a.timestamp < b.timestamp;
-                        });
-
-              for (int i = 0; i < res.to_output_time_ordered.size(); i++) {
-                struct out_time_ordered &out_elem = res.to_output_time_ordered[i];
-
-                recurse(res.output_time_ordered, out_elem.callchain_parts, 0,
-                        out_elem.period, true, out_elem.offcpu);
-              }
 
               nlohmann::json &pid_tid_result = (*result)[msg_key][elem.first + "_" + elem2.first];
               std::string event_name;

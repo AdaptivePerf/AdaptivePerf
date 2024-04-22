@@ -1,2 +1,2 @@
 #!/bin/bash
-perf record --call-graph fp -k CLOCK_MONOTONIC $@
+perf record --call-graph fp -k CLOCK_MONOTONIC --sorted-stream $@
