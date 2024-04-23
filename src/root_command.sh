@@ -320,7 +320,7 @@ function perf_record() {
             cp $RESULT_OUT/perf_syscall_*.log $CUR_DIR
             echo_sub "Syscall profiling has failed! The logs (perf_syscall...) have been copied to the current directory." 1
             kill $to_profile_pid
-        fi
+        fi &
         SYSCALLS_PID=$!
     fi
 
