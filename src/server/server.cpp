@@ -321,15 +321,6 @@ namespace aperf {
           (*result)[msg_key] = tid_dict;
         } else if (msg == "<SYSCALL_TREE>") {
           unsigned long long start_time = 0;
-          bool start_time_uninitialised = true;
-
-          for (auto &time_elem : time_dict) {
-            if (start_time_uninitialised || time_elem.second < start_time) {
-              start_time = time_elem.second;
-              start_time_uninitialised = false;
-            }
-          }
-
           (*result)[msg_key] = nlohmann::json::array();
           (*result)[msg_key].push_back(start_time);
           (*result)[msg_key].push_back(nlohmann::json::array());
@@ -345,6 +336,8 @@ namespace aperf {
             if (!profile_start) {
               if (name_dict[k] == profiled_filename.substr(0, 15)) {
                 profile_start = true;
+                start_time = time_dict[k];
+                (*result)[msg_key][0] = start_time;
                 p = "";
               } else {
                 if (p.empty()) {
@@ -497,11 +490,13 @@ namespace aperf {
       nlohmann::json final_output;
       nlohmann::json metadata;
 
+      unsigned long long start_time = 0;
+
       for (int i = 0; i < ports; i++) {
         std::shared_ptr<nlohmann::json> thread_result = threads[i].get();
         for (auto &elem : thread_result->items()) {
           if (elem.key() == "<SYSCALL_TREE>") {
-            metadata["start_time"].swap(elem.value()[0]);
+            start_time = elem.value()[0];
             metadata["thread_tree"].swap(elem.value()[1]);
           } else if (elem.key() == "<SYSCALL>") {
             for (auto &elem2 : elem.value().items()) {
@@ -520,6 +515,12 @@ namespace aperf {
               }
             }
           }
+        }
+      }
+
+      for (auto &regions : metadata["offcpu_regions"].items()) {
+        for (int i = 0; i < regions.value().size(); i++) {
+          regions.value()[i][0] = (unsigned long long)regions.value()[i][0] - start_time;
         }
       }
 
