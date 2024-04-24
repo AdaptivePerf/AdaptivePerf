@@ -1,4 +1,6 @@
 # AdaptivePerf
+[![Version: 0.1.dev](https://img.shields.io/badge/version-0.1.dev-red)]()
+
 A comprehensive profiling tool with Linux ```perf``` as its main foundation.
 
 ## Recent redesign
