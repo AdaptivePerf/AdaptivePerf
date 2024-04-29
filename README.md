@@ -1,4 +1,5 @@
 # AdaptivePerf
+[![License: GNU GPL v2 only](https://img.shields.io/badge/license-GNU%20GPL%20v2%20only-blue)]()
 [![Version: 0.1.dev](https://img.shields.io/badge/version-0.1.dev-red)]()
 
 A comprehensive profiling tool with Linux ```perf``` as its main foundation.
