@@ -418,7 +418,7 @@ namespace aperf {
 
   void process_client(std::shared_ptr<Socket> socket, std::string address,
                       unsigned short port, unsigned int buf_size,
-                      long file_timeout_seconds) {
+                      unsigned long long file_timeout_speed) {
     try {
       std::string msg = socket->read();
       std::regex start_regex("^start(\\d+) (.+)$");
@@ -550,8 +550,8 @@ namespace aperf {
 
       socket->write("out_files");
 
-      std::vector<std::pair<std::string, unsigned int> > out_files;
-      std::vector<std::pair<std::string, unsigned int> > processed_files;
+      std::vector<std::pair<std::string, unsigned long long> > out_files;
+      std::vector<std::pair<std::string, unsigned long long> > processed_files;
 
       while (true) {
         std::string x = socket->read();
@@ -603,10 +603,10 @@ namespace aperf {
         if (!error) {
           if (processed) {
             processed_files.push_back(std::make_pair(x.substr(index + 2),
-                                                     std::stoi(len_str)));
+                                                     std::stoll(len_str)));
           } else {
             out_files.push_back(std::make_pair(x.substr(index + 2),
-                                               std::stoi(len_str)));
+                                               std::stoll(len_str)));
           }
         }
       }
@@ -614,11 +614,12 @@ namespace aperf {
       bool error = false;
 
       auto process_file = [&processed_path, &out_path, &error, &socket,
-                           &file_timeout_seconds]
+                           &file_timeout_speed]
         (std::string &name,
-         unsigned int len,
+         unsigned long long len,
          bool processed) {
         fs::path path = (processed ? processed_path : out_path) / name;
+        unsigned long long file_timeout_seconds = len / file_timeout_speed;
 
         try {
           char buf[len];
@@ -680,7 +681,7 @@ namespace aperf {
 
   void run_server(std::string address, unsigned short port,
                   bool quiet, unsigned int max_connections,
-                  unsigned int buf_size, long file_timeout_seconds) {
+                  unsigned int buf_size, unsigned long long file_timeout_speed) {
     try {
       Acceptor acceptor(address, port, false);
       std::vector<std::future<void> > threads;
@@ -706,7 +707,7 @@ namespace aperf {
         } else {
           threads.push_back(std::async(process_client, accepted_socket,
                                        address, port, buf_size,
-                                       file_timeout_seconds));
+                                       file_timeout_speed));
 
           if (max_connections == 0) {
             break;
@@ -772,10 +773,10 @@ int main(int argc, char **argv) {
                  "Buffer size for communication with clients in bytes "
                  "(default: 1024)");
 
-  long file_timeout_seconds = 120;
-  app.add_option("-t", file_timeout_seconds,
-                 "Timeout for receiving out and processed data from clients "
-                 "in seconds (default: 120)");
+  unsigned long long file_timeout_speed = 10;
+  app.add_option("-t", file_timeout_speed,
+                 "Worst-case-assumed speed for receiving files from clients "
+                 "in bytes per second (default: 10, used for calculating timeout)");
 
   bool quiet = false;
   app.add_flag("-q", quiet, "Do not print anything except non-port-in-use errors");
@@ -788,7 +789,7 @@ int main(int argc, char **argv) {
   } else {
     try {
       aperf::run_server(address, port, quiet, max_connections, buf_size,
-                        file_timeout_seconds);
+                        file_timeout_speed);
       return 0;
     } catch (aperf::AlreadyInUseException &e) {
       if (!quiet) {
