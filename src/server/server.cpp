@@ -21,8 +21,6 @@
 #include <queue>
 #include <functional>
 
-#define CLONE_THREAD 0x10000
-
 namespace aperf {
   using namespace std::chrono_literals;
   namespace fs = std::filesystem;
