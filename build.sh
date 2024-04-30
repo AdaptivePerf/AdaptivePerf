@@ -24,6 +24,12 @@ function error() {
 
 trap "error" ERR
 
+if [[ $1 == "-h" || $1 == "--help" ]]; then
+    echo "Script for building complete AdaptivePerf."
+    echo "Usage: ./build.sh [optional CMake options for adaptiveperf-server]"
+    exit 0
+fi
+
 echo_main "Checking build dir..."
 if [[ -d build ]]; then
     echo_sub "Non-empty build dir detected! Please run clean.sh first." 1
