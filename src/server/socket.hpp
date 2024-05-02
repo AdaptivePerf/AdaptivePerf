@@ -9,8 +9,6 @@
 #include <memory>
 #include <Poco/Net/ServerSocket.h>
 
-#define BUF_SIZE 1024
-
 namespace aperf {
   namespace net = Poco::Net;
 
@@ -38,7 +36,9 @@ namespace aperf {
   public:
     Socket(net::StreamSocket & sock, unsigned int buf_size);
     ~Socket();
+    std::string get_address();
     unsigned short get_port();
+    unsigned int get_buf_size();
     void close();
     int read(char *buf, unsigned int len, long timeout_seconds);
     std::string read();
@@ -53,7 +53,7 @@ namespace aperf {
     Acceptor(std::string address, unsigned short port,
              bool try_subsequent_ports = false);
     ~Acceptor();
-    std::shared_ptr<Socket> accept(unsigned int buf_size = BUF_SIZE);
+    std::shared_ptr<Socket> accept(unsigned int buf_size);
     unsigned short get_port();
     void close();
   };

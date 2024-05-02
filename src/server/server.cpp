@@ -1,18 +1,13 @@
 // AdaptivePerf: comprehensive profiling tool based on Linux perf
 // Copyright (C) CERN. See LICENSE for details.
 
+#include "server.hpp"
 #include <CLI/CLI.hpp>
-#include <nlohmann/json.hpp>
-#include "socket.hpp"
 #include "version.hpp"
-#include <string>
 #include <iostream>
 #include <thread>
-#include <future>
 #include <regex>
 #include <filesystem>
-#include <condition_variable>
-#include <mutex>
 #include <fstream>
 #include <vector>
 #include <unordered_set>
@@ -25,30 +20,21 @@ namespace aperf {
   using namespace std::chrono_literals;
   namespace fs = std::filesystem;
 
-  struct offcpu_region {
-    unsigned long long timestamp;
-    unsigned long long period;
-  };
+  Subclient::Subclient(Client &context,
+                       std::string address,
+                       unsigned short port,
+                       std::string profiled_filename,
+                       unsigned int buf_size) : context(context),
+                                                init_socket(address, port, true) {
+    this->profiled_filename = profiled_filename;
+    this->buf_size = buf_size;
+  }
 
-  struct sample_result {
-    std::string event_type;
-    nlohmann::json output;
-    nlohmann::json output_time_ordered;
-    unsigned long long total_period = 0;
-    std::vector<struct offcpu_region> offcpu_regions;
-  };
-
-  struct accept_notify {
-    unsigned int accepted = 0;
-    std::mutex m;
-    std::condition_variable cond;
-  };
-
-  void recurse(nlohmann::json &cur_elem,
-               std::vector<std::string> &callchain_parts,
-               int callchain_index,
-               unsigned long long period,
-               bool time_ordered, bool offcpu) {
+  void Subclient::recurse(nlohmann::json &cur_elem,
+                          std::vector<std::string> &callchain_parts,
+                          int callchain_index,
+                          unsigned long long period,
+                          bool time_ordered, bool offcpu) {
     std::string p = callchain_parts[callchain_index];
     nlohmann::json &arr = cur_elem["children"];
     nlohmann::json *elem;
@@ -123,17 +109,27 @@ namespace aperf {
     }
   }
 
-  std::shared_ptr<nlohmann::json> run_post_processing(std::shared_ptr<Acceptor> init_socket,
-                                                      std::string profiled_filename,
-                                                      unsigned int buf_size,
-                                                      std::shared_ptr<struct accept_notify> notifier) {
+  unsigned short Subclient::get_port() {
+    return this->init_socket.get_port();
+  }
+
+  void Subclient::process() {
+    struct offcpu_region {
+      unsigned long long timestamp;
+      unsigned long long period;
+    };
+
+    struct sample_result {
+      std::string event_type;
+      nlohmann::json output;
+      nlohmann::json output_time_ordered;
+      unsigned long long total_period = 0;
+      std::vector<struct offcpu_region> offcpu_regions;
+    };
+
     try {
-      std::shared_ptr<Socket> socket = init_socket->accept(buf_size);
-      {
-        std::lock_guard lock(notifier->m);
-        notifier->accepted++;
-      }
-      notifier->cond.notify_all();
+      std::shared_ptr<Socket> socket = this->init_socket.accept(this->buf_size);
+      this->context.notify_accepted();
 
       std::unordered_set<std::string> messages_received;
       std::unordered_map<std::string, std::vector<std::string> > tid_dict;
@@ -305,8 +301,6 @@ namespace aperf {
       std::sort(added_list.begin(), added_list.end(),
                 [] (auto &a, auto &b) { return a.first < b.first; });
 
-      std::shared_ptr<nlohmann::json> result = std::make_shared<nlohmann::json>();
-
       for (auto &msg : messages_received) {
         std::string msg_key;
         if (msg == "<SAMPLE>" && extra_event_name != "") {
@@ -316,14 +310,14 @@ namespace aperf {
         }
 
         if (msg == "<SYSCALL>") {
-          (*result)[msg_key] = tid_dict;
+          this->json_result[msg_key] = tid_dict;
         } else if (msg == "<SYSCALL_TREE>") {
           unsigned long long start_time = 0;
-          (*result)[msg_key] = nlohmann::json::array();
-          (*result)[msg_key].push_back(start_time);
-          (*result)[msg_key].push_back(nlohmann::json::array());
+          this->json_result[msg_key] = nlohmann::json::array();
+          this->json_result[msg_key].push_back(start_time);
+          this->json_result[msg_key].push_back(nlohmann::json::array());
 
-          nlohmann::json &result_list = (*result)[msg_key][1];
+          nlohmann::json &result_list = this->json_result[msg_key][1];
           std::unordered_set<std::string> added_identifiers;
           bool profile_start = false;
 
@@ -332,10 +326,10 @@ namespace aperf {
             std::string p = tree[k];
 
             if (!profile_start) {
-              if (name_dict[k] == profiled_filename.substr(0, 15)) {
+              if (name_dict[k] == this->profiled_filename.substr(0, 15)) {
                 profile_start = true;
                 start_time = time_dict[k];
-                (*result)[msg_key][0] = start_time;
+                this->json_result[msg_key][0] = start_time;
                 p = "";
               } else {
                 if (p.empty()) {
@@ -380,7 +374,7 @@ namespace aperf {
               res.output["value"] = res.total_period;
               res.output_time_ordered["value"] = res.total_period;
 
-              nlohmann::json &pid_tid_result = (*result)[msg_key][elem.first + "_" + elem2.first];
+              nlohmann::json &pid_tid_result = this->json_result[msg_key][elem.first + "_" + elem2.first];
               std::string event_name;
 
               if (extra_event_name == "") {
@@ -407,24 +401,31 @@ namespace aperf {
           }
         }
       }
-
-      return result;
     } catch (...) {
       std::rethrow_exception(std::current_exception());
     }
   }
 
-  void process_client(std::shared_ptr<Socket> socket, std::string address,
-                      unsigned short port, unsigned int buf_size,
-                      unsigned long long file_timeout_speed) {
+  nlohmann::json & Subclient::get_result() {
+    return this->json_result;
+  }
+
+  Client::Client(std::shared_ptr<Socket> socket,
+                 unsigned long long file_timeout_speed) {
+    this->socket = socket;
+    this->accepted = 0;
+    this->file_timeout_speed = file_timeout_speed;
+  }
+
+  void Client::process() {
     try {
-      std::string msg = socket->read();
+      std::string msg = this->socket->read();
       std::regex start_regex("^start(\\d+) (.+)$");
       std::smatch match;
 
       if (!std::regex_search(msg, match, start_regex)) {
-        socket->write("error_wrong_command");
-        socket->close();
+        this->socket->write("error_wrong_command");
+        this->socket->close();
         return;
       }
 
@@ -443,47 +444,44 @@ namespace aperf {
         std::cerr << "Could not create " << result_dir << "! Error details:";
         std::cerr << std::endl;
         std::cerr << e.what() << std::endl;
-        socket->write("error_result_dir");
-        socket->close();
+        this->socket->write("error_result_dir");
+        this->socket->close();
         return;
       }
 
-      std::string profiled_filename = socket->read();
-      std::shared_future<std::shared_ptr<nlohmann::json> > threads[ports];
-      unsigned short final_ports[ports];
-      std::shared_ptr<struct accept_notify> notifier =
-        std::make_shared<struct accept_notify>();
+      std::string profiled_filename = this->socket->read();
+      std::unique_ptr<Subclient> subclients[ports];
+      std::shared_future<void> threads[ports];
+
+      unsigned short port = this->socket->get_port();
 
       for (int i = 0; i < ports; i++) {
         unsigned short p = port + i + 1;
 
-        std::shared_ptr<Acceptor> init_socket =
-          std::make_shared<Acceptor>(address, p, true);
-
-        final_ports[i] = init_socket->get_port();
-        threads[i] = std::async(run_post_processing, init_socket,
-                                profiled_filename, buf_size,
-                                notifier);
+        subclients[i] = std::make_unique<Subclient>(*this, this->socket->get_address(),
+                                                    p, profiled_filename,
+                                                    this->socket->get_buf_size());
+        threads[i] = std::async(&Subclient::process, subclients[i].get());
       }
 
       std::string port_msg = "";
 
       for (int i = 0; i < ports; i++) {
-        port_msg += std::to_string(final_ports[i]);
+        port_msg += std::to_string(subclients[i]->get_port());
 
         if (i < ports - 1) {
           port_msg += " ";
         }
       }
 
-      socket->write(port_msg);
+      this->socket->write(port_msg);
 
-      std::unique_lock lock(notifier->m);
-      while (notifier->accepted < ports) {
-        notifier->cond.wait(lock);
+      std::unique_lock lock(this->accepted_mutex);
+      while (this->accepted < ports) {
+        this->accepted_cond.wait(lock);
       }
 
-      socket->write("start_profile");
+      this->socket->write("start_profile");
 
       nlohmann::json final_output;
       nlohmann::json metadata;
@@ -491,8 +489,9 @@ namespace aperf {
       unsigned long long start_time = 0;
 
       for (int i = 0; i < ports; i++) {
-        std::shared_ptr<nlohmann::json> thread_result = threads[i].get();
-        for (auto &elem : thread_result->items()) {
+        threads[i].get();
+        nlohmann::json &thread_result = subclients[i]->get_result();
+        for (auto &elem : thread_result.items()) {
           if (elem.key() == "<SYSCALL_TREE>") {
             start_time = elem.value()[0];
             metadata["thread_tree"].swap(elem.value()[1]);
@@ -546,13 +545,13 @@ namespace aperf {
         futures[i].get();
       }
 
-      socket->write("out_files");
+      this->socket->write("out_files");
 
       std::vector<std::pair<std::string, unsigned long long> > out_files;
       std::vector<std::pair<std::string, unsigned long long> > processed_files;
 
       while (true) {
-        std::string x = socket->read();
+        std::string x = this->socket->read();
 
         if (x == "<STOP>") {
           break;
@@ -567,10 +566,10 @@ namespace aperf {
             len_str += x[index];
           } else {
             if (x[index++] != ' ') {
-              socket->write("error_wrong_file_format");
+              this->socket->write("error_wrong_file_format");
               error = true;
             } else {
-              socket->write("ok");
+              this->socket->write("ok");
             }
 
             break;
@@ -578,7 +577,7 @@ namespace aperf {
         }
 
         if (index >= x.size() - 2) {
-          socket->write("error_wrong_file_format");
+          this->socket->write("error_wrong_file_format");
           error = true;
         }
 
@@ -589,12 +588,12 @@ namespace aperf {
         } else if (x[index] == 'o') {
           processed = false;
         } else {
-          socket->write("error_wrong_file_format");
+          this->socket->write("error_wrong_file_format");
           error = true;
         }
 
         if (x[index + 1] != ' ') {
-          socket->write("error_wrong_file_format");
+          this->socket->write("error_wrong_file_format");
           error = true;
         }
 
@@ -611,17 +610,16 @@ namespace aperf {
 
       bool error = false;
 
-      auto process_file = [&processed_path, &out_path, &error, &socket,
-                           &file_timeout_speed]
+      auto process_file = [&processed_path, &out_path, &error, this]
         (std::string &name,
          unsigned long long len,
          bool processed) {
         fs::path path = (processed ? processed_path : out_path) / name;
-        unsigned long long file_timeout_seconds = len / file_timeout_speed;
+        unsigned long long file_timeout_seconds = len / this->file_timeout_speed;
 
         try {
           char buf[len];
-          int bytes_received = socket->read(buf, len, file_timeout_seconds);
+          int bytes_received = this->socket->read(buf, len, file_timeout_seconds);
 
           if (bytes_received != len) {
             std::cerr << "Warning for out/processed file " << path << ": ";
@@ -666,31 +664,45 @@ namespace aperf {
       }
 
       if (error) {
-        socket->write("out_file_error");
+        this->socket->write("out_file_error");
       } else {
-        socket->write("finished");
+        this->socket->write("finished");
       }
 
-      socket->close();
+      this->socket->close();
     } catch (...) {
       std::rethrow_exception(std::current_exception());
     }
   }
 
-  void run_server(std::string address, unsigned short port,
-                  bool quiet, unsigned int max_connections,
-                  unsigned int buf_size, unsigned long long file_timeout_speed) {
+  void Client::notify_accepted() {
+    {
+        std::lock_guard lock(this->accepted_mutex);
+        this->accepted++;
+    }
+    this->accepted_cond.notify_all();
+  }
+
+  Server::Server(std::string address,
+                 unsigned short port,
+                 unsigned int max_connections,
+                 unsigned int buf_size,
+                 unsigned long long file_timeout_speed) : acceptor(address,
+                                                                   port,
+                                                                   false) {
+    this->max_connections = max_connections;
+    this->buf_size = buf_size;
+    this->file_timeout_speed = file_timeout_speed;
+  }
+
+  void Server::run() {
     try {
-      Acceptor acceptor(address, port, false);
+      std::vector<std::unique_ptr<Client> > clients;
       std::vector<std::future<void> > threads;
 
-      if (!quiet) {
-        std::cout << "Listening on " << address << ", port " << port;
-        std::cout << " (TCP)..." << std::endl;
-      }
-
       while (true) {
-        std::shared_ptr<Socket> accepted_socket = acceptor.accept(buf_size);
+        std::shared_ptr<Socket> accepted_socket =
+          this->acceptor.accept(this->buf_size);
 
         int working_count = 0;
         for (int i = 0; i < threads.size(); i++) {
@@ -699,21 +711,20 @@ namespace aperf {
           }
         }
 
-        if (working_count >= std::max(1U, max_connections)) {
+        if (working_count >= std::max(1U, this->max_connections)) {
           accepted_socket->write("try_again");
           accepted_socket->close();
         } else {
-          threads.push_back(std::async(process_client, accepted_socket,
-                                       address, port, buf_size,
-                                       file_timeout_speed));
+          clients.push_back(std::make_unique<Client>(accepted_socket, this->file_timeout_speed));
+          threads.push_back(std::async(&Client::process, clients.back().get()));
 
-          if (max_connections == 0) {
+          if (this->max_connections == 0) {
             break;
           }
         }
       }
 
-      acceptor.close();
+      this->acceptor.close();
 
       for (int i = 0; i < threads.size(); i++) {
         try {
@@ -728,22 +739,8 @@ namespace aperf {
     } catch (aperf::AlreadyInUseException &e) {
       throw e;
     } catch (aperf::SocketException &e) {
-      std::cerr << "A socket error has occurred and adaptiveperf-server has to exit!" << std::endl;
-      std::cerr << "You may want to check the address/port settings and the stability of " << std::endl;
-      std::cerr << "your connection between the server and the client(s)." << std::endl;
-      std::cerr << std::endl;
-      std::cerr << "The error details are printed below." << std::endl;
-      std::cerr << "----------" << std::endl;
-      std::cerr << e.what() << std::endl;
-
       throw e;
     } catch (...) {
-      std::cerr << "A fatal error has occurred and adaptiveperf-server has to exit!" << std::endl;
-      std::cerr << "The exception will be rethrown to aid debugging." << std::endl;
-      std::cerr << std::endl;
-      std::cerr << "If this issue persists, please get in touch with the AdaptivePerf developers." << std::endl;
-      std::cerr << "----------" << std::endl;
-
       std::rethrow_exception(std::current_exception());
     }
   }
@@ -786,8 +783,16 @@ int main(int argc, char **argv) {
     return 0;
   } else {
     try {
-      aperf::run_server(address, port, quiet, max_connections, buf_size,
-                        file_timeout_speed);
+      aperf::Server server(address, port, max_connections, buf_size,
+                           file_timeout_speed);
+
+      if (!quiet) {
+        std::cout << "Listening on " << address << ", port " << port;
+        std::cout << " (TCP)..." << std::endl;
+      }
+
+      server.run();
+
       return 0;
     } catch (aperf::AlreadyInUseException &e) {
       if (!quiet) {
@@ -797,8 +802,21 @@ int main(int argc, char **argv) {
 
       return 100;
     } catch (aperf::SocketException &e) {
+      std::cerr << "A socket error has occurred and adaptiveperf-server has to exit!" << std::endl;
+      std::cerr << "You may want to check the address/port settings and the stability of " << std::endl;
+      std::cerr << "your connection between the server and the client(s)." << std::endl;
+      std::cerr << std::endl;
+      std::cerr << "The error details are printed below." << std::endl;
+      std::cerr << "----------" << std::endl;
+      std::cerr << e.what() << std::endl;
+
       return 1;
     } catch (...) {
+      std::cerr << "A fatal error has occurred and adaptiveperf-server has to exit!" << std::endl;
+      std::cerr << "The exception will be rethrown to aid debugging." << std::endl;
+      std::cerr << std::endl;
+      std::cerr << "If this issue persists, please get in touch with the AdaptivePerf developers." << std::endl;
+      std::cerr << "----------" << std::endl;
       std::rethrow_exception(std::current_exception());
     }
   }

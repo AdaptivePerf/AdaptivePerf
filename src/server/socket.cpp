@@ -84,8 +84,16 @@ namespace aperf {
     this->close();
   }
 
+  std::string Socket::get_address() {
+    return this->socket.address().host().toString();
+  }
+
   unsigned short Socket::get_port() {
     return this->socket.address().port();
+  }
+
+  unsigned int Socket::get_buf_size() {
+    return this->buf_size;
   }
 
   void Socket::close() {
