@@ -26,6 +26,18 @@ namespace aperf {
   };
 
   class Socket {
+  public:
+    virtual ~Socket() { }
+    virtual std::string get_address() = 0;
+    virtual unsigned short get_port() = 0;
+    virtual unsigned int get_buf_size() = 0;
+    virtual void close() = 0;
+    virtual int read(char *buf, unsigned int len, long timeout_seconds) = 0;
+    virtual std::string read() = 0;
+    virtual void write(std::string msg, bool new_line = true) = 0;
+  };
+
+  class TCPSocket : public Socket {
   private:
     net::StreamSocket socket;
     std::unique_ptr<char> buf;
@@ -34,8 +46,8 @@ namespace aperf {
     std::queue<std::string> buffered_msgs;
 
   public:
-    Socket(net::StreamSocket & sock, unsigned int buf_size);
-    ~Socket();
+    TCPSocket(net::StreamSocket &sock, unsigned int buf_size);
+    ~TCPSocket();
     std::string get_address();
     unsigned short get_port();
     unsigned int get_buf_size();
@@ -45,14 +57,14 @@ namespace aperf {
     void write(std::string msg, bool new_line = true);
   };
 
-  class Acceptor {
+  class TCPAcceptor {
   private:
     net::ServerSocket acceptor;
 
   public:
-    Acceptor(std::string address, unsigned short port,
-             bool try_subsequent_ports = false);
-    ~Acceptor();
+    TCPAcceptor(std::string address, unsigned short port,
+                bool try_subsequent_ports = false);
+    ~TCPAcceptor();
     std::shared_ptr<Socket> accept(unsigned int buf_size);
     unsigned short get_port();
     void close();

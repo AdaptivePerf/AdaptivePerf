@@ -15,8 +15,8 @@ namespace aperf {
     }
   };
 
-  Acceptor::Acceptor(std::string address, unsigned short port,
-                     bool try_subsequent_ports) {
+  TCPAcceptor::TCPAcceptor(std::string address, unsigned short port,
+                           bool try_subsequent_ports) {
     if (try_subsequent_ports) {
       bool success = false;
       while (!success) {
@@ -50,14 +50,14 @@ namespace aperf {
     }
   }
 
-  Acceptor::~Acceptor() {
+  TCPAcceptor::~TCPAcceptor() {
     this->close();
   }
 
-  std::shared_ptr<Socket> Acceptor::accept(unsigned int buf_size) {
+  std::shared_ptr<Socket> TCPAcceptor::accept(unsigned int buf_size) {
     try {
       net::StreamSocket socket = this->acceptor.acceptConnection();
-      std::shared_ptr<Socket> sock = std::make_shared<Socket>(socket, buf_size);
+      std::shared_ptr<Socket> sock = std::make_shared<TCPSocket>(socket, buf_size);
 
       return sock;
     } catch (net::NetException &e) {
@@ -65,42 +65,42 @@ namespace aperf {
     }
   }
 
-  unsigned short Acceptor::get_port() {
+  unsigned short TCPAcceptor::get_port() {
     return this->acceptor.address().port();
   }
 
-  void Acceptor::close() {
+  void TCPAcceptor::close() {
     this->acceptor.close();
   }
 
-  Socket::Socket(net::StreamSocket & sock, unsigned int buf_size) {
+  TCPSocket::TCPSocket(net::StreamSocket & sock, unsigned int buf_size) {
     this->socket = sock;
     this->buf.reset(new char[buf_size]);
     this->buf_size = buf_size;
     this->start_pos = 0;
   }
 
-  Socket::~Socket() {
+  TCPSocket::~TCPSocket() {
     this->close();
   }
 
-  std::string Socket::get_address() {
+  std::string TCPSocket::get_address() {
     return this->socket.address().host().toString();
   }
 
-  unsigned short Socket::get_port() {
+  unsigned short TCPSocket::get_port() {
     return this->socket.address().port();
   }
 
-  unsigned int Socket::get_buf_size() {
+  unsigned int TCPSocket::get_buf_size() {
     return this->buf_size;
   }
 
-  void Socket::close() {
+  void TCPSocket::close() {
     this->socket.close();
   }
 
-  int Socket::read(char *buf, unsigned int len, long timeout_seconds) {
+  int TCPSocket::read(char *buf, unsigned int len, long timeout_seconds) {
     try {
       this->socket.setReceiveTimeout(Poco::Timespan(timeout_seconds, 0));
       int bytes = this->socket.receiveBytes(buf, len, MSG_WAITALL);
@@ -115,7 +115,7 @@ namespace aperf {
     }
   }
 
-  std::string Socket::read() {
+  std::string TCPSocket::read() {
     try {
       if (!this->buffered_msgs.empty()) {
         std::string msg = this->buffered_msgs.front();
@@ -184,7 +184,7 @@ namespace aperf {
     }
   }
 
-  void Socket::write(std::string msg, bool new_line) {
+  void TCPSocket::write(std::string msg, bool new_line) {
     try {
       if (new_line) {
         msg += "\n";
