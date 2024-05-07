@@ -91,12 +91,18 @@ function check_system_config() {
     fi
 
     if [[ $paranoid -ne -1 ]]; then
-        echo_sub "kernel.perf_event_paranoid is not -1! Please run \"sysctl kernel.perf_event_paranoid=-1\" before profiling." 1
+        echo_sub "kernel.perf_event_paranoid is not -1. Please run \"sysctl kernel.perf_event_paranoid=-1\" before profiling." 1
         exit 1
     fi
 
-    echo_sub "Note that stacks with more than $max_stack entries/entry *WILL* be broken in your results! To avoid that, run \"sysctl kernel.perf_event_max_stack=<larger value>\"."
-    echo_sub "Remember that max stack values larger than 1024 are currently *NOT* supported for off-CPU stacks (they will be capped at 1024 entries)."
+    if [[ $max_stack -lt 1024 ]]; then
+        echo_sub "kernel.perf_event_max_stack is less than 1024. AdaptivePerf will crash because of this, so stopping here." 1
+        echo_sub "Please run \"sysctl kernel.perf_event_max_stack=1024\" (or a number larger than 1024)." 1
+        exit 1
+    else
+        echo_sub "Note that stacks with more than $max_stack entries/entry *WILL* be broken in your results! To avoid that, run \"sysctl kernel.perf_event_max_stack=<larger value>\"."
+        echo_sub "Remember that max stack values larger than 1024 are currently *NOT* supported for off-CPU stacks (they will be capped at 1024 entries)."
+    fi
 }
 
 function check_cores() {
