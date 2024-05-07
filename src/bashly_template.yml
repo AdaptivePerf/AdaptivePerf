@@ -55,6 +55,9 @@ flags:
   arg: event,period,title
   repeatable: true
   help: "Extra perf event to be used for sampling with a given period (i.e. do a sample on every PERIOD occurrences of an event and display the results under the title TITLE in a website). Run \"perf list\" for the list of possible events. You can specify multiple events by specifying this flag more than once. Use quotes if you need to use spaces."
+- long: --alternative
+  short: -l
+  help: "Use the alternative way of executing \"perf\". Specify this flag if you see missing information after profiling or profiling hangs/crashes."
 
 examples:
 - adaptiveperf ./a.out

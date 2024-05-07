@@ -38,10 +38,9 @@ def next_code():
 
 event_socks = []
 next_index = 0
-cpp_filt = None
-cpp_filt_cache = {}
 callchain_dict = defaultdict(next_code)
 overall_event_type = None
+perf_map_paths = set()
 
 
 def get_next_event_sock():
@@ -54,28 +53,8 @@ def get_next_event_sock():
 event_sock_dict = defaultdict(lambda: defaultdict(get_next_event_sock))
 
 
-def demangle(name):
-    global cpp_filt, cpp_filt_cache
-
-    if name in cpp_filt_cache:
-        return cpp_filt_cache[name]
-
-    stdin = cpp_filt.stdin
-    stdin.write((name + '\n').encode())
-    stdin.flush()
-
-    stdout = cpp_filt.stdout
-    result = stdout.readline().decode().strip()
-    cpp_filt_cache[name] = result
-    return result
-
-
 def trace_begin():
-    global event_socks, cpp_filt
-
-    cpp_filt = subprocess.Popen(['c++filt', '-p'],
-                                stdin=subprocess.PIPE,
-                                stdout=subprocess.PIPE)
+    global event_socks
 
     ports = list(map(int, os.environ['APERF_SERV_PORT'].split(' ')))
 
@@ -86,7 +65,7 @@ def trace_begin():
 
 
 def process_event(param_dict):
-    global event_sock_dict, overall_event_type
+    global event_sock_dict, overall_event_type, perf_map_paths
 
     event_type = param_dict['ev_name']
     comm = param_dict['comm']
@@ -107,10 +86,16 @@ def process_event(param_dict):
     callchain = []
 
     for elem in raw_callchain:
-        if 'sym' in elem and 'name' in elem['sym']:
+        if 'dso' in elem and \
+           re.search(r'^perf\-\d+\.map$', Path(elem['dso']).name) is not None:
+            p = Path(elem['dso'])
+            perf_map_paths.add(str(p))
+            callchain.append(f'({elem["ip"]:#x};{p.name})')
+        elif 'sym' in elem and 'name' in elem['sym']:
             callchain.append(callchain_dict[elem['sym']['name']])
         elif 'dso' in elem:
-            callchain.append('[' + Path(elem['dso']).name + ']')
+            p = Path(elem['dso'])
+            callchain.append(f'({elem["ip"]:#x};{p.name})')
         else:
             callchain.append(f'({elem["ip"]:#x})')
 
@@ -123,16 +108,17 @@ def process_event(param_dict):
 
 
 def trace_end():
-    global event_socks, cpp_filt, callchain_dict, overall_event_type
+    global event_socks, callchain_dict, overall_event_type, perf_map_paths
 
     for sock in event_socks:
         sock.sendall('<STOP>\n'.encode('utf-8'))
         sock.close()
-
-    cpp_filt.terminate()
 
     if overall_event_type is not None:
         reverse_callchain_dict = {v: k for k, v in callchain_dict.items()}
 
         with open(f'{overall_event_type}_callchains.json', mode='w') as f:
             f.write(json.dumps(reverse_callchain_dict) + '\n')
+
+        with open(f'perf_map_paths_{overall_event_type}.data', mode='w') as f:
+            f.write('\n'.join(perf_map_paths) + '\n')

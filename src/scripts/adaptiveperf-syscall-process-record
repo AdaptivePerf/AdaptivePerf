@@ -1,8 +1,3 @@
 #!/bin/bash
-syscall_list="syscalls:sys_exit_execve,syscalls:sys_exit_clone,syscalls:sys_exit_fork,syscalls:sys_exit_vfork,syscalls:sys_enter_exit,syscalls:sys_enter_exit_group"
-
-if [[ $(perf list | grep syscalls:sys_exit_clone3 | wc -l) -gt 0 ]]; then
-    syscall_list+=",syscalls:sys_exit_clone3"
-fi
-
-perf record --call-graph fp -k CLOCK_MONOTONIC --buffer-events 1 -e $syscall_list $@
+syscall_list="syscalls:sys_exit_execve,sched:sched_process_fork,sched:sched_process_exit"
+perf record --call-graph fp -k CLOCK_MONOTONIC --buffer-events 1 -e $syscall_list --sorted-stream $@

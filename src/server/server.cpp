@@ -30,18 +30,10 @@ namespace aperf {
     unsigned long long period;
   };
 
-  struct out_time_ordered {
-    unsigned long long timestamp;
-    std::vector<std::string> callchain_parts;
-    unsigned long long period;
-    bool offcpu;
-  };
-
   struct sample_result {
     std::string event_type;
     nlohmann::json output;
     nlohmann::json output_time_ordered;
-    std::vector<struct out_time_ordered> to_output_time_ordered;
     unsigned long long total_period = 0;
     std::vector<struct offcpu_region> offcpu_regions;
   };
@@ -151,13 +143,14 @@ namespace aperf {
           std::string,
           struct sample_result > > subprocesses;
       std::unordered_map<std::string, std::string> combo_dict;
-      std::unordered_map<std::string, std::string> process_group_dict;
-      std::unordered_map<std::string, unsigned long long> time_dict, exit_time_dict, exit_group_time_dict;
+      std::unordered_map<std::string, unsigned long long> time_dict, exit_time_dict;
       std::unordered_map<std::string, std::string> name_dict;
       std::unordered_map<std::string, std::string> tree;
 
       std::string extra_event_name = "";
       std::vector<std::pair<unsigned long long, std::string> > added_list;
+
+      std::unordered_map<std::string, std::string> last_clone_flags;
 
       while (true) {
         std::string line = socket->read();
@@ -211,47 +204,39 @@ namespace aperf {
             continue;
           }
 
-          if (syscall_type == "clone3" ||
-              syscall_type == "clone" ||
-              syscall_type == "vfork" ||
-              syscall_type == "fork") {
-            if (ret_value == "0") {
-              combo_dict[tid] = pid + "/" + tid;
-              process_group_dict[tid] = pid;
+          std::string pid_tid = pid + "/" + tid;
 
-              if (time_dict.find(tid) == time_dict.end()) {
-                time_dict[tid] = time;
-              }
+          if (syscall_type == "new_proc") {
+            if (tree.find(tid) == tree.end()) {
+              tree[tid] = "";
+              added_list.push_back(std::make_pair(time, tid));
+
+              combo_dict[tid] = pid + "/" + tid;
 
               if (name_dict.find(tid) == name_dict.end()) {
                 name_dict[tid] = comm_name;
               }
-            } else {
-              if (tree.find(tid) == tree.end()) {
-                tree[tid] = "";
-                added_list.push_back(std::make_pair(time, tid));
+            }
 
-                combo_dict[tid] = pid + "/" + tid;
-                process_group_dict[tid] = pid;
+            if (tree.find(ret_value) == tree.end()) {
+              added_list.push_back(std::make_pair(time, ret_value));
+            }
 
-                if (name_dict.find(tid) == name_dict.end()) {
-                  name_dict[tid] = comm_name;
-                }
-              }
+            tree[ret_value] = tid;
 
-              if (tree.find(ret_value) == tree.end()) {
-                added_list.push_back(std::make_pair(time, ret_value));
-              }
+            if (time_dict.find(ret_value) == time_dict.end()) {
+              time_dict[ret_value] = time;
+            }
 
-              tree[ret_value] = tid;
+            if (name_dict.find(ret_value) == name_dict.end()) {
+              name_dict[ret_value] = comm_name;
             }
           } else if (syscall_type == "execve") {
             time_dict[tid] = time;
             name_dict[tid] = comm_name;
-          } else if (syscall_type == "exit_group") {
-            exit_group_time_dict[pid] = time;
           } else if (syscall_type == "exit") {
             exit_time_dict[tid] = time;
+            combo_dict[tid] = pid + "/" + tid;
           }
         } else if (arr[0] == "<SAMPLE>") {
           std::string event_type, pid, tid;
@@ -301,20 +286,16 @@ namespace aperf {
             }
 
             struct offcpu_region reg;
-            reg.timestamp = timestamp;
+            reg.timestamp = timestamp - period;
             reg.period = period;
             res.offcpu_regions.push_back(reg);
           }
 
           recurse(res.output, callchain, 0, period, false,
                   event_type == "offcpu-time");
+          recurse(res.output_time_ordered, callchain, 0, period,
+                  true, event_type == "offcpu-time");
 
-          struct out_time_ordered new_elem;
-          new_elem.timestamp = timestamp;
-          new_elem.callchain_parts = callchain;
-          new_elem.period = period;
-          new_elem.offcpu = event_type == "offcpu-time";
-          res.to_output_time_ordered.push_back(new_elem);
           res.total_period += period;
         }
       }
@@ -338,15 +319,6 @@ namespace aperf {
           (*result)[msg_key] = tid_dict;
         } else if (msg == "<SYSCALL_TREE>") {
           unsigned long long start_time = 0;
-          bool start_time_uninitialised = true;
-
-          for (auto &time_elem : time_dict) {
-            if (start_time_uninitialised || time_elem.second < start_time) {
-              start_time = time_elem.second;
-              start_time_uninitialised = false;
-            }
-          }
-
           (*result)[msg_key] = nlohmann::json::array();
           (*result)[msg_key].push_back(start_time);
           (*result)[msg_key].push_back(nlohmann::json::array());
@@ -362,6 +334,8 @@ namespace aperf {
             if (!profile_start) {
               if (name_dict[k] == profiled_filename.substr(0, 15)) {
                 profile_start = true;
+                start_time = time_dict[k];
+                (*result)[msg_key][0] = start_time;
                 p = "";
               } else {
                 if (p.empty()) {
@@ -387,9 +361,6 @@ namespace aperf {
 
             if (exit_time_dict.find(k) != exit_time_dict.end()) {
               elem["tag"][3] = exit_time_dict[k] - time_dict[k];
-            } else if (process_group_dict.find(k) != process_group_dict.end() &&
-                       exit_group_time_dict.find(process_group_dict[k]) != exit_group_time_dict.end()) {
-              elem["tag"][3] = exit_group_time_dict[process_group_dict[k]] - time_dict[k];
             } else {
               elem["tag"][3] = -1;
             }
@@ -408,19 +379,6 @@ namespace aperf {
               struct sample_result &res = elem2.second;
               res.output["value"] = res.total_period;
               res.output_time_ordered["value"] = res.total_period;
-
-              std::sort(res.to_output_time_ordered.begin(),
-                        res.to_output_time_ordered.end(),
-                        [] (struct out_time_ordered &a, struct out_time_ordered &b) {
-                          return a.timestamp < b.timestamp;
-                        });
-
-              for (int i = 0; i < res.to_output_time_ordered.size(); i++) {
-                struct out_time_ordered &out_elem = res.to_output_time_ordered[i];
-
-                recurse(res.output_time_ordered, out_elem.callchain_parts, 0,
-                        out_elem.period, true, out_elem.offcpu);
-              }
 
               nlohmann::json &pid_tid_result = (*result)[msg_key][elem.first + "_" + elem2.first];
               std::string event_name;
@@ -457,7 +415,8 @@ namespace aperf {
   }
 
   void process_client(std::shared_ptr<Socket> socket, std::string address,
-                      unsigned short port, unsigned int buf_size) {
+                      unsigned short port, unsigned int buf_size,
+                      unsigned long long file_timeout_speed) {
     try {
       std::string msg = socket->read();
       std::regex start_regex("^start(\\d+) (.+)$");
@@ -529,11 +488,13 @@ namespace aperf {
       nlohmann::json final_output;
       nlohmann::json metadata;
 
+      unsigned long long start_time = 0;
+
       for (int i = 0; i < ports; i++) {
         std::shared_ptr<nlohmann::json> thread_result = threads[i].get();
         for (auto &elem : thread_result->items()) {
           if (elem.key() == "<SYSCALL_TREE>") {
-            metadata["start_time"].swap(elem.value()[0]);
+            start_time = elem.value()[0];
             metadata["thread_tree"].swap(elem.value()[1]);
           } else if (elem.key() == "<SYSCALL>") {
             for (auto &elem2 : elem.value().items()) {
@@ -552,6 +513,12 @@ namespace aperf {
               }
             }
           }
+        }
+      }
+
+      for (auto &regions : metadata["offcpu_regions"].items()) {
+        for (int i = 0; i < regions.value().size(); i++) {
+          regions.value()[i][0] = (unsigned long long)regions.value()[i][0] - start_time;
         }
       }
 
@@ -581,8 +548,8 @@ namespace aperf {
 
       socket->write("out_files");
 
-      std::vector<std::pair<std::string, unsigned int> > out_files;
-      std::vector<std::pair<std::string, unsigned int> > processed_files;
+      std::vector<std::pair<std::string, unsigned long long> > out_files;
+      std::vector<std::pair<std::string, unsigned long long> > processed_files;
 
       while (true) {
         std::string x = socket->read();
@@ -634,49 +601,58 @@ namespace aperf {
         if (!error) {
           if (processed) {
             processed_files.push_back(std::make_pair(x.substr(index + 2),
-                                                     std::stoi(len_str)));
+                                                     std::stoll(len_str)));
           } else {
             out_files.push_back(std::make_pair(x.substr(index + 2),
-                                               std::stoi(len_str)));
+                                               std::stoll(len_str)));
           }
         }
       }
 
       bool error = false;
 
-      auto process_file = [&processed_path, &out_path, &error, &socket]
+      auto process_file = [&processed_path, &out_path, &error, &socket,
+                           &file_timeout_speed]
         (std::string &name,
-         unsigned int len,
+         unsigned long long len,
          bool processed) {
-        char buf[len];
-        int bytes_received = socket->read(buf, len);
         fs::path path = (processed ? processed_path : out_path) / name;
+        unsigned long long file_timeout_seconds = len / file_timeout_speed;
 
-        if (bytes_received != len) {
-          std::cerr << "Warning for out file " << path << ": ";
-          std::cerr << "Expected " << len << " byte(s), got " << bytes_received << ".";
+        try {
+          char buf[len];
+          int bytes_received = socket->read(buf, len, file_timeout_seconds);
+
+          if (bytes_received != len) {
+            std::cerr << "Warning for out/processed file " << path << ": ";
+            std::cerr << "Expected " << len << " byte(s), got " << bytes_received << ".";
+            std::cerr << std::endl;
+          }
+
+          std::ofstream f(path, std::ios_base::out | std::ios_base::binary);
+
+          if (!f) {
+            std::cerr << "Error for out/processed file " << path << ": ";
+            std::cerr << "Could not open the output stream." << std::endl;
+            error = true;
+            return;
+          }
+
+          f.write(buf, bytes_received);
+
+          if (!f) {
+            std::cerr << "Error for out/processed file " << path << ": ";
+            std::cerr << "Could not write to the output stream." << std::endl;
+            error = true;
+            return;
+          }
+
+          f.close();
+        } catch (TimeoutException &e) {
+          std::cerr << "Warning for out/processed file " << path << ": ";
+          std::cerr << "Timeout of " << file_timeout_seconds << " s has been reached, no data saved.";
           std::cerr << std::endl;
         }
-
-        std::ofstream f(path, std::ios_base::out | std::ios_base::binary);
-
-        if (!f) {
-          std::cerr << "Error for out file " << path << ": ";
-          std::cerr << "Could not open the output stream." << std::endl;
-          error = true;
-          return;
-        }
-
-        f.write(buf, bytes_received);
-
-        if (!f) {
-          std::cerr << "Error for out file " << path << ": ";
-          std::cerr << "Could not write to the output stream." << std::endl;
-          error = true;
-          return;
-        }
-
-        f.close();
       };
 
       for (int i = 0; i < processed_files.size(); i++) {
@@ -702,8 +678,8 @@ namespace aperf {
   }
 
   void run_server(std::string address, unsigned short port,
-                 bool quiet, unsigned int max_connections,
-                 unsigned int buf_size) {
+                  bool quiet, unsigned int max_connections,
+                  unsigned int buf_size, unsigned long long file_timeout_speed) {
     try {
       Acceptor acceptor(address, port, false);
       std::vector<std::future<void> > threads;
@@ -728,7 +704,8 @@ namespace aperf {
           accepted_socket->close();
         } else {
           threads.push_back(std::async(process_client, accepted_socket,
-                                       address, port, buf_size));
+                                       address, port, buf_size,
+                                       file_timeout_speed));
 
           if (max_connections == 0) {
             break;
@@ -794,6 +771,11 @@ int main(int argc, char **argv) {
                  "Buffer size for communication with clients in bytes "
                  "(default: 1024)");
 
+  unsigned long long file_timeout_speed = 10;
+  app.add_option("-t", file_timeout_speed,
+                 "Worst-case-assumed speed for receiving files from clients "
+                 "in bytes per second (default: 10, used for calculating timeout)");
+
   bool quiet = false;
   app.add_flag("-q", quiet, "Do not print anything except non-port-in-use errors");
 
@@ -804,7 +786,8 @@ int main(int argc, char **argv) {
     return 0;
   } else {
     try {
-      aperf::run_server(address, port, quiet, max_connections, buf_size);
+      aperf::run_server(address, port, quiet, max_connections, buf_size,
+                        file_timeout_speed);
       return 0;
     } catch (aperf::AlreadyInUseException &e) {
       if (!quiet) {

@@ -1,4 +1,7 @@
 # AdaptivePerf
+[![License: GNU GPL v2 only](https://img.shields.io/badge/license-GNU%20GPL%20v2%20only-blue)]()
+[![Version: 0.1.dev](https://img.shields.io/badge/version-0.1.dev-red)]()
+
 A comprehensive profiling tool with Linux ```perf``` as its main foundation.
 
 ## Recent redesign
@@ -30,7 +33,7 @@ Both single-threaded and multi-threaded programs are supported. All CPU architec
 ## Installation
 ### Requirements
 * Linux 5.8 or newer with [the ss command](https://man7.org/linux/man-pages/man8/ss.8.html) and compiled with ```CONFIG_DEBUG_INFO_BTF=y``` (or equivalent)
-* [Patched perf](https://gitlab.cern.ch/adaptiveperf/linux) compiled with Python support and the BPF skeletons
+* [Patched perf](https://gitlab.cern.ch/adaptiveperf/linux) compiled with Python support and the BPF skeletons (no custom kernel installation is needed, you only need to compile and install the code inside ```tools/perf```)
 * Python 3
 * CMake 3.9.6 or newer
 * [bashly](https://bashly.dannyb.co)
@@ -46,14 +49,14 @@ Please clone this repository and run ```./build.sh``` (as either non-root or roo
 AdaptivePerf is installed in ```/usr/local``` by default. If you want to change this path, specify it as an argument to ```install.sh```, e.g. ```./install.sh /usr```.
 
 ### Gentoo-based virtual machine image with frame pointers
-Given the complexity of setting up a machine with a recent enough Linux kernel, frame pointers, patched ```perf``` etc., we make available ready-to-use x86 Gentoo-based qcow2 images with AdaptivePerf set up. They're also configured for out-of-the-box reliable ```perf``` profiling, such as permanently-set profiling-related kernel parameters and ensuring that everything in the system is compiled with frame pointers.
+Given the complexity of setting up a machine with a recent enough Linux kernel, frame pointers, patched ```perf``` etc., we make available ready-to-use x86-64 Gentoo-based qcow2 images with AdaptivePerf set up. They're also configured for out-of-the-box reliable ```perf``` profiling, such as permanently-set profiling-related kernel parameters and ensuring that everything in the system is compiled with frame pointers.
 
-The images are denoted by commit tags and can be downloaded from https://cernbox.cern.ch/s/FalGlNqzsdj0K5P.
+The images are denoted by commit tags and can be downloaded from https://cernbox.cern.ch/s/FalGlNqzsdj0K5P. They must be booted in the UEFI mode.
 
 ## How to use
 Before running AdaptivePerf for the first time, run ```sysctl kernel.perf_event_paranoid=-1```. Otherwise, the tool will refuse to run due to its inability to reliably obtain kernel stack traces. This is already done for the VM image.
 
-You may also want to run ```sysctl kernel.perf_event_max_stack=<value>``` if your profiled program produces deep callchains (```<value>``` is a number of your choice describing the maximum number of stack entries to be collected). The default value in the VM image is 1024.
+You also need to set the maximum number of stack entries to be collected by running ```sysctl kernel.perf_event_max_stack=<value>```, where ```<value>``` is a number of your choice **larger than or equal to** 1024. Otherwise, the off-CPU profiling will fail. The default value in the VM image is 1024.
 
 **IMPORTANT:** Max stack sizes larger than 1024 are currently not supported for off-CPU stacks! The maximum number of entries in off-CPU stacks is always set to 1024, regardless of the value of ```kernel.perf_event_max_stack```.
 

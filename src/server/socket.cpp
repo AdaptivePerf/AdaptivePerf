@@ -92,11 +92,18 @@ namespace aperf {
     this->socket.close();
   }
 
-  int Socket::read(char *buf, unsigned int len) {
+  int Socket::read(char *buf, unsigned int len, long timeout_seconds) {
     try {
-      return this->socket.receiveBytes(buf, len);
+      this->socket.setReceiveTimeout(Poco::Timespan(timeout_seconds, 0));
+      int bytes = this->socket.receiveBytes(buf, len, MSG_WAITALL);
+      this->socket.setReceiveTimeout(Poco::Timespan());
+      return bytes;
     } catch (net::NetException &e) {
+      this->socket.setReceiveTimeout(Poco::Timespan());
       throw SocketException(e);
+    } catch (Poco::TimeoutException &e) {
+      this->socket.setReceiveTimeout(Poco::Timespan());
+      throw TimeoutException();
     }
   }
 
