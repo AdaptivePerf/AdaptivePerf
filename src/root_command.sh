@@ -473,6 +473,10 @@ function process_results() {
 
     if [[ $1 != "" ]]; then
         for filename in *.map *.json; do
+            if [[ $filename == '*.map' || $filename == '*.json' ]]; then
+                continue
+            fi
+
             len=$(wc -c < "$filename")
 
             if ! echo "$len p $filename" >&3; then
@@ -519,6 +523,10 @@ function process_results() {
 
     if [[ $1 != "" ]]; then
         for file in *.map *.json; do
+            if [[ $file == '*.map' || $file == '*.json' ]]; then
+                continue
+            fi
+
             if ! cat $file >&3; then
                 echo_sub "I/O error has occurred in the communication with adaptiveperf-server (processed_file_send)! Exiting." 1
                 exit 2
