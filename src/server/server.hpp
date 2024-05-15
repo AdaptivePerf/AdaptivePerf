@@ -20,7 +20,7 @@ namespace aperf {
   class Subclient {
   private:
     Notifiable &context;
-    TCPAcceptor acceptor;
+    std::unique_ptr<Acceptor> acceptor;
     nlohmann::json json_result;
     unsigned int buf_size;
     std::string profiled_filename;
@@ -33,8 +33,7 @@ namespace aperf {
 
   public:
     Subclient(Notifiable &context,
-              std::string address,
-              unsigned short port,
+              std::unique_ptr<Acceptor> &acceptor,
               std::string profiled_filename,
               unsigned int buf_size);
     void process();
@@ -44,14 +43,15 @@ namespace aperf {
 
   class Client : public Notifiable {
   private:
-    std::shared_ptr<Socket> socket;
+    std::unique_ptr<Socket> socket;
     unsigned int accepted;
     std::mutex accepted_mutex;
     std::condition_variable accepted_cond;
     unsigned long long file_timeout_speed;
+    std::shared_ptr<void> mock_client_ptr = nullptr; // Only for testing
 
   public:
-    Client(std::shared_ptr<Socket> socket,
+    Client(std::unique_ptr<Socket> &socket,
            unsigned long long file_timeout_speed);
     void process();
     void notify();
@@ -59,18 +59,19 @@ namespace aperf {
 
   class Server {
   private:
-    TCPAcceptor acceptor;
+    std::unique_ptr<Acceptor> acceptor;
     unsigned int max_connections;
     unsigned int buf_size;
     unsigned long long file_timeout_speed;
+    bool interrupted;
 
   public:
-    Server(std::string address,
-           unsigned short port,
+    Server(std::unique_ptr<Acceptor> &acceptor,
            unsigned int max_connections,
            unsigned int buf_size,
            unsigned long long file_timeout_speed);
     void run();
+    void interrupt();
   };
 };
 

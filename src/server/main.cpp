@@ -42,8 +42,11 @@ int main(int argc, char **argv) {
     return 0;
   } else {
     try {
-      aperf::Server server(address, port, max_connections, buf_size,
-                                             file_timeout_speed);
+      std::unique_ptr<aperf::Acceptor> acceptor =
+        std::make_unique<aperf::TCPAcceptor>(address,
+                                             port, false);
+      aperf::Server server(acceptor, max_connections, buf_size,
+                           file_timeout_speed);
 
       if (!quiet) {
         std::cout << "Listening on " << address << ", port " << port;

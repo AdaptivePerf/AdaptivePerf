@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.9.6)
+cmake_minimum_required(VERSION 3.14)
 
 if(COMMAND cmake_policy)
   cmake_policy(SET CMP0003 NEW)
@@ -13,6 +13,7 @@ project(adaptiveperf-server
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 include(FetchContent)
 FetchContent_Declare(
@@ -31,6 +32,8 @@ execute_process(
 configure_file(version.cpp.in version.cpp @ONLY)
 
 add_library(server.o OBJECT server.cpp)
+add_library(client.o OBJECT client.cpp)
+add_library(subclient.o OBJECT subclient.cpp)
 add_library(socket.o OBJECT socket.cpp)
 
 add_library(version.o OBJECT version.cpp)
@@ -46,7 +49,7 @@ find_package(CLI11 CONFIG REQUIRED)
 target_link_libraries(adaptiveperf-server PRIVATE nlohmann_json::nlohmann_json)
 target_link_libraries(adaptiveperf-server PRIVATE Poco::Foundation Poco::Net)
 target_link_libraries(adaptiveperf-server PRIVATE CLI11::CLI11)
-target_link_libraries(adaptiveperf-server PRIVATE server.o socket.o version.o)
+target_link_libraries(adaptiveperf-server PRIVATE server.o client.o subclient.o socket.o version.o)
 
 enable_testing()
 add_executable(auto-test-server
@@ -60,7 +63,13 @@ add_executable(auto-test-socket
 add_executable(auto-test-main
   ../../test/server/test_main.cpp)
 
-target_link_libraries(auto-test-server PRIVATE GTest::gtest_main)
+target_include_directories(auto-test-server PRIVATE ${CMAKE_SOURCE_DIR})
+target_include_directories(auto-test-client PRIVATE ${CMAKE_SOURCE_DIR})
+target_include_directories(auto-test-subclient PRIVATE ${CMAKE_SOURCE_DIR})
+target_include_directories(auto-test-socket PRIVATE ${CMAKE_SOURCE_DIR})
+target_include_directories(auto-test-main PRIVATE ${CMAKE_SOURCE_DIR})
+
+target_link_libraries(auto-test-server PRIVATE GTest::gtest_main GTest::gmock_main Poco::Foundation Poco::Net server.o)
 target_link_libraries(auto-test-client PRIVATE GTest::gtest_main)
 target_link_libraries(auto-test-subclient PRIVATE GTest::gtest_main)
 target_link_libraries(auto-test-socket PRIVATE GTest::gtest_main)

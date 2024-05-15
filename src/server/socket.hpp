@@ -37,6 +37,16 @@ namespace aperf {
     virtual void write(std::string msg, bool new_line = true) = 0;
   };
 
+  class Acceptor {
+  public:
+    Acceptor(std::string address, unsigned short port,
+             bool try_subsequent_ports) { }
+    virtual ~Acceptor() { }
+    virtual std::unique_ptr<Socket> accept(unsigned int buf_size) = 0;
+    virtual unsigned short get_port() = 0;
+    virtual void close() = 0;
+  };
+
   class TCPSocket : public Socket {
   private:
     net::StreamSocket socket;
@@ -57,7 +67,7 @@ namespace aperf {
     void write(std::string msg, bool new_line = true);
   };
 
-  class TCPAcceptor {
+  class TCPAcceptor : public Acceptor {
   private:
     net::ServerSocket acceptor;
 
@@ -65,7 +75,7 @@ namespace aperf {
     TCPAcceptor(std::string address, unsigned short port,
                 bool try_subsequent_ports = false);
     ~TCPAcceptor();
-    std::shared_ptr<Socket> accept(unsigned int buf_size);
+    std::unique_ptr<Socket> accept(unsigned int buf_size);
     unsigned short get_port();
     void close();
   };

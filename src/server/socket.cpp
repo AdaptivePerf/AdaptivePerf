@@ -16,7 +16,9 @@ namespace aperf {
   };
 
   TCPAcceptor::TCPAcceptor(std::string address, unsigned short port,
-                           bool try_subsequent_ports) {
+                           bool try_subsequent_ports) : Acceptor(address,
+                                                                 port,
+                                                                 try_subsequent_ports) {
     if (try_subsequent_ports) {
       bool success = false;
       while (!success) {
@@ -54,12 +56,10 @@ namespace aperf {
     this->close();
   }
 
-  std::shared_ptr<Socket> TCPAcceptor::accept(unsigned int buf_size) {
+  std::unique_ptr<Socket> TCPAcceptor::accept(unsigned int buf_size) {
     try {
       net::StreamSocket socket = this->acceptor.acceptConnection();
-      std::shared_ptr<Socket> sock = std::make_shared<TCPSocket>(socket, buf_size);
-
-      return sock;
+      return std::make_unique<TCPSocket>(socket, buf_size);
     } catch (net::NetException &e) {
       throw SocketException(e);
     }
