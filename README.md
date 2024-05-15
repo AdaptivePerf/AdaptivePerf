@@ -35,7 +35,7 @@ Both single-threaded and multi-threaded programs are supported. All CPU architec
 * Linux 5.8 or newer with [the ss command](https://man7.org/linux/man-pages/man8/ss.8.html) and compiled with ```CONFIG_DEBUG_INFO_BTF=y``` (or equivalent)
 * [Patched perf](https://gitlab.cern.ch/adaptiveperf/linux) compiled with Python support and the BPF skeletons (no custom kernel installation is needed, you only need to compile and install the code inside ```tools/perf```)
 * Python 3
-* CMake 3.9.6 or newer
+* CMake 3.14 or newer
 * [bashly](https://bashly.dannyb.co)
 * [CLI11](https://github.com/CLIUtils/CLI11)
 * [nlohmann-json](https://github.com/nlohmann/json)
