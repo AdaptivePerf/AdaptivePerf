@@ -32,7 +32,7 @@ Both single-threaded and multi-threaded programs are supported. All CPU architec
 
 ## Installation
 ### Requirements
-* Linux 5.8 or newer with [the ss command](https://man7.org/linux/man-pages/man8/ss.8.html) and compiled with ```CONFIG_DEBUG_INFO_BTF=y``` (or equivalent)
+* Linux 5.8 or newer with [the ss command](https://man7.org/linux/man-pages/man8/ss.8.html) and compiled with ```CONFIG_DEBUG_INFO_BTF=y``` (or equivalent, you can check this by seeing if ```/sys/kernel/btf``` exists in your system)
 * [Patched perf](https://gitlab.cern.ch/adaptiveperf/linux) compiled with Python support and the BPF skeletons (no custom kernel installation is needed, you only need to compile and install the code inside ```tools/perf```)
 * Python 3
 * CMake 3.14 or newer
@@ -41,7 +41,7 @@ Both single-threaded and multi-threaded programs are supported. All CPU architec
 * [nlohmann-json](https://github.com/nlohmann/json)
 * [PocoNet + PocoFoundation](https://pocoproject.org)
 
-Additionally, a profiled program along with dependencies should be compiled with frame pointers (i.e. with ```-fno-omit-frame-pointer``` and ```-mno-omit-leaf-frame-pointer``` flags in case of gcc). If you can, it is recommended to have everything in the system compiled with frame pointers (this can be achieved e.g. in Gentoo and Fedora 38+).
+Additionally, a profiled program along with dependencies should be compiled with frame pointers (i.e. in case of gcc, with the ```-fno-omit-frame-pointer``` flag along with ```-mno-omit-leaf-frame-pointer``` if available). If you can, it is recommended to have everything in the system compiled with frame pointers (this can be achieved e.g. in Gentoo and Fedora 38+).
 
 ### Manually
 Please clone this repository and run ```./build.sh``` (as either non-root or root, non-root recommended) followed by ```./install.sh``` (as root unless you run the installation for a non-system prefix).
