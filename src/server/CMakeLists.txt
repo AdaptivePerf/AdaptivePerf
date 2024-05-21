@@ -69,7 +69,7 @@ target_include_directories(auto-test-subclient PRIVATE ${CMAKE_SOURCE_DIR})
 target_include_directories(auto-test-socket PRIVATE ${CMAKE_SOURCE_DIR})
 target_include_directories(auto-test-main PRIVATE ${CMAKE_SOURCE_DIR})
 
-target_link_libraries(auto-test-server PRIVATE GTest::gtest_main GTest::gmock_main Poco::Foundation Poco::Net server.o)
+target_link_libraries(auto-test-server PRIVATE GTest::gtest_main GTest::gmock_main Poco::Foundation Poco::Net server.o client.o)
 target_link_libraries(auto-test-client PRIVATE GTest::gtest_main)
 target_link_libraries(auto-test-subclient PRIVATE GTest::gtest_main)
 target_link_libraries(auto-test-socket PRIVATE GTest::gtest_main)

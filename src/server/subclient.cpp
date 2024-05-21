@@ -7,11 +7,11 @@
 #include <unordered_map>
 
 namespace aperf {
-  void Subclient::recurse(nlohmann::json &cur_elem,
-                          std::vector<std::string> &callchain_parts,
-                          int callchain_index,
-                          unsigned long long period,
-                          bool time_ordered, bool offcpu) {
+  void StdSubclient::recurse(nlohmann::json &cur_elem,
+                             std::vector<std::string> &callchain_parts,
+                             int callchain_index,
+                             unsigned long long period,
+                             bool time_ordered, bool offcpu) {
     std::string p = callchain_parts[callchain_index];
     nlohmann::json &arr = cur_elem["children"];
     nlohmann::json *elem;
@@ -86,16 +86,17 @@ namespace aperf {
     }
   }
 
-  Subclient::Subclient(Notifiable &context,
-                       std::unique_ptr<Acceptor> &acceptor,
-                       std::string profiled_filename,
-                       unsigned int buf_size) : context(context) {
-    this->acceptor = std::move(acceptor);
-    this->profiled_filename = profiled_filename;
-    this->buf_size = buf_size;
+  StdSubclient::StdSubclient(Notifiable &context,
+                             std::unique_ptr<Acceptor> &acceptor,
+                             std::string profiled_filename,
+                             unsigned int buf_size) : InitSubclient(context,
+                                                                    acceptor,
+                                                                    profiled_filename,
+                                                                    buf_size) {
+
   }
 
-  void Subclient::process() {
+  void StdSubclient::process() {
     struct offcpu_region {
       unsigned long long timestamp;
       unsigned long long period;
@@ -110,7 +111,7 @@ namespace aperf {
     };
 
     try {
-      std::shared_ptr<Socket> socket = this->acceptor->accept(this->buf_size);
+      std::shared_ptr<Connection> connection = this->acceptor->accept(this->buf_size);
       this->context.notify();
 
       std::unordered_set<std::string> messages_received;
@@ -131,7 +132,7 @@ namespace aperf {
       std::unordered_map<std::string, std::string> last_clone_flags;
 
       while (true) {
-        std::string line = socket->read();
+        std::string line = connection->read();
 
         if (line == "<STOP>") {
           break;
@@ -278,7 +279,7 @@ namespace aperf {
         }
       }
 
-      socket->close();
+      connection->close();
 
       std::sort(added_list.begin(), added_list.end(),
                 [] (auto &a, auto &b) { return a.first < b.first; });
@@ -388,11 +389,7 @@ namespace aperf {
     }
   }
 
-  nlohmann::json & Subclient::get_result() {
+  nlohmann::json & StdSubclient::get_result() {
     return this->json_result;
-  }
-
-  unsigned short Subclient::get_port() {
-    return this->acceptor->get_port();
   }
 };

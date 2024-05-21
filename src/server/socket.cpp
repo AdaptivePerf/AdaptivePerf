@@ -16,9 +16,8 @@ namespace aperf {
   };
 
   TCPAcceptor::TCPAcceptor(std::string address, unsigned short port,
-                           bool try_subsequent_ports) : Acceptor(address,
-                                                                 port,
-                                                                 try_subsequent_ports) {
+                           int max_accepted,
+                           bool try_subsequent_ports) : Acceptor(max_accepted) {
     if (try_subsequent_ports) {
       bool success = false;
       while (!success) {
@@ -29,7 +28,7 @@ namespace aperf {
           if (e.message().find("already in use") != std::string::npos) {
             port++;
           } else {
-            throw SocketException(e);
+            throw ConnectionException(e);
           }
         }
       }
@@ -40,7 +39,7 @@ namespace aperf {
         if (e.message().find("already in use") != std::string::npos) {
           throw AlreadyInUseException();
         } else {
-          throw SocketException(e);
+          throw ConnectionException(e);
         }
       }
     }
@@ -48,7 +47,7 @@ namespace aperf {
     try {
       this->acceptor.listen();
     } catch (net::NetException &e) {
-      throw SocketException(e);
+      throw ConnectionException(e);
     }
   }
 
@@ -56,17 +55,21 @@ namespace aperf {
     this->close();
   }
 
-  std::unique_ptr<Socket> TCPAcceptor::accept(unsigned int buf_size) {
+  std::unique_ptr<Connection> TCPAcceptor::accept_connection(unsigned int buf_size) {
     try {
       net::StreamSocket socket = this->acceptor.acceptConnection();
       return std::make_unique<TCPSocket>(socket, buf_size);
     } catch (net::NetException &e) {
-      throw SocketException(e);
+      throw ConnectionException(e);
     }
   }
 
   unsigned short TCPAcceptor::get_port() {
     return this->acceptor.address().port();
+  }
+
+  std::string TCPAcceptor::get_connection_instructions() {
+    return std::to_string(this->get_port());
   }
 
   void TCPAcceptor::close() {
@@ -108,7 +111,7 @@ namespace aperf {
       return bytes;
     } catch (net::NetException &e) {
       this->socket.setReceiveTimeout(Poco::Timespan());
-      throw SocketException(e);
+      throw ConnectionException(e);
     } catch (Poco::TimeoutException &e) {
       this->socket.setReceiveTimeout(Poco::Timespan());
       throw TimeoutException();
@@ -180,7 +183,7 @@ namespace aperf {
       // Should not get here.
       return "";
     } catch (net::NetException &e) {
-      throw SocketException(e);
+      throw ConnectionException(e);
     }
   }
 
@@ -194,7 +197,7 @@ namespace aperf {
 
       this->socket.sendBytes(buf, msg.size());
     } catch (net::NetException &e) {
-      throw SocketException(e);
+      throw ConnectionException(e);
     }
   }
 }

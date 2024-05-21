@@ -20,13 +20,13 @@ namespace aperf {
     this->interrupted = false;
   }
 
-  void Server::run() {
+  void Server::run(std::unique_ptr<Client::Factory> &client_factory) {
     try {
       std::vector<std::unique_ptr<Client> > clients;
       std::vector<std::future<void> > threads;
 
       while (!interrupted) {
-        std::unique_ptr<Socket> accepted_socket =
+        std::unique_ptr<Connection> connection =
           this->acceptor->accept(this->buf_size);
 
         int working_count = 0;
@@ -37,9 +37,9 @@ namespace aperf {
         }
 
         if (working_count >= std::max(1U, this->max_connections)) {
-          accepted_socket->write("try_again");
+          connection->write("try_again");
         } else {
-          clients.push_back(std::make_unique<Client>(accepted_socket, this->file_timeout_speed));
+          clients.push_back(client_factory->make_client(connection, this->file_timeout_speed));
           threads.push_back(std::async(&Client::process, clients.back().get()));
 
           if (this->max_connections == 0) {
@@ -51,8 +51,8 @@ namespace aperf {
       for (int i = 0; i < threads.size(); i++) {
         try {
           threads[i].get();
-        } catch (aperf::SocketException &e) {
-          std::cerr << "Warning: Socket error in client " << i << ", you will not ";
+        } catch (aperf::ConnectionException &e) {
+          std::cerr << "Warning: Connection error in client " << i << ", you will not ";
           std::cerr << "get reliable results from them!" << std::endl;
 
           std::cerr << "Error details: " << e.what() << std::endl;
@@ -60,7 +60,7 @@ namespace aperf {
       }
     } catch (aperf::AlreadyInUseException &e) {
       throw e;
-    } catch (aperf::SocketException &e) {
+    } catch (aperf::ConnectionException &e) {
       throw e;
     } catch (...) {
       std::rethrow_exception(std::current_exception());

@@ -42,9 +42,18 @@ int main(int argc, char **argv) {
     return 0;
   } else {
     try {
+      aperf::TCPAcceptor::Factory factory(address, port, false);
       std::unique_ptr<aperf::Acceptor> acceptor =
-        std::make_unique<aperf::TCPAcceptor>(address,
-                                             port, false);
+        factory.make_acceptor(UNLIMITED_ACCEPTED);
+
+      std::unique_ptr<aperf::Acceptor::Factory> acceptor_factory =
+        std::make_unique<aperf::TCPAcceptor::Factory>(address,
+                                                      port + 1, true);
+      std::unique_ptr<aperf::Subclient::Factory> subclient_factory =
+        std::make_unique<aperf::StdSubclient::Factory>(acceptor_factory);
+      std::unique_ptr<aperf::Client::Factory> client_factory =
+        std::make_unique<aperf::StdClient::Factory>(subclient_factory);
+
       aperf::Server server(acceptor, max_connections, buf_size,
                            file_timeout_speed);
 
@@ -53,7 +62,7 @@ int main(int argc, char **argv) {
         std::cout << " (TCP)..." << std::endl;
       }
 
-      server.run();
+      server.run(client_factory);
 
       return 0;
     } catch (aperf::AlreadyInUseException &e) {
@@ -63,8 +72,8 @@ int main(int argc, char **argv) {
       }
 
       return 100;
-    } catch (aperf::SocketException &e) {
-      std::cerr << "A socket error has occurred and adaptiveperf-server has to exit!" << std::endl;
+    } catch (aperf::ConnectionException &e) {
+      std::cerr << "A connection error has occurred and adaptiveperf-server has to exit!" << std::endl;
       std::cerr << "You may want to check the address/port settings and the stability of " << std::endl;
       std::cerr << "your connection between the server and the client(s)." << std::endl;
       std::cerr << std::endl;

@@ -11,26 +11,27 @@
 namespace aperf {
   namespace fs = std::filesystem;
 
-  Client::Client(std::unique_ptr<Socket> &socket,
-                 unsigned long long file_timeout_speed) {
-    this->socket = std::move(socket);
+  StdClient::StdClient(std::unique_ptr<Subclient::Factory> &subclient_factory,
+                       std::unique_ptr<Connection> &connection,
+                       unsigned long long file_timeout_speed) : InitClient(subclient_factory,
+                                                                           connection,
+                                                                           file_timeout_speed) {
     this->accepted = 0;
-    this->file_timeout_speed = file_timeout_speed;
   }
 
-  void Client::process() {
+  void StdClient::process() {
     try {
-      std::string msg = this->socket->read();
+      std::string msg = this->connection->read();
       std::regex start_regex("^start(\\d+) (.+)$");
       std::smatch match;
 
       if (!std::regex_search(msg, match, start_regex)) {
-        this->socket->write("error_wrong_command");
-        this->socket->close();
+        this->connection->write("error_wrong_command");
+        this->connection->close();
         return;
       }
 
-      int ports = std::stoi(match[1]);
+      int subclient_cnt = std::stoi(match[1]);
       std::string result_dir = match[2];
 
       fs::path result_path(result_dir);
@@ -45,53 +46,46 @@ namespace aperf {
         std::cerr << "Could not create " << result_dir << "! Error details:";
         std::cerr << std::endl;
         std::cerr << e.what() << std::endl;
-        this->socket->write("error_result_dir");
-        this->socket->close();
+        this->connection->write("error_result_dir");
+        this->connection->close();
         return;
       }
 
-      std::string profiled_filename = this->socket->read();
-      std::unique_ptr<Subclient> subclients[ports];
-      std::shared_future<void> threads[ports];
+      std::string profiled_filename = this->connection->read();
+      std::unique_ptr<Subclient> subclients[subclient_cnt];
+      std::shared_future<void> threads[subclient_cnt];
 
-      unsigned short port = this->socket->get_port();
-
-      for (int i = 0; i < ports; i++) {
-        unsigned short p = port + i + 1;
-
-        std::unique_ptr<Acceptor> acceptor = std::make_unique<TCPAcceptor>(this->socket->get_address(),
-                                                                           p, true);
-
-        subclients[i] = std::make_unique<Subclient>(*this, acceptor, profiled_filename,
-                                                    this->socket->get_buf_size());
+      for (int i = 0; i < subclient_cnt; i++) {
+        subclients[i] = this->subclient_factory->make_subclient(*this, profiled_filename,
+                                                                this->connection->get_buf_size());
         threads[i] = std::async(&Subclient::process, subclients[i].get());
       }
 
-      std::string port_msg = "";
+      std::string instr_msg = "";
 
-      for (int i = 0; i < ports; i++) {
-        port_msg += std::to_string(subclients[i]->get_port());
+      for (int i = 0; i < subclient_cnt; i++) {
+        instr_msg += subclients[i]->get_connection_instructions();
 
-        if (i < ports - 1) {
-          port_msg += " ";
+        if (i < subclient_cnt - 1) {
+          instr_msg += " ";
         }
       }
 
-      this->socket->write(port_msg);
+      this->connection->write(instr_msg);
 
       std::unique_lock lock(this->accepted_mutex);
-      while (this->accepted < ports) {
+      while (this->accepted < subclient_cnt) {
         this->accepted_cond.wait(lock);
       }
 
-      this->socket->write("start_profile");
+      this->connection->write("start_profile");
 
       nlohmann::json final_output;
       nlohmann::json metadata;
 
       unsigned long long start_time = 0;
 
-      for (int i = 0; i < ports; i++) {
+      for (int i = 0; i < subclient_cnt; i++) {
         threads[i].get();
         nlohmann::json &thread_result = subclients[i]->get_result();
         for (auto &elem : thread_result.items()) {
@@ -148,13 +142,13 @@ namespace aperf {
         futures[i].get();
       }
 
-      this->socket->write("out_files");
+      this->connection->write("out_files");
 
       std::vector<std::pair<std::string, unsigned long long> > out_files;
       std::vector<std::pair<std::string, unsigned long long> > processed_files;
 
       while (true) {
-        std::string x = this->socket->read();
+        std::string x = this->connection->read();
 
         if (x == "<STOP>") {
           break;
@@ -169,10 +163,10 @@ namespace aperf {
             len_str += x[index];
           } else {
             if (x[index++] != ' ') {
-              this->socket->write("error_wrong_file_format");
+              this->connection->write("error_wrong_file_format");
               error = true;
             } else {
-              this->socket->write("ok");
+              this->connection->write("ok");
             }
 
             break;
@@ -180,7 +174,7 @@ namespace aperf {
         }
 
         if (index >= x.size() - 2) {
-          this->socket->write("error_wrong_file_format");
+          this->connection->write("error_wrong_file_format");
           error = true;
         }
 
@@ -191,12 +185,12 @@ namespace aperf {
         } else if (x[index] == 'o') {
           processed = false;
         } else {
-          this->socket->write("error_wrong_file_format");
+          this->connection->write("error_wrong_file_format");
           error = true;
         }
 
         if (x[index + 1] != ' ') {
-          this->socket->write("error_wrong_file_format");
+          this->connection->write("error_wrong_file_format");
           error = true;
         }
 
@@ -222,7 +216,7 @@ namespace aperf {
 
         try {
           char buf[len];
-          int bytes_received = this->socket->read(buf, len, file_timeout_seconds);
+          int bytes_received = this->connection->read(buf, len, file_timeout_seconds);
 
           if (bytes_received != len) {
             std::cerr << "Warning for out/processed file " << path << ": ";
@@ -267,18 +261,18 @@ namespace aperf {
       }
 
       if (error) {
-        this->socket->write("out_file_error");
+        this->connection->write("out_file_error");
       } else {
-        this->socket->write("finished");
+        this->connection->write("finished");
       }
 
-      this->socket->close();
+      this->connection->close();
     } catch (...) {
       std::rethrow_exception(std::current_exception());
     }
   }
 
-  void Client::notify() {
+  void StdClient::notify() {
     {
       std::lock_guard lock(this->accepted_mutex);
       this->accepted++;
