@@ -7,6 +7,7 @@
 #include <fstream>
 #include <iostream>
 #include <regex>
+#include <cmath>
 
 namespace aperf {
   namespace fs = std::filesystem;
@@ -22,12 +23,11 @@ namespace aperf {
   void StdClient::process() {
     try {
       std::string msg = this->connection->read();
-      std::regex start_regex("^start(\\d+) (.+)$");
+      std::regex start_regex("^start([1-9]\\d*) (.+)$");
       std::smatch match;
 
       if (!std::regex_search(msg, match, start_regex)) {
         this->connection->write("error_wrong_command");
-        this->connection->close();
         return;
       }
 
@@ -47,7 +47,6 @@ namespace aperf {
         std::cerr << std::endl;
         std::cerr << e.what() << std::endl;
         this->connection->write("error_result_dir");
-        this->connection->close();
         return;
       }
 
@@ -165,17 +164,18 @@ namespace aperf {
             if (x[index++] != ' ') {
               this->connection->write("error_wrong_file_format");
               error = true;
-            } else {
-              this->connection->write("ok");
             }
 
             break;
           }
         }
 
+        if (error)
+          continue;
+
         if (index >= x.size() - 2) {
           this->connection->write("error_wrong_file_format");
-          error = true;
+          continue;
         }
 
         bool processed;
@@ -186,12 +186,12 @@ namespace aperf {
           processed = false;
         } else {
           this->connection->write("error_wrong_file_format");
-          error = true;
+          continue;
         }
 
         if (x[index + 1] != ' ') {
           this->connection->write("error_wrong_file_format");
-          error = true;
+          continue;
         }
 
         if (!error) {
@@ -212,7 +212,7 @@ namespace aperf {
          unsigned long long len,
          bool processed) {
         fs::path path = (processed ? processed_path : out_path) / name;
-        unsigned long long file_timeout_seconds = len / this->file_timeout_speed;
+        unsigned long long file_timeout_seconds = std::ceil(1.0 * len / this->file_timeout_speed);
 
         try {
           char buf[len];
@@ -265,8 +265,6 @@ namespace aperf {
       } else {
         this->connection->write("finished");
       }
-
-      this->connection->close();
     } catch (...) {
       std::rethrow_exception(std::current_exception());
     }
