@@ -29,18 +29,18 @@ execute_process(
   OUTPUT_VARIABLE GIT_COMMIT
   OUTPUT_STRIP_TRAILING_WHITESPACE)
 
-configure_file(version.cpp.in version.cpp @ONLY)
+configure_file(src/server/version.cpp.in version.cpp @ONLY)
 
-add_library(server.o OBJECT server.cpp)
-add_library(client.o OBJECT client.cpp)
-add_library(subclient.o OBJECT subclient.cpp)
-add_library(socket.o OBJECT socket.cpp)
+add_library(server.o OBJECT src/server/server.cpp)
+add_library(client.o OBJECT src/server/client.cpp)
+add_library(subclient.o OBJECT src/server/subclient.cpp)
+add_library(socket.o OBJECT src/server/socket.cpp)
 
 add_library(version.o OBJECT version.cpp)
-target_include_directories(version.o PRIVATE ${CMAKE_SOURCE_DIR})
+target_include_directories(version.o PRIVATE ${CMAKE_SOURCE_DIR}/src/server)
 
 add_executable(adaptiveperf-server
-  main.cpp)
+  src/server/main.cpp)
 
 find_package(nlohmann_json REQUIRED)
 find_package(Poco REQUIRED Net Foundation)
@@ -53,21 +53,21 @@ target_link_libraries(adaptiveperf-server PRIVATE server.o client.o subclient.o 
 
 enable_testing()
 add_executable(auto-test-server
-  ../../test/server/test_server.cpp)
+  test/server/test_server.cpp)
 add_executable(auto-test-client
-  ../../test/server/test_client.cpp)
+  test/server/test_client.cpp)
 add_executable(auto-test-subclient
-  ../../test/server/test_subclient.cpp)
+  test/server/test_subclient.cpp)
 add_executable(auto-test-socket
-  ../../test/server/test_socket.cpp)
+  test/server/test_socket.cpp)
 add_executable(auto-test-main
-  ../../test/server/test_main.cpp)
+  test/server/test_main.cpp)
 
-target_include_directories(auto-test-server PRIVATE ${CMAKE_SOURCE_DIR})
-target_include_directories(auto-test-client PRIVATE ${CMAKE_SOURCE_DIR})
-target_include_directories(auto-test-subclient PRIVATE ${CMAKE_SOURCE_DIR})
-target_include_directories(auto-test-socket PRIVATE ${CMAKE_SOURCE_DIR})
-target_include_directories(auto-test-main PRIVATE ${CMAKE_SOURCE_DIR})
+target_include_directories(auto-test-server PRIVATE ${CMAKE_SOURCE_DIR}/src/server)
+target_include_directories(auto-test-client PRIVATE ${CMAKE_SOURCE_DIR}/src/server)
+target_include_directories(auto-test-subclient PRIVATE ${CMAKE_SOURCE_DIR}/src/server)
+target_include_directories(auto-test-socket PRIVATE ${CMAKE_SOURCE_DIR}/src/server)
+target_include_directories(auto-test-main PRIVATE ${CMAKE_SOURCE_DIR}/src/server)
 
 target_link_libraries(auto-test-server PRIVATE GTest::gtest_main GTest::gmock_main Poco::Foundation Poco::Net server.o client.o)
 target_link_libraries(auto-test-client PRIVATE GTest::gtest_main)

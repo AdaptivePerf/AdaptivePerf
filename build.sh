@@ -45,7 +45,7 @@ fi
 
 echo_main "Building adaptiveperf-server..."
 cd build
-cmake ../src/server $@
+cmake .. $@
 cmake --build .
 mv adaptiveperf-server ../
 
