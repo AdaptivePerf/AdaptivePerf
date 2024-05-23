@@ -7,10 +7,15 @@
 #include "server.hpp"
 #include <gmock/gmock.h>
 
+using testing::StrictMock;
+
 namespace test {
   class MockSubclient : public aperf::Subclient {
   private:
-    MockSubclient() { }
+    aperf::Notifiable &context;
+
+  protected:
+    MockSubclient(aperf::Notifiable &context) : context(context) {}
 
   public:
     class Factory : public aperf::Subclient::Factory {
@@ -28,7 +33,7 @@ namespace test {
       std::unique_ptr<Subclient> make_subclient(aperf::Notifiable &context,
                                                 std::string profiled_filename,
                                                 unsigned int buf_size) {
-        std::unique_ptr<MockSubclient> subclient(new MockSubclient());
+        std::unique_ptr<StrictMock<MockSubclient> > subclient(new StrictMock<MockSubclient>(context));
         this->init(*subclient);
 
         if (call_constructor) {
@@ -50,6 +55,8 @@ namespace test {
   class MockClient : public aperf::Client {
   private:
     volatile bool *interrupted = nullptr;
+
+  protected:
     MockClient() { }
 
   public:
@@ -67,7 +74,7 @@ namespace test {
 
       std::unique_ptr<Client> make_client(std::unique_ptr<aperf::Connection> &connection,
                                           unsigned long long file_timeout_speed) {
-        std::unique_ptr<MockClient> client(new MockClient());
+        std::unique_ptr<StrictMock<MockClient> > client(new StrictMock<MockClient>());
         this->init(*client);
 
         if (call_constructor) {
@@ -111,12 +118,12 @@ namespace test {
   private:
     std::function<void(MockConnection &)> connection_init;
 
+  protected:
     MockAcceptor(std::function<void(MockConnection &)> connection_init,
                  int max_accepted) : Acceptor(max_accepted) {
       this->connection_init = connection_init;
     }
 
-  protected:
     std::unique_ptr<aperf::Connection> accept_connection(unsigned int buf_size) {
       this->real_accept(buf_size);
 
@@ -142,8 +149,8 @@ namespace test {
       }
 
       std::unique_ptr<Acceptor> make_acceptor(int max_accepted) {
-        std::unique_ptr<MockAcceptor> acceptor(new MockAcceptor(connection_init,
-                                                                max_accepted));
+        std::unique_ptr<StrictMock<MockAcceptor> > acceptor(new StrictMock<MockAcceptor>(connection_init,
+                                                                                         max_accepted));
         this->acceptor_init(*acceptor);
 
         if (this->call_constructor) {
