@@ -47,9 +47,14 @@ namespace test {
     MOCK_METHOD(void, construct, (aperf::Notifiable &,
                                   std::string,
                                   unsigned int));
-    MOCK_METHOD(void, process, (), (override));
+    MOCK_METHOD(void, real_process, ());
     MOCK_METHOD(nlohmann::json &, get_result, (), (override));
     MOCK_METHOD(std::string, get_connection_instructions, (), (override));
+
+    void process() {
+      this->context.notify();
+      this->real_process();
+    }
   };
 
   class MockClient : public aperf::Client {
