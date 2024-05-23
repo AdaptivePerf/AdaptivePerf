@@ -61,11 +61,11 @@ TEST(ServerTest, ZeroMaxConnections) {
       auto async_future = std::async([&]() {
         server.run(client_factory);
       });
-      EXPECT_EQ(async_future.wait_for(SERVER_TEST_TIMEOUT), std::future_status::ready);
+      ASSERT_EQ(async_future.wait_for(SERVER_TEST_TIMEOUT), std::future_status::ready);
     }
 
-    EXPECT_EQ(created_clients, 1);
-    EXPECT_EQ(created_connections, 1);
+    ASSERT_EQ(created_clients, 1);
+    ASSERT_EQ(created_connections, 1);
   }
 }
 
@@ -120,11 +120,11 @@ TEST(ServerTest, TwoMaxConnections) {
       std::future<void> async_future = std::async([&]() {
         server.run(client_factory);
       });
-      EXPECT_EQ(async_future.wait_for(SERVER_TEST_TIMEOUT), std::future_status::ready);
+      ASSERT_EQ(async_future.wait_for(SERVER_TEST_TIMEOUT), std::future_status::ready);
     }
 
-    EXPECT_EQ(created_clients, 4);
-    EXPECT_GT(created_connections, 4);
-    EXPECT_EQ(try_again_cnt, created_connections - created_clients);
+    ASSERT_EQ(created_clients, 4);
+    ASSERT_GT(created_connections, 4);
+    ASSERT_EQ(try_again_cnt, created_connections - created_clients);
   }
 }
