@@ -35,12 +35,13 @@ add_library(server.o OBJECT src/server/server.cpp)
 add_library(client.o OBJECT src/server/client.cpp)
 add_library(subclient.o OBJECT src/server/subclient.cpp)
 add_library(socket.o OBJECT src/server/socket.cpp)
+add_library(main.o OBJECT src/server/main.cpp)
 
 add_library(version.o OBJECT version.cpp)
 target_include_directories(version.o PRIVATE ${CMAKE_SOURCE_DIR}/src/server)
 
 add_executable(adaptiveperf-server
-  src/server/main.cpp)
+  src/main.cpp)
 
 find_package(nlohmann_json REQUIRED)
 find_package(Poco REQUIRED Net Foundation)
@@ -49,7 +50,7 @@ find_package(CLI11 CONFIG REQUIRED)
 target_link_libraries(adaptiveperf-server PRIVATE nlohmann_json::nlohmann_json)
 target_link_libraries(adaptiveperf-server PRIVATE Poco::Foundation Poco::Net)
 target_link_libraries(adaptiveperf-server PRIVATE CLI11::CLI11)
-target_link_libraries(adaptiveperf-server PRIVATE server.o client.o subclient.o socket.o version.o)
+target_link_libraries(adaptiveperf-server PRIVATE server.o client.o subclient.o socket.o version.o main.o)
 
 enable_testing()
 add_executable(auto-test-server
@@ -60,24 +61,19 @@ add_executable(auto-test-subclient
   test/server/test_subclient.cpp)
 add_executable(auto-test-socket
   test/server/test_socket.cpp)
-add_executable(auto-test-main
-  test/server/test_main.cpp)
 
 target_include_directories(auto-test-server PRIVATE ${CMAKE_SOURCE_DIR}/src/server)
 target_include_directories(auto-test-client PRIVATE ${CMAKE_SOURCE_DIR}/src/server)
 target_include_directories(auto-test-subclient PRIVATE ${CMAKE_SOURCE_DIR}/src/server)
 target_include_directories(auto-test-socket PRIVATE ${CMAKE_SOURCE_DIR}/src/server)
-target_include_directories(auto-test-main PRIVATE ${CMAKE_SOURCE_DIR}/src/server)
 
 target_link_libraries(auto-test-server PRIVATE GTest::gtest_main GTest::gmock_main Poco::Foundation Poco::Net server.o client.o)
 target_link_libraries(auto-test-client PRIVATE GTest::gtest_main GTest::gmock_main Poco::Foundation Poco::Net client.o)
-target_link_libraries(auto-test-subclient PRIVATE GTest::gtest_main)
-target_link_libraries(auto-test-socket PRIVATE GTest::gtest_main)
-target_link_libraries(auto-test-main PRIVATE GTest::gtest_main)
+target_link_libraries(auto-test-subclient PRIVATE GTest::gtest_main GTest::gmock_main Poco::Foundation Poco::Net subclient.o)
+target_link_libraries(auto-test-socket PRIVATE GTest::gtest_main GTest::gmock_main Poco::Foundation Poco::Net socket.o)
 
 include(GoogleTest)
 gtest_discover_tests(auto-test-server)
 gtest_discover_tests(auto-test-client)
 gtest_discover_tests(auto-test-subclient)
 gtest_discover_tests(auto-test-socket)
-gtest_discover_tests(auto-test-main)
