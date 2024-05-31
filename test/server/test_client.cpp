@@ -2,14 +2,9 @@
 // Copyright (C) CERN. See LICENSE for details.
 
 #include "mocks.hpp"
+#include "consts.hpp"
 #include <gtest/gtest.h>
 #include <cmath>
-#include <filesystem>
-#include <fstream>
-
-#ifndef CLIENT_TEST_TIMEOUT
-#define CLIENT_TEST_TIMEOUT 60s
-#endif
 
 // Repeating each test multiple times increases the chance of
 // detecting race-condition-related bugs if all other
@@ -20,25 +15,7 @@
 
 using namespace testing;
 using namespace std::chrono_literals;
-namespace fs = std::filesystem;
 
-inline bool file_content_equals(fs::path path, std::string content) {
-  std::ifstream is(path);
-
-  if (!is)
-    return false;
-
-  std::string s = "";
-
-  while (is) {
-    char buf[1024];
-    is.get(buf, 1024);
-
-    s += std::string(buf);
-  }
-
-  return content == s;
-}
 
 class StdClientTest : public Test {
 protected:
@@ -66,20 +43,32 @@ TEST_F(StdClientTest, StandardCommTest) {
 
         switch (created_subclients) {
         case 0:
-          result_str =
-            "{\"<SYSCALL_TREE>\": [12894, ["
-            "{\"identifier\": \"300\", \"parent\": null, \"tag\": [\"test_command\", \"300/300\", 0]}, "
-            "{\"identifier\": \"301\", \"parent\": \"300\", \"tag\": [\"test_command\", \"300/301\", 585]}, "
-            "{\"identifier\": \"302\", \"parent\": \"300\", \"tag\": [\"sleep\", \"302/302\", 1002]}, "
-            "{\"identifier\": \"305\", \"parent\": \"301\", \"tag\": [\"test_command\", \"300/305\", 1050]}]]}";
+          result_str = "{\"<SYSCALL_TREE>\": [12894, [\"300\", \"301\", \"302\", "
+            "\"305\"],{\"300\": {\"parent\": null, \"tag\": "
+            "[\"test_command\", \"300/300\", 0, 568]}, "
+            "\"301\": {\"parent\": \"300\", \"tag\": "
+            "[\"test_command\", \"300/301\", 585, 1004]}, "
+            "\"302\": {\"parent\": \"300\", \"tag\": [\"sleep\", "
+            "\"302/302\", 1002, 67]}, "
+            "\"305\": {\"parent\": \"301\", \"tag\": "
+            "[\"test_command\", \"300/305\", 1050, 1]}}]}";
           break;
 
         case 1:
           result_str =
             "{\"<SAMPLE>\": {"
-            "\"300_300\": {\"sampled_time\": 18284, \"offcpu_regions\": [[12895, 5], [13594, 999], [15894, 128]], "
+            "\"300_300\": {\"first_time\": 12894, \"sampled_time\": 18284, "
+            "\"offcpu_regions\": "
+            "[[12895, 5], [13594, 999], [15894, 128]], "
             "\"walltime\": [\"dummy4\", \"dummy5\", \"dummy6\", \"dummy7\"], "
-            "\"page-faults\": {\"dummy0\": 1, \"dummy9\": 2, \"dummy10\": 3}}}}";
+            "\"page-faults\": {\"dummy0\": 1, \"dummy9\": 2, \"dummy10\": "
+            "3}}, "
+            "\"401_402\": {\"first_time\": 15681, \"sampled_time\": 1782, "
+            "\"offcpu_regions\": [], "
+            "\"walltime\": {}}, "
+            "\"278_288\": {\"first_time\": 14, \"sampled_time\": 2, "
+            "\"offcpu_regions\": [], "
+            "\"walltime\": {}}}}";
           break;
 
         case 2:
@@ -88,12 +77,15 @@ TEST_F(StdClientTest, StandardCommTest) {
 
         case 3:
           result_str =
-              "{\"<SYSCALL>\": {\"300\": [\"x\", \"y\", \"z\"], \"305\": [\"@\"], \"302\": [\"y\", \"*\"]}, "
-              "\"<SAMPLE>\": {"
-              "\"302_302\": {\"sampled_time\": 100, \"offcpu_regions\": [], \"walltime\": [\"dummy11\"], "
-              "\"page-faults\": []}, \"300_305\": {"
-              "\"sampled_time\": 585, \"offcpu_regions\": [[18753, 100]], \"walltime\": {}, "
-              "\"page-faults\": [\"dummy22\", \"dummy000\"]}}}";
+            "{\"<SYSCALL>\": {\"300\": [\"x\", \"y\", \"z\"], \"305\": "
+            "[\"@\"], \"302\": [\"y\", \"*\"]}, "
+            "\"<SAMPLE>\": {"
+            "\"302_302\": {\"first_time\": 13000, \"sampled_time\": 100, "
+            "\"offcpu_regions\": [], \"walltime\": [\"dummy11\"], "
+            "\"page-faults\": []}, \"300_305\": {\"first_time\": 13001,"
+            "\"sampled_time\": 585, \"offcpu_regions\": [[18753, 100]], "
+            "\"walltime\": {}, "
+            "\"page-faults\": [\"dummy22\", \"dummy000\"]}}}";
           break;
 
         default:
@@ -107,35 +99,38 @@ TEST_F(StdClientTest, StandardCommTest) {
         EXPECT_CALL(s, construct(_, profiled_filename, buf_size)).Times(1);
         EXPECT_CALL(s, real_process).Times(1);
         EXPECT_CALL(s, get_connection_instructions)
-            .Times(1)
-            .WillRepeatedly(Return(std::to_string(created_subclients)));
-        EXPECT_CALL(s, get_result).Times(1).WillRepeatedly(ReturnRef(results[index]));
+          .Times(1)
+          .WillRepeatedly(Return(std::to_string(created_subclients)));
+        EXPECT_CALL(s, get_result).Times(1)
+          .WillRepeatedly(ReturnRef(results[index]));
       }, true);
 
     std::unique_ptr<aperf::Connection> mock_connection =
       std::make_unique<StrictMock<test::MockConnection> >();
 
-    test::MockConnection &connection = *((test::MockConnection *)mock_connection.get());
+    test::MockConnection &connection = *((test::MockConnection *)
+                                         mock_connection.get());
 
-    EXPECT_CALL(connection, get_buf_size).Times(AtLeast(1)).WillRepeatedly(Return(buf_size));
+    EXPECT_CALL(connection, get_buf_size).Times(AtLeast(1))
+      .WillRepeatedly(Return(buf_size));
 
     {
       InSequence sequence;
       EXPECT_CALL(connection, read())
-          .Times(2)
+        .Times(2)
         .WillOnce(Return("start" + std::to_string(subclients) + " " + result_dir))
-          .WillOnce(Return(profiled_filename));
+        .WillOnce(Return(profiled_filename));
       EXPECT_CALL(connection, write("1 2 3 4", true)).Times(1);
       EXPECT_CALL(connection, write("start_profile", true)).Times(1);
       EXPECT_CALL(connection, write("out_files", true)).Times(1);
       EXPECT_CALL(connection, read())
-          .Times(6)
-          .WillOnce(Return("10 o out1.dat"))
-          .WillOnce(Return("2 p proc1.dat"))
-          .WillOnce(Return("0 o out2.dat"))
-          .WillOnce(Return("3 o out3.dat"))
-          .WillOnce(Return("6 p proc2.dat"))
-          .WillOnce(Return("<STOP>"));
+        .Times(6)
+        .WillOnce(Return("10 o out1.dat"))
+        .WillOnce(Return("2 p proc1.dat"))
+        .WillOnce(Return("0 o out2.dat"))
+        .WillOnce(Return("3 o out3.dat"))
+        .WillOnce(Return("6 p proc2.dat"))
+        .WillOnce(Return("<STOP>"));
       EXPECT_CALL(connection, read(_, 2, std::ceil(2.0 / file_timeout_speed))).Times(1)
         .WillOnce([&](char *buf, unsigned int bytes, long timeout) {
           buf[0] = ' ';
@@ -202,32 +197,29 @@ TEST_F(StdClientTest, StandardCommTest) {
     ASSERT_TRUE(fs::is_regular_file(result_path / "processed" / "300_300.json"));
     ASSERT_TRUE(fs::is_regular_file(result_path / "processed" / "302_302.json"));
     ASSERT_TRUE(fs::is_regular_file(result_path / "processed" / "300_305.json"));
+    ASSERT_TRUE(fs::is_regular_file(result_path / "processed" / "401_402.json"));
+    ASSERT_FALSE(fs::is_regular_file(result_path / "processed" / "278_288.json"));
 
-    ASSERT_TRUE(file_content_equals(result_path / "out" / "out1.dat", "abcde12345"));
-    ASSERT_TRUE(file_content_equals(result_path / "out" / "out2.dat", ""));
-    ASSERT_TRUE(file_content_equals(result_path / "out" / "out3.dat", "X@?"));
-    ASSERT_TRUE(file_content_equals(result_path / "processed" / "proc1.dat", " !"));
-    ASSERT_TRUE(file_content_equals(result_path / "processed" / "proc2.dat", "Op%%b+"));
+    test::assert_file_equals(result_path / "out" / "out1.dat", "abcde12345", false);
+    test::assert_file_equals(result_path / "out" / "out2.dat", "", false);
+    test::assert_file_equals(result_path / "out" / "out3.dat", "X@?", false);
+    test::assert_file_equals(result_path / "processed" / "proc1.dat", " !", false);
+    test::assert_file_equals(result_path / "processed" / "proc2.dat", "Op%%b+", false);
 
-    ASSERT_TRUE(file_content_equals(result_path / "processed" / "300_300.json",
-                                    "{\"page-faults\":{\"dummy0\":1,\"dummy10\":3,\"dummy9\":2},"
-                                    "\"walltime\":[\"dummy4\",\"dummy5\",\"dummy6\",\"dummy7\"]}"));
-    ASSERT_TRUE(file_content_equals(result_path / "processed" / "302_302.json",
-                                    "{\"page-faults\":[],\"walltime\":[\"dummy11\"]}"));
-    ASSERT_TRUE(file_content_equals(result_path / "processed" / "300_305.json",
-                                    "{\"page-faults\":[\"dummy22\",\"dummy000\"],\"walltime\":{}}"));
-    ASSERT_TRUE(file_content_equals(result_path / "processed" / "metadata.json",
-                                    "{\"callchains\":{\"300\":[\"x\",\"y\",\"z\"],\"302\":"
-                                    "[\"y\",\"*\"],\"305\":[\"@\"]},\"offcpu_regions\":{\"300_300\":"
-                                    "[[1,5],[700,999],[3000,128]],\"300_305\":[[5859,100]],"
-                                    "\"302_302\":[]},\"sampled_times\":{\"300_300\":18284,"
-                                    "\"300_305\":585,\"302_302\":100},\"thread_tree\":[{\"identifier\":"
-                                    "\"300\",\"parent\":null,\"tag\":[\"test_command\",\"300/300\",0]},"
-                                    "{\"identifier\":\"301\",\"parent\":\"300\",\"tag\":"
-                                    "[\"test_command\",\"300/301\",585]},{\"identifier\":\"302\","
-                                    "\"parent\":\"300\",\"tag\":[\"sleep\",\"302/302\",1002]},"
-                                    "{\"identifier\":\"305\",\"parent\":\"301\",\"tag\":"
-                                    "[\"test_command\",\"300/305\",1050]}]}"));
+    test::assert_file_equals(result_path / "processed" / "300_300.json",
+                             "{\"page-faults\":{\"dummy0\":1,\"dummy10\":3,"
+                             "\"dummy9\":2},"
+                             "\"walltime\":[\"dummy4\",\"dummy5\",\"dummy6\","
+                             "\"dummy7\"]}", true);
+    test::assert_file_equals(result_path / "processed" / "302_302.json",
+                             "{\"page-faults\":[],\"walltime\":[\"dummy11\"]}", true);
+    test::assert_file_equals(result_path / "processed" / "300_305.json",
+                             "{\"page-faults\":[\"dummy22\",\"dummy000\"],"
+                             "\"walltime\":{}}", true);
+    test::assert_file_equals(result_path / "processed" / "401_402.json",
+                             "{\"walltime\": {}}", true);
+    test::assert_file_equals(result_path / "processed" / "metadata.json",
+                             CLIENT_METADATA1_EXPECTED, true);
 
     fs::remove_all(result_path);
   }
@@ -253,17 +245,22 @@ TEST_F(StdClientTest, StandardCommTestNoValidFiles) {
         switch (created_subclients) {
         case 0:
           result_str =
-            "{\"<SYSCALL_TREE>\": [12894, ["
-            "{\"identifier\": \"300\", \"parent\": null, \"tag\": [\"test_command\", \"300/300\", 0]}, "
-            "{\"identifier\": \"301\", \"parent\": \"300\", \"tag\": [\"test_command\", \"300/301\", 585]}, "
-            "{\"identifier\": \"302\", \"parent\": \"300\", \"tag\": [\"sleep\", \"302/302\", 1002]}, "
-            "{\"identifier\": \"305\", \"parent\": \"301\", \"tag\": [\"test_command\", \"300/305\", 1050]}]]}";
+            "{\"<SYSCALL_TREE>\": [12894, [\"300\", \"301\", \"302\", \"305\"], {"
+            "\"300\": {\"parent\": null, \"tag\": "
+            "[\"test_command\", \"300/300\", 0, 568]}, "
+            "\"301\": {\"parent\": \"300\", \"tag\": "
+            "[\"test_command\", \"300/301\", 585, 1004]}, "
+            "\"302\": {\"parent\": \"300\", \"tag\": [\"sleep\", "
+            "\"302/302\", 1002, 67]}, "
+            "\"305\": {\"parent\": \"301\", \"tag\": "
+            "[\"test_command\", \"300/305\", 1050, 1]}}]}";
           break;
 
         case 1:
           result_str =
             "{\"<SAMPLE>\": {"
-            "\"300_300\": {\"sampled_time\": 18284, \"offcpu_regions\": [[12895, 5], [13594, 999], [15894, 128]], "
+            "\"300_300\": {\"first_time\": 12894, \"sampled_time\": 18284, "
+            "\"offcpu_regions\": [[12895, 5], [13594, 999], [15894, 128]], "
             "\"walltime\": [\"dummy4\", \"dummy5\", \"dummy6\", \"dummy7\"], "
             "\"page-faults\": {\"dummy0\": 1, \"dummy9\": 2, \"dummy10\": 3}}}}";
           break;
@@ -274,12 +271,15 @@ TEST_F(StdClientTest, StandardCommTestNoValidFiles) {
 
         case 3:
           result_str =
-              "{\"<SYSCALL>\": {\"300\": [\"x\", \"y\", \"z\"], \"305\": [\"@\"], \"302\": [\"y\", \"*\"]}, "
-              "\"<SAMPLE>\": {"
-              "\"302_302\": {\"sampled_time\": 100, \"offcpu_regions\": [], \"walltime\": [\"dummy11\"], "
-              "\"page-faults\": []}, \"300_305\": {"
-              "\"sampled_time\": 585, \"offcpu_regions\": [[18753, 100]], \"walltime\": {}, "
-              "\"page-faults\": [\"dummy22\", \"dummy000\"]}}}";
+            "{\"<SYSCALL>\": {\"300\": [\"x\", \"y\", \"z\"], \"305\": "
+            "[\"@\"], \"302\": [\"y\", \"*\"]}, "
+            "\"<SAMPLE>\": {"
+            "\"302_302\": {\"first_time\": 13000, \"sampled_time\": 100, "
+            "\"offcpu_regions\": [], \"walltime\": [\"dummy11\"], "
+            "\"page-faults\": []}, \"300_305\": {\"first_time\": 13001,"
+            "\"sampled_time\": 585, \"offcpu_regions\": [[18753, 100]], "
+            "\"walltime\": {}, "
+            "\"page-faults\": [\"dummy22\", \"dummy000\"]}}}";
           break;
 
         case 4:
@@ -364,25 +364,18 @@ TEST_F(StdClientTest, StandardCommTestNoValidFiles) {
     ASSERT_TRUE(fs::is_regular_file(result_path / "processed" / "302_302.json"));
     ASSERT_TRUE(fs::is_regular_file(result_path / "processed" / "300_305.json"));
 
-    ASSERT_TRUE(file_content_equals(result_path / "processed" / "300_300.json",
-                                    "{\"page-faults\":{\"dummy0\":1,\"dummy10\":3,\"dummy9\":2},"
-                                    "\"walltime\":[\"dummy4\",\"dummy5\",\"dummy6\",\"dummy7\"]}"));
-    ASSERT_TRUE(file_content_equals(result_path / "processed" / "302_302.json",
-                                    "{\"page-faults\":[],\"walltime\":[\"dummy11\"]}"));
-    ASSERT_TRUE(file_content_equals(result_path / "processed" / "300_305.json",
-                                    "{\"page-faults\":[\"dummy22\",\"dummy000\"],\"walltime\":{}}"));
-    ASSERT_TRUE(file_content_equals(result_path / "processed" / "metadata.json",
-                                    "{\"callchains\":{\"300\":[\"x\",\"y\",\"z\"],\"302\":"
-                                    "[\"y\",\"*\"],\"305\":[\"@\"]},\"offcpu_regions\":{\"300_300\":"
-                                    "[[1,5],[700,999],[3000,128]],\"300_305\":[[5859,100]],"
-                                    "\"302_302\":[]},\"sampled_times\":{\"300_300\":18284,"
-                                    "\"300_305\":585,\"302_302\":100},\"thread_tree\":[{\"identifier\":"
-                                    "\"300\",\"parent\":null,\"tag\":[\"test_command\",\"300/300\",0]},"
-                                    "{\"identifier\":\"301\",\"parent\":\"300\",\"tag\":"
-                                    "[\"test_command\",\"300/301\",585]},{\"identifier\":\"302\","
-                                    "\"parent\":\"300\",\"tag\":[\"sleep\",\"302/302\",1002]},"
-                                    "{\"identifier\":\"305\",\"parent\":\"301\",\"tag\":"
-                                    "[\"test_command\",\"300/305\",1050]}]}"));
+    test::assert_file_equals(result_path / "processed" / "300_300.json",
+                             "{\"page-faults\":{\"dummy0\":1,\"dummy10\":3,"
+                             "\"dummy9\":2},"
+                             "\"walltime\":[\"dummy4\",\"dummy5\",\"dummy6\","
+                             "\"dummy7\"]}", true);
+    test::assert_file_equals(result_path / "processed" / "302_302.json",
+                             "{\"page-faults\":[],\"walltime\":[\"dummy11\"]}", true);
+    test::assert_file_equals(result_path / "processed" / "300_305.json",
+                             "{\"page-faults\":[\"dummy22\",\"dummy000\"],"
+                             "\"walltime\":{}}", true);
+    test::assert_file_equals(result_path / "processed" / "metadata.json",
+                             CLIENT_METADATA2_EXPECTED, true);
 
     fs::remove_all(result_path);
   }
