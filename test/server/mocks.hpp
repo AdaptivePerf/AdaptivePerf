@@ -5,11 +5,44 @@
 #define MOCKS_HPP_
 
 #include "server.hpp"
+#include <filesystem>
+#include <fstream>
 #include <gmock/gmock.h>
+#include <gtest/gtest.h>
 
 using testing::StrictMock;
+namespace fs = std::filesystem;
 
 namespace test {
+  inline void assert_file_equals(fs::path path, std::string content,
+                                 bool is_json) {
+    std::ifstream is(path);
+
+    if (!is) {
+      FAIL();
+    }
+
+    std::string s = "";
+
+    while (is) {
+      char buf[1024];
+      is.get(buf, 1024);
+
+      s += std::string(buf);
+    }
+
+    if (is_json) {
+      ASSERT_EQ(nlohmann::json::parse(content), nlohmann::json::parse(s));
+    } else {
+      ASSERT_EQ(content, s);
+    }
+  }
+
+  class MockNotifiable : public aperf::Notifiable {
+  public:
+    MOCK_METHOD(void, notify, (), (override));
+  };
+
   class MockSubclient : public aperf::Subclient {
   private:
     aperf::Notifiable &context;
