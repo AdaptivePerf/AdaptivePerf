@@ -8,6 +8,7 @@
 #include <iostream>
 #include <regex>
 #include <cmath>
+#include <unordered_set>
 
 namespace aperf {
   namespace fs = std::filesystem;
@@ -82,6 +83,10 @@ namespace aperf {
       nlohmann::json final_output;
       nlohmann::json metadata;
 
+      std::unordered_set<std::string> tids;
+
+      metadata["thread_tree"] = nlohmann::json::array();
+
       unsigned long long start_time = 0;
 
       for (int i = 0; i < subclient_cnt; i++) {
@@ -90,20 +95,53 @@ namespace aperf {
         for (auto &elem : thread_result.items()) {
           if (elem.key() == "<SYSCALL_TREE>") {
             start_time = elem.value()[0];
-            metadata["thread_tree"].swap(elem.value()[1]);
+
+            for (auto &tid : elem.value()[1]) {
+              metadata["thread_tree"].push_back(nlohmann::json::object());
+              nlohmann::json &new_object = metadata["thread_tree"].back();
+              new_object.swap(elem.value()[2][tid]);
+              new_object["identifier"] = tid;
+
+              tids.insert(tid);
+            }
           } else if (elem.key() == "<SYSCALL>") {
             for (auto &elem2 : elem.value().items()) {
               metadata["callchains"][elem2.key()].swap(elem2.value());
             }
-          } else if (elem.key().rfind("<SAMPLE>", 0) == 0) {
+          }
+        }
+
+        for (auto &elem : thread_result.items()) {
+          if (elem.key().rfind("<SAMPLE>", 0) == 0) {
             for (auto &elem2 : elem.value().items()) {
-              for (auto &elem3 : elem2.value().items()) {
-                if (elem3.key() == "sampled_time") {
-                  metadata["sampled_times"][elem2.key()].swap(elem3.value());
-                } else if (elem3.key() == "offcpu_regions") {
-                  metadata["offcpu_regions"][elem2.key()].swap(elem3.value());
-                } else {
-                  final_output[elem2.key()][elem3.key()].swap(elem3.value());
+              if (elem2.value()["first_time"] >= start_time) {
+                std::regex pid_tid_regex("^(\\d+)_(\\d+)$");
+                std::smatch pid_tid_match;
+
+                if (!std::regex_search(elem2.key(), pid_tid_match, pid_tid_regex)) {
+                  std::cerr << "Could not process PID/TID key " << elem2.key() << ", this should not happen!";
+                  std::cerr << std::endl;
+                  continue;
+                }
+
+                if (tids.find(pid_tid_match[2]) == tids.end()) {
+                  nlohmann::json new_elem;
+                  new_elem["identifier"] = pid_tid_match[2];
+                  new_elem["parent"] = nullptr;
+                  new_elem["tag"] = {
+                    "?", std::string(pid_tid_match[1]) + "/" + std::string(pid_tid_match[2]), -1, -1};
+
+                  metadata["thread_tree"].push_back(new_elem);
+                }
+
+                for (auto &elem3 : elem2.value().items()) {
+                  if (elem3.key() == "sampled_time") {
+                    metadata["sampled_times"][elem2.key()].swap(elem3.value());
+                  } else if (elem3.key() == "offcpu_regions") {
+                    metadata["offcpu_regions"][elem2.key()].swap(elem3.value());
+                  } else if (elem3.key() != "first_time") {
+                    final_output[elem2.key()][elem3.key()].swap(elem3.value());
+                  }
                 }
               }
             }
