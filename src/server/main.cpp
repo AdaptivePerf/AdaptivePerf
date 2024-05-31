@@ -1,11 +1,12 @@
 // AdaptivePerf: comprehensive profiling tool based on Linux perf
 // Copyright (C) CERN. See LICENSE for details.
 
+#include "entrypoint.hpp"
 #include "server.hpp"
 #include "version.hpp"
 #include <CLI/CLI.hpp>
 
-int main(int argc, char **argv) {
+int server_entrypoint(int argc, char **argv) {
   CLI::App app("Post-processing server for AdaptivePerf");
 
   bool version = false;
