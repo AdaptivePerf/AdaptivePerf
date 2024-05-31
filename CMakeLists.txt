@@ -35,7 +35,7 @@ add_library(server.o OBJECT src/server/server.cpp)
 add_library(client.o OBJECT src/server/client.cpp)
 add_library(subclient.o OBJECT src/server/subclient.cpp)
 add_library(socket.o OBJECT src/server/socket.cpp)
-add_library(main.o OBJECT src/server/main.cpp)
+add_library(entrypoint.o OBJECT src/server/entrypoint.cpp)
 
 add_library(version.o OBJECT version.cpp)
 target_include_directories(version.o PRIVATE ${CMAKE_SOURCE_DIR}/src/server)
@@ -50,7 +50,7 @@ find_package(CLI11 CONFIG REQUIRED)
 target_link_libraries(adaptiveperf-server PRIVATE nlohmann_json::nlohmann_json)
 target_link_libraries(adaptiveperf-server PRIVATE Poco::Foundation Poco::Net)
 target_link_libraries(adaptiveperf-server PRIVATE CLI11::CLI11)
-target_link_libraries(adaptiveperf-server PRIVATE server.o client.o subclient.o socket.o version.o main.o)
+target_link_libraries(adaptiveperf-server PRIVATE server.o client.o subclient.o socket.o version.o entrypoint.o)
 
 enable_testing()
 add_executable(auto-test-server
