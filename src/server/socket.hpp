@@ -28,22 +28,26 @@ namespace aperf {
   };
 
   class Connection {
+  protected:
+    virtual void close() = 0;
+
   public:
     virtual ~Connection() { }
     virtual int read(char *buf, unsigned int len, long timeout_seconds) = 0;
     virtual std::string read() = 0;
     virtual void write(std::string msg, bool new_line = true) = 0;
     virtual unsigned int get_buf_size() = 0;
-    virtual void close() = 0;
   };
 
   class Socket : public Connection {
+  protected:
+    virtual void close() = 0;
+
   public:
     virtual ~Socket() { }
     virtual std::string get_address() = 0;
     virtual unsigned short get_port() = 0;
     virtual unsigned int get_buf_size() = 0;
-    virtual void close() = 0;
     virtual int read(char *buf, unsigned int len, long timeout_seconds) = 0;
     virtual std::string read() = 0;
     virtual void write(std::string msg, bool new_line = true) = 0;
@@ -56,6 +60,7 @@ namespace aperf {
 
   protected:
     virtual std::unique_ptr<Connection> accept_connection(unsigned int buf_size) = 0;
+    virtual void close() = 0;
 
   public:
     class Factory {
@@ -82,7 +87,6 @@ namespace aperf {
 
     virtual ~Acceptor() { }
     virtual std::string get_connection_instructions() = 0;
-    virtual void close() = 0;
   };
 
   class TCPSocket : public Socket {
@@ -93,13 +97,15 @@ namespace aperf {
     int start_pos;
     std::queue<std::string> buffered_msgs;
 
+  protected:
+    void close();
+
   public:
     TCPSocket(net::StreamSocket &sock, unsigned int buf_size);
     ~TCPSocket();
     std::string get_address();
     unsigned short get_port();
     unsigned int get_buf_size();
-    void close();
     int read(char *buf, unsigned int len, long timeout_seconds);
     std::string read();
     void write(std::string msg, bool new_line = true);
@@ -115,6 +121,7 @@ namespace aperf {
 
   protected:
     std::unique_ptr<Connection> accept_connection(unsigned int buf_size);
+    void close();
 
   public:
     class Factory : public Acceptor::Factory {
@@ -142,7 +149,6 @@ namespace aperf {
     ~TCPAcceptor();
     unsigned short get_port();
     std::string get_connection_instructions();
-    void close();
   };
 }
 
