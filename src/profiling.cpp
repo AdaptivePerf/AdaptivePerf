@@ -559,8 +559,9 @@ namespace aperf {
     print("Processing results...", false, false);
 
     std::unordered_set<fs::path> perf_map_paths;
+    std::vector<fs::path> to_remove;
 
-    for (auto &elem : fs::directory_iterator(tmp_dir)) {
+    for (auto &elem : fs::directory_iterator(result_processed)) {
       if (!elem.is_regular_file()) {
         continue;
       }
@@ -574,10 +575,19 @@ namespace aperf {
         while (stream) {
           std::string line;
           std::getline(stream, line);
+          boost::trim(line);
 
-          perf_map_paths.insert(fs::path(line));
+          if (!line.empty()) {
+            perf_map_paths.insert(fs::path(line));
+          }
         }
+
+        to_remove.push_back(path);
       }
+    }
+
+    for (auto &path : to_remove) {
+      fs::remove(path);
     }
 
     for (const fs::path &path : perf_map_paths) {
