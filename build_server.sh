@@ -1,4 +1,8 @@
 #!/bin/bash
+
+# AdaptivePerf: comprehensive profiling tool based on Linux perf
+# Copyright (C) CERN. See LICENSE for details.
+
 set -e
 
 function echo_main() {
