@@ -36,36 +36,52 @@ def next_code():
     return res
 
 
-event_socks = []
+event_streams = []
 next_index = 0
 callchain_dict = defaultdict(next_code)
 overall_event_type = None
 perf_map_paths = set()
 
 
-def get_next_event_sock():
-    global event_socks, next_index
-    sock = event_socks[next_index]
-    next_index = (next_index + 1) % len(event_socks)
-    return sock
+def get_next_event_stream():
+    global event_streams, next_index
+    stream = event_streams[next_index]
+    next_index = (next_index + 1) % len(event_streams)
+    return stream
 
 
-event_sock_dict = defaultdict(lambda: defaultdict(get_next_event_sock))
+event_stream_dict = defaultdict(lambda: defaultdict(get_next_event_stream))
+
+
+def write(stream, msg):
+    if isinstance(stream, socket.socket):
+        stream.sendall((msg + '\n').encode('utf-8'))
+    else:
+        stream.write((msg + '\n').encode('utf-8'))
+        stream.flush()
 
 
 def trace_begin():
-    global event_socks
+    global event_streams
 
-    ports = list(map(int, os.environ['APERF_SERV_PORT'].split(' ')))
+    serv_connect = os.environ['APERF_SERV_CONNECT'].split(' ')
+    instrs = serv_connect[1:]
 
-    for p in ports:
-        sock = socket.socket()
-        sock.connect((os.environ['APERF_SERV_ADDR'], p))
-        event_socks.append(sock)
+    for i in instrs:
+        parts = i.split('_')
+        if serv_connect[0] == 'tcp':
+            stream = socket.socket()
+            stream.connect((parts[0], int(parts[1])))
+            event_streams.append(stream)
+        elif serv_connect[0] == 'pipe':
+            stream = os.fdopen(int(parts[1]), 'wb')
+            stream.write('connect'.encode('ascii'))
+            stream.flush()
+            event_streams.append(stream)
 
 
 def process_event(param_dict):
-    global event_sock_dict, overall_event_type, perf_map_paths
+    global event_stream_dict, overall_event_type, perf_map_paths
 
     event_type = param_dict['ev_name']
     comm = param_dict['comm']
@@ -101,18 +117,18 @@ def process_event(param_dict):
 
     callchain.append(f'{comm}-{pid}/{tid}')
 
-    event_sock_dict[pid][tid].sendall((json.dumps(
+    write(event_stream_dict[pid][tid], json.dumps(
         ['<SAMPLE>', parsed_event_type,
          str(pid), str(tid),
-         timestamp, period, callchain[::-1]]) + '\n').encode('utf-8'))
+         timestamp, period, callchain[::-1]]))
 
 
 def trace_end():
-    global event_socks, callchain_dict, overall_event_type, perf_map_paths
+    global event_streams, callchain_dict, overall_event_type, perf_map_paths
 
-    for sock in event_socks:
-        sock.sendall('<STOP>\n'.encode('utf-8'))
-        sock.close()
+    for stream in event_streams:
+        write(stream, '<STOP>')
+        stream.close()
 
     if overall_event_type is not None:
         reverse_callchain_dict = {v: k for k, v in callchain_dict.items()}
