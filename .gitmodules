@@ -1,6 +1,3 @@
-[submodule "test/test_helper/bats-assert"]
-	path = test/test_helper/bats-assert
-	url = https://github.com/bats-core/bats-assert
-[submodule "test/test_helper/bats-support"]
-	path = test/test_helper/bats-support
-	url = https://github.com/bats-core/bats-support
+[submodule "linux"]
+	path = linux
+	url = https://gitlab.cern.ch/adaptiveperf/linux

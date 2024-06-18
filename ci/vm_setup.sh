@@ -1,6 +1,4 @@
 #!/bin/bash
-sudo make uninstall
-
 last_update=$(date --date="$(cat $(portageq get_repo_path / gentoo)/metadata/timestamp.chk)" +%s)
 current_time=$(date +%s)
 

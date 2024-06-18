@@ -1,2 +1,4 @@
 #!/bin/bash
-#make test
+./build.sh -DENABLE_TESTS=ON
+cd build
+ctest

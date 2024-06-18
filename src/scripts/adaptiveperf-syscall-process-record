@@ -1,3 +1,0 @@
-#!/bin/bash
-syscall_list="syscalls:sys_exit_execve,sched:sched_process_fork,sched:sched_process_exit"
-perf record --call-graph fp -k CLOCK_MONOTONIC --buffer-events 1 -e $syscall_list --sorted-stream $@

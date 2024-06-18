@@ -34,14 +34,23 @@ def next_code():
     return res
 
 
-event_sock = None
+event_stream = None
 tid_dict = {}
 callchain_dict = defaultdict(next_code)
 perf_map_paths = set()
 
+def write(msg):
+    global event_stream
+
+    if isinstance(event_stream, socket.socket):
+        event_stream.sendall((msg + '\n').encode('utf-8'))
+    else:
+        event_stream.write((msg + '\n').encode('utf-8'))
+        event_stream.flush()
+
 
 def syscall_callback(stack, ret_value):
-    global event_sock, cpp_filt, perf_map_paths
+    global perf_map_paths
 
     if int(ret_value) == 0:
         return
@@ -60,38 +69,44 @@ def syscall_callback(stack, ret_value):
         else:
             return f'({elem["ip"]:#x})'
 
-    event_sock.sendall((json.dumps([
+    write(json.dumps([
         '<SYSCALL>', str(ret_value), list(map(process_callchain_elem, stack))
-        ]) + '\n').encode('utf-8'))
+    ]))
 
 
 def syscall_tree_callback(syscall_type, comm_name, pid, tid, time,
                           ret_value):
-    global event_sock
-
-    event_sock.sendall((json.dumps([
+    write(json.dumps([
         '<SYSCALL_TREE>',
         syscall_type,
         comm_name,
         str(pid),
         str(tid),
         time,
-        str(ret_value)]) + '\n').encode('utf-8'))
+        str(ret_value)]))
 
 
 def trace_begin():
-    global event_sock
+    global event_stream
 
-    event_sock = socket.socket()
-    event_sock.connect((os.environ['APERF_SERV_ADDR'],
-                        int(os.environ['APERF_SERV_PORT'])))
+    serv_connect = os.environ['APERF_SERV_CONNECT'].split(' ')
+    parts = serv_connect[1].split('_')
+
+    if serv_connect[0] == 'tcp':
+        event_stream = socket.socket()
+        event_stream.connect((parts[0],
+                              int(parts[1])))
+    elif serv_connect[0] == 'pipe':
+        event_stream = os.fdopen(int(parts[1]), 'wb')
+        event_stream.write('connect'.encode('ascii'))
+        event_stream.flush()
 
 
 def trace_end():
-    global event_sock, callchain_dict, perf_map_paths
+    global event_stream, callchain_dict, perf_map_paths
 
-    event_sock.sendall('<STOP>\n'.encode('utf-8'))
-    event_sock.close()
+    write('<STOP>')
+    event_stream.close()
 
     reverse_callchain_dict = {v: k for k, v in callchain_dict.items()}
 
@@ -126,6 +141,14 @@ def syscalls__sys_exit_execve(event_name, context, common_cpu, common_secs,
                               common_nsecs, common_pid, common_comm,
                               common_callchain, __syscall_nr, ret,
                               perf_sample_dict):
+    syscall_tree_callback('execve', common_comm, perf_sample_dict['sample']['pid'],
+                          perf_sample_dict['sample']['tid'],
+                          perf_sample_dict['sample']['time'], ret)
+
+def syscalls__sys_exit_execveat(event_name, context, common_cpu, common_secs,
+                                common_nsecs, common_pid, common_comm,
+                                common_callchain, __syscall_nr, ret,
+                                perf_sample_dict):
     syscall_tree_callback('execve', common_comm, perf_sample_dict['sample']['pid'],
                           perf_sample_dict['sample']['tid'],
                           perf_sample_dict['sample']['time'], ret)

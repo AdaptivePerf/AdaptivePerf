@@ -29,8 +29,6 @@ vm-setup:
 vm-test:
   tags:
     - gentoo-vm
-  variables:
-    GIT_SUBMODULE_STRATEGY: recursive
   stage: test
   script:
     - cd $CI_PROJECT_DIR
@@ -39,6 +37,8 @@ vm-test:
 vm-deploy:
   tags:
     - gentoo-vm
+  variables:
+    GIT_SUBMODULE_STRATEGY: recursive
   stage: vm-deploy
   script:
     - cd $CI_PROJECT_DIR
@@ -77,10 +77,12 @@ make-vm-image:
 deploy-to-syclops-gentoo-profiling:
   tags:
     - gentoo-profiling
+  variables:
+    GIT_SUBMODULE_STRATEGY: recursive
   stage: deploy
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
   script:
     - cd $CI_PROJECT_DIR
-    - make
-    - sudo make install
+    - ./build.sh
+    - echo -n "y" | sudo ./install.sh

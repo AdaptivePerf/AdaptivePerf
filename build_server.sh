@@ -29,12 +29,12 @@ function error() {
 trap "error" ERR
 
 if [[ $1 == "-h" || $1 == "--help" ]]; then
-    echo "Script for building complete AdaptivePerf."
-    echo "Usage: ./build.sh [optional CMake options]"
+    echo "Script for building adaptiveperf-server only."
+    echo "Usage: ./build_server.sh [optional CMake options]"
     exit 0
 fi
 
-echo_main "Building AdaptivePerf and adaptiveperf-server..."
+echo_main "Building adaptiveperf-server..."
 
 if [[ -d build ]]; then
     echo_sub "Non-empty build dir detected! Recompiling."
@@ -45,13 +45,12 @@ if [[ -d build ]]; then
 else
     mkdir build
     echo "#!/bin/bash" > build/make.sh
-    echo "cmake --build . && mv adaptiveperf libaperfserv.so adaptiveperf-server ../" >> build/make.sh
+    echo "cmake --build . && mv libaperfserv.so adaptiveperf-server ../" >> build/make.sh
     chmod +x build/make.sh
 
     cd build
-    cmake .. $@
+    cmake .. -DSERVER_ONLY=ON $@
     cmake --build .
-    mv adaptiveperf ../
     mv libaperfserv.so adaptiveperf-server ../
 fi
 
