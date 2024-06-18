@@ -49,6 +49,11 @@ Please clone this repository and run ```./build.sh``` (as either non-root or roo
 
 By default, AdaptivePerf is installed in ```/usr/local``` and its support files along with the bundled patched "perf" are installed in ```/opt/adaptiveperf```. If you want to change ```/usr/local```, specify an alternative path as an argument to ```install.sh```, e.g. ```./install.sh /usr```. If you want to change ```/opt/adaptiveperf```, run ```./build.sh -DAPERF_SCRIPT_PATH=<new path>``` before installing.
 
+### Manually (adaptiveperf-server only)
+If you want to install just adaptiveperf-server, please clone this repository and run ```./build_server.sh``` (as either non-root or root, non-root recommended) followed by ```./install.sh``` (as root unless you run the installation for a non-system prefix).
+
+```./install.sh``` supports a custom installation prefix, see the "Manually" section above. adaptiveperf-server does not require the patched "perf" and should be compilable for various operating systems (the scripts are only tested on Linux though).
+
 ### Gentoo-based virtual machine image with frame pointers
 Given the complexity of setting up a machine with a recent enough Linux kernel, frame pointers etc., we make available ready-to-use x86-64 Gentoo-based qcow2 images with AdaptivePerf set up. They're also configured for out-of-the-box reliable ```perf``` profiling, such as permanently-set profiling-related kernel parameters and ensuring that everything in the system is compiled with frame pointers.
 
