@@ -85,7 +85,38 @@ if(NOT SERVER_ONLY)
   target_link_libraries(adaptiveperf PRIVATE Poco::Foundation Poco::Net)
   target_link_libraries(adaptiveperf PRIVATE CLI11::CLI11)
   target_link_libraries(adaptiveperf PRIVATE Boost::headers Boost::program_options)
-  target_link_libraries(adaptiveperf PRIVATE numa)
+
+  find_library(LIBNUMA
+    NAMES numa
+    DOC "libnuma")
+
+  if(LIBNUMA)
+    message(STATUS "Found libnuma: ${LIBNUMA}")
+
+    find_path(LIBNUMA_INCLUDE
+      NAMES numa.h
+      PATH_SUFFIXES include
+      DOC "libnuma header directory"
+    )
+
+    if (LIBNUMA_INCLUDE)
+      message(STATUS "Found numa.h inside ${LIBNUMA_INCLUDE}")
+      set(LIBNUMA_AVAILABLE TRUE)
+    else()
+      message(STATUS "numa.h not found, compiling without libnuma support")
+      set(LIBNUMA_AVAILABLE FALSE)
+    endif()
+  else()
+    message(STATUS "libnuma not found, compiling without libnuma support")
+    set(LIBNUMA_AVAILABLE FALSE)
+  endif()
+
+  if(LIBNUMA_AVAILABLE)
+    target_compile_definitions(requirements.o PRIVATE LIBNUMA_AVAILABLE)
+    target_include_directories(requirements.o PRIVATE ${LIBNUMA_INCLUDE})
+    target_link_libraries(adaptiveperf PRIVATE numa)
+  endif()
+
   target_link_libraries(adaptiveperf PRIVATE aperfserv)
   target_link_libraries(adaptiveperf PRIVATE
     profiling.o requirements.o profilers.o print.o main_entrypoint.o version.o)

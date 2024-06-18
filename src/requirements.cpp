@@ -4,9 +4,12 @@
 #include "requirements.hpp"
 #include "print.hpp"
 #include <fstream>
-#include <numa.h>
 #include <regex>
 #include <boost/process.hpp>
+
+#ifdef LIBNUMA_AVAILABLE
+#include <numa.h>
+#endif
 
 namespace aperf {
   std::string SysKernelDebugReq::get_name() {
@@ -105,7 +108,16 @@ namespace aperf {
   }
 
   bool NUMAMitigationReq::check_internal() {
-    std::ifstream numa_balancing("/proc/sys/kernel/numa_balancing");
+    fs::path numa_balancing_path("/proc/sys/kernel/numa_balancing");
+
+    if (!fs::exists(numa_balancing_path)) {
+      print("kernel.numa_balancing does not seem to exist, so assuming "
+            "no NUMA on this machine. Note that if you actually have "
+            "NUMA, you may get broken stacks!", true, false);
+      return true;
+    }
+
+    std::ifstream numa_balancing(numa_balancing_path);
 
     if (!numa_balancing) {
       print("Could not check the value of kernel.numa_balancing!",
@@ -119,6 +131,7 @@ namespace aperf {
     numa_balancing.close();
 
     if (numa_balancing_value == 1) {
+#ifdef LIBNUMA_AVAILABLE
       unsigned long mask = *numa_get_membind()->maskp;
       int count = 0;
 
@@ -143,6 +156,19 @@ namespace aperf {
               true, true);
         return false;
       }
+#else
+      print("NUMA balancing is enabled, but AdaptivePerf is compiled without "
+            "libnuma support, so it cannot determine on how many NUMA nodes "
+            "it is running!", true, true);
+      print("As this may result in broken stacks, AdaptivePerf will not run.",
+            true, true);
+      print("Please disable balancing by running \"sysctl "
+            "kernel.numa_balancing=0\" or "
+            "recompile AdaptivePerf with libnuma support, followed by "
+            "binding the tool at least memory-wise "
+            "to a single NUMA node (e.g. through numactl).", true, true);
+      return false;
+#endif
     }
 
     return true;
