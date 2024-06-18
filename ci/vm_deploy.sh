@@ -1,3 +1,3 @@
 #!/bin/bash
 ./build.sh
-./install.sh
+echo -n "y" | sudo ./install.sh
