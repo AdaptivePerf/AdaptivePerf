@@ -32,12 +32,13 @@ Both single-threaded and multi-threaded programs are supported. All CPU architec
 * Linux 5.8 or newer compiled with ```CONFIG_DEBUG_INFO_BTF=y``` (or equivalent, you can check this by seeing if ```/sys/kernel/btf``` exists in your system)
 * Python 3
 * CMake 3.14 or newer
+* libnuma (if a machine with your profiled application has NUMA)
 * [CLI11](https://github.com/CLIUtils/CLI11)
 * [nlohmann-json](https://github.com/nlohmann/json)
 * [PocoNet + PocoFoundation](https://pocoproject.org)
 * [Boost](https://www.boost.org)
 
-You should use the newest available version of CLI11, nlohmann-json, the Poco libraries, and the Boost libraries. More detailed tests will be carried out soon to determine what minimum version of each of these dependencies is required.
+You should use the newest available version of libnuma, CLI11, nlohmann-json, the Poco libraries, and the Boost libraries. More information about the minimum tested version of each of these dependencies will be provided soon.
 
 AdaptivePerf uses the patched "perf", temporarily available at https://gitlab.cern.ch/adaptiveperf/linux (inside ```tools/perf```). However, you don't have to download and install it manually, this is handled automatically by the installation scripts (see the "Manually" section below).
 
