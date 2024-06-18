@@ -75,6 +75,10 @@ namespace test {
 
         return subclient;
       }
+
+      std::string get_type() {
+        return "mock";
+      }
     };
 
     MOCK_METHOD(void, construct, (aperf::Notifiable &,
@@ -126,14 +130,15 @@ namespace test {
 
     MOCK_METHOD(void, construct, (aperf::Connection *,
                                   unsigned long long));
-    MOCK_METHOD(void, real_process, ());
+    MOCK_METHOD(void, real_process, (fs::path));
     MOCK_METHOD(void, notify, (), (override));
 
     void set_interrupt_ptr(volatile bool *interrupted) {
       this->interrupted = interrupted;
     }
-    void process() {
-      this->real_process();
+
+    void process(fs::path working_dir) {
+      this->real_process(working_dir);
 
       if (this->interrupted) {
         while (!(*this->interrupted)) { }
@@ -148,8 +153,9 @@ namespace test {
     MOCK_METHOD(unsigned int, get_buf_size, (), (override));
     MOCK_METHOD(void, close, (), (override));
     MOCK_METHOD(int, read, (char *, unsigned int, long), (override));
-    MOCK_METHOD(std::string, read, (), (override));
+    MOCK_METHOD(std::string, read, (long), (override));
     MOCK_METHOD(void, write, (std::string, bool), (override));
+    MOCK_METHOD(void, write, (fs::path), (override));
   };
 
   class MockAcceptor : public aperf::Acceptor {
@@ -196,6 +202,10 @@ namespace test {
         }
 
         return acceptor;
+      }
+
+      std::string get_type() {
+        return "mock";
       }
     };
 

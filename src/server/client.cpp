@@ -15,39 +15,42 @@ namespace aperf {
 
   StdClient::StdClient(std::unique_ptr<Subclient::Factory> &subclient_factory,
                        std::unique_ptr<Connection> &connection,
-                       unsigned long long file_timeout_speed) : InitClient(subclient_factory,
-                                                                           connection,
-                                                                           file_timeout_speed) {
+                       unsigned long long file_timeout_seconds) : InitClient(subclient_factory,
+                                                                             connection,
+                                                                             file_timeout_seconds) {
     this->accepted = 0;
   }
 
-  void StdClient::process() {
+  void StdClient::process(fs::path working_dir) {
     try {
+      fs::path result_path, processed_path, out_path;
+
       std::string msg = this->connection->read();
+
       std::regex start_regex("^start([1-9]\\d*) (.+)$");
       std::smatch match;
 
-      if (!std::regex_search(msg, match, start_regex)) {
-        this->connection->write("error_wrong_command");
+      if (!std::regex_match(msg, match, start_regex)) {
+        this->connection->write("error_wrong_command", true);
         return;
       }
 
       int subclient_cnt = std::stoi(match[1]);
       std::string result_dir = match[2];
 
-      fs::path result_path(result_dir);
-      fs::path processed_path = result_path / "processed";
-      fs::path out_path = result_path / "out";
+      result_path = working_dir / result_dir;
+      processed_path = result_path / "processed";
+      out_path = result_path / "out";
 
       try {
-        fs::create_directory(result_dir);
+        fs::create_directory(result_path);
         fs::create_directory(processed_path);
         fs::create_directory(out_path);
       } catch (std::exception &e) {
         std::cerr << "Could not create " << result_dir << "! Error details:";
         std::cerr << std::endl;
         std::cerr << e.what() << std::endl;
-        this->connection->write("error_result_dir");
+        this->connection->write("error_result_dir", true);
         return;
       }
 
@@ -61,24 +64,20 @@ namespace aperf {
         threads[i] = std::async(&Subclient::process, subclients[i].get());
       }
 
-      std::string instr_msg = "";
+      std::string instr_msg = subclient_factory->get_type();
 
       for (int i = 0; i < subclient_cnt; i++) {
-        instr_msg += subclients[i]->get_connection_instructions();
-
-        if (i < subclient_cnt - 1) {
-          instr_msg += " ";
-        }
+        instr_msg += " " + subclients[i]->get_connection_instructions();
       }
 
-      this->connection->write(instr_msg);
+      this->connection->write(instr_msg, true);
 
       std::unique_lock lock(this->accepted_mutex);
       while (this->accepted < subclient_cnt) {
         this->accepted_cond.wait(lock);
       }
 
-      this->connection->write("start_profile");
+      this->connection->write("start_profile", true);
 
       nlohmann::json final_output;
       nlohmann::json metadata;
@@ -179,10 +178,12 @@ namespace aperf {
         futures[i].get();
       }
 
-      this->connection->write("out_files");
+      this->connection->write("out_files", true);
 
       std::vector<std::pair<std::string, unsigned long long> > out_files;
       std::vector<std::pair<std::string, unsigned long long> > processed_files;
+
+      bool error_in_any = false;
 
       while (true) {
         std::string x = this->connection->read();
@@ -191,117 +192,88 @@ namespace aperf {
           break;
         }
 
-        std::string len_str = "";
-        int index = 0;
-        bool error = false;
-
-        for (; index < x.size(); index++) {
-          if (x[index] >= '0' && x[index] <= '9') {
-            len_str += x[index];
-          } else {
-            if (x[index++] != ' ') {
-              this->connection->write("error_wrong_file_format");
-              error = true;
-            }
-
-            break;
-          }
-        }
-
-        if (error)
-          continue;
-
-        if (index >= x.size() - 2) {
-          this->connection->write("error_wrong_file_format");
+        if (x.length() < 3) {
+          this->connection->write("error_wrong_file_format", true);
           continue;
         }
 
         bool processed;
+        bool error = false;
 
-        if (x[index] == 'p') {
+        if (x[0] == 'p') {
           processed = true;
-        } else if (x[index] == 'o') {
+        } else if (x[0] == 'o') {
           processed = false;
         } else {
-          this->connection->write("error_wrong_file_format");
+          this->connection->write("error_wrong_file_format", true);
           continue;
         }
 
-        if (x[index + 1] != ' ') {
-          this->connection->write("error_wrong_file_format");
+        if (x[1] != ' ') {
+          this->connection->write("error_wrong_file_format", true);
           continue;
         }
 
-        if (!error) {
-          if (processed) {
-            processed_files.push_back(std::make_pair(x.substr(index + 2),
-                                                     std::stoll(len_str)));
-          } else {
-            out_files.push_back(std::make_pair(x.substr(index + 2),
-                                               std::stoll(len_str)));
-          }
-        }
-      }
-
-      bool error = false;
-
-      auto process_file = [&processed_path, &out_path, &error, this]
-        (std::string &name,
-         unsigned long long len,
-         bool processed) {
+        std::string name = x.substr(2);
         fs::path path = (processed ? processed_path : out_path) / name;
-        unsigned long long file_timeout_seconds = std::ceil(1.0 * len / this->file_timeout_speed);
+        std::string type = processed ? "processed" : "out";
 
         try {
-          char buf[len];
-          int bytes_received = this->connection->read(buf, len, file_timeout_seconds);
-
-          if (bytes_received != len) {
-            std::cerr << "Warning for out/processed file " << path << ": ";
-            std::cerr << "Expected " << len << " byte(s), got " << bytes_received << ".";
-            std::cerr << std::endl;
-          }
-
           std::ofstream f(path, std::ios_base::out | std::ios_base::binary);
 
           if (!f) {
-            std::cerr << "Error for out/processed file " << path << ": ";
+            std::cerr << "Error for " << type << " file " << path << ": ";
             std::cerr << "Could not open the output stream." << std::endl;
-            error = true;
-            return;
+            continue;
           }
 
-          f.write(buf, bytes_received);
+          std::unique_ptr<char> buf(new char[1024 * this->connection->get_buf_size()]);
 
-          if (!f) {
-            std::cerr << "Error for out/processed file " << path << ": ";
-            std::cerr << "Could not write to the output stream." << std::endl;
-            error = true;
-            return;
+          int bytes_received = 0;
+          bool stop = false;
+
+          while (!stop && !error) {
+            bytes_received = this->connection->read(buf.get(),
+                                                    1024 * this->connection->get_buf_size(),
+                                                    this->file_timeout_seconds);
+
+            if (bytes_received == 0) {
+              std::cerr << "Error for " << type << " file " << path << ": ";
+              std::cerr << "Received 0 bytes without reaching end-of-text (0x03)." << std::endl;
+              error = true;
+            } else {
+              if (buf.get()[bytes_received - 1] == 0x03) {
+                f.write(buf.get(), bytes_received - 1);
+                stop = true;
+              } else {
+                f.write(buf.get(), bytes_received);
+              }
+
+              if (!f) {
+                std::cerr << "Error for " << type << " file " << path << ": ";
+                std::cerr << "Could not write to the output stream." << std::endl;
+                error = true;
+              }
+            }
           }
 
           f.close();
+
+          if (error) {
+            error_in_any = true;
+            continue;
+          }
         } catch (TimeoutException &e) {
-          std::cerr << "Warning for out/processed file " << path << ": ";
-          std::cerr << "Timeout of " << file_timeout_seconds << " s has been reached, no data saved.";
+          std::cerr << "Warning for " << type << " file " << path << ": ";
+          std::cerr << "Timeout of " << this->file_timeout_seconds << " s has been reached, no data saved.";
           std::cerr << std::endl;
         }
-      };
-
-      for (int i = 0; i < processed_files.size(); i++) {
-        process_file(processed_files[i].first,
-                     processed_files[i].second, true);
       }
 
-      for (int i = 0; i < out_files.size(); i++) {
-        process_file(out_files[i].first,
-                     out_files[i].second, false);
-      }
-
-      if (error) {
-        this->connection->write("out_file_error");
+      if (error_in_any) {
+        this->connection->write("out_file_error", true);
       } else {
-        this->connection->write("finished");
+        this->connection->write("finished", true);
       }
     } catch (...) {
       std::rethrow_exception(std::current_exception());

@@ -26,7 +26,7 @@ TEST(StdSubclientTest, StandardCommTest1) {
     }, [&](test::MockConnection &c) {
       InSequence sequence;
 
-      EXPECT_CALL(c, read()).Times(10)
+      EXPECT_CALL(c, read(NO_TIMEOUT)).Times(10)
         .WillOnce(Return("[\"<SYSCALL>\", \"251\", [\"a\", \"b\", \"C\"]]"))
         .WillOnce(Return("[\"<SYSCALL_TREE>\", \"new_proc\", \"testx\", "
                          "\"250\", \"250\", 12485, \"251\"]"))
@@ -74,7 +74,7 @@ TEST(StdSubclientTest, StandardCommTest2) {
     }, [&](test::MockConnection &c) {
       InSequence sequence;
 
-      EXPECT_CALL(c, read()).Times(19)
+      EXPECT_CALL(c, read(NO_TIMEOUT)).Times(19)
         .WillOnce(Return("[\"<SYSCALL_TREE>\", \"new_proc\", \"abc\", "
                          "\"25011\", \"25011\", 1, \"27006\"]"))
         .WillOnce(Return("[\"<SYSCALL>\", \"27006\", [\"+\"]]"))
@@ -140,7 +140,7 @@ TEST(StdSubclientTest, StandardCommTest3) {
     }, [&](test::MockConnection &c) {
       InSequence sequence;
 
-      EXPECT_CALL(c, read()).Times(1)
+      EXPECT_CALL(c, read(NO_TIMEOUT)).Times(1)
         .WillOnce(Return("<STOP>"));
       EXPECT_CALL(c, close).Times(1);
     }, true);
@@ -172,7 +172,7 @@ TEST(StdSubclientTest, StandardCommTest4) {
     }, [&](test::MockConnection &c) {
       InSequence sequence;
 
-      EXPECT_CALL(c, read()).Times(10)
+      EXPECT_CALL(c, read(NO_TIMEOUT)).Times(10)
         .WillOnce(Return("[\"<SAMPLE>\", \"task-clock\", "
                          "\"1003\", \"1003\", 12951, 555, [\"x\", \"y\", \"Z\"]]"))
         .WillOnce(Return("[\"<SAMPLE>\", \"task-clock\", "
@@ -226,7 +226,7 @@ TEST(StdSubclientTest, StandardCommTest5) {
     }, [&](test::MockConnection &c) {
       InSequence sequence;
 
-      EXPECT_CALL(c, read()).Times(6)
+      EXPECT_CALL(c, read(NO_TIMEOUT)).Times(6)
         .WillOnce(Return("[\"<SAMPLE>\", \"cache-miss\", "
                          "\"7878\", \"7878\", 1, 7, [\"x\", \"y\", \"Z\"]]"))
         .WillOnce(Return("[\"<SAMPLE>\", \"cache-miss\", "
@@ -293,7 +293,7 @@ TEST(StdSubclientTest, InvalidCommTest1) {
     }, [&](test::MockConnection &c) {
       InSequence sequence;
 
-      EXPECT_CALL(c, read()).Times(18)
+      EXPECT_CALL(c, read(NO_TIMEOUT)).Times(18)
         .WillOnce(Return("[\"<SAMPLE>\", \"task-clock\", "
                          "\"1003\", \"1003\", 12951, 555, [\"x\", \"y\", \"Z\"]]"))
         .WillOnce(Return("[\"none\"]"))
@@ -359,7 +359,7 @@ TEST(StdSubclientTest, InvalidCommTest2) {
     }, [&](test::MockConnection &c) {
       InSequence sequence;
 
-      EXPECT_CALL(c, read()).Times(15)
+      EXPECT_CALL(c, read(NO_TIMEOUT)).Times(15)
         .WillOnce(Return("[\"<SYSCALL123>\", \"251\", [\"a\", \"b\", \"C\"]]"))
         .WillOnce(Return("[\"<SYSCALL>\", \"251\", [\"a\", \"b\", \"C\"]]"))
         .WillOnce(Return("[\"<SYSCALL_TREE>\", \"new_proc\", \"testx\", "
@@ -420,7 +420,7 @@ TEST(StdSubclientTest, InvalidCommTest3) {
       // 27007/27008: no new process
       // 27015/27015: execve without any other syscall events
 
-      EXPECT_CALL(c, read()).Times(17)
+      EXPECT_CALL(c, read(NO_TIMEOUT)).Times(17)
         .WillOnce(Return("[\"<SYSCALL>\", \"27006\", [\"+\"]]"))
         .WillOnce(Return("[\"<SYSCALL_TREE>\", \"exit\", \"abc\", "
                          "\"25011\", \"25011\", 8, \"0\"]"))

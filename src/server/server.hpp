@@ -24,6 +24,7 @@ namespace aperf {
       virtual std::unique_ptr<Subclient> make_subclient(Notifiable &context,
                                                         std::string profiled_filename,
                                                         unsigned int buf_size) = 0;
+      virtual std::string get_type() = 0;
     };
 
     virtual ~Subclient() { }
@@ -61,11 +62,11 @@ namespace aperf {
     class Factory {
     public:
       virtual std::unique_ptr<Client> make_client(std::unique_ptr<Connection> &connection,
-                                                  unsigned long long file_timeout_speed) = 0;
+                                                  unsigned long long file_timeout_seconds) = 0;
     };
 
     virtual ~Client() { }
-    virtual void process() = 0;
+    virtual void process(fs::path working_dir = fs::current_path()) = 0;
     virtual void notify() = 0;
   };
 
@@ -73,18 +74,18 @@ namespace aperf {
   protected:
     std::unique_ptr<Subclient::Factory> subclient_factory;
     std::unique_ptr<Connection> connection;
-    unsigned long long file_timeout_speed;
+    unsigned long long file_timeout_seconds;
 
     InitClient(std::unique_ptr<Subclient::Factory> &subclient_factory,
                std::unique_ptr<Connection> &connection,
-               unsigned long long file_timeout_speed) {
+               unsigned long long file_timeout_seconds) {
       this->subclient_factory = std::move(subclient_factory);
       this->connection = std::move(connection);
-      this->file_timeout_speed = file_timeout_speed;
+      this->file_timeout_seconds = file_timeout_seconds;
     }
 
   public:
-    virtual void process() = 0;
+    virtual void process(fs::path working_dir) = 0;
     virtual void notify() = 0;
   };
 
@@ -120,6 +121,10 @@ namespace aperf {
           StdSubclient>(new StdSubclient(context, acceptor,
                                          profiled_filename, buf_size));
       }
+
+      std::string get_type() {
+        return this->factory->get_type();
+      }
     };
 
     void process();
@@ -134,7 +139,7 @@ namespace aperf {
 
     StdClient(std::unique_ptr<Subclient::Factory> &subclient_factory,
               std::unique_ptr<Connection> &connection,
-              unsigned long long file_timeout_speed);
+              unsigned long long file_timeout_seconds);
 
   public:
     class Factory : public Client::Factory {
@@ -147,15 +152,15 @@ namespace aperf {
       }
 
       std::unique_ptr<Client> make_client(std::unique_ptr<Connection> &connection,
-                                          unsigned long long file_timeout_speed) {
+                                          unsigned long long file_timeout_seconds) {
         return std::unique_ptr<
           StdClient>(new StdClient(this->factory,
                                    connection,
-                                   file_timeout_speed));
+                                   file_timeout_seconds));
       }
     };
 
-    void process();
+    void process(fs::path working_dir);
     void notify();
   };
 
@@ -164,14 +169,14 @@ namespace aperf {
     std::unique_ptr<Acceptor> acceptor;
     unsigned int max_connections;
     unsigned int buf_size;
-    unsigned long long file_timeout_speed;
+    unsigned long long file_timeout_seconds;
     bool interrupted;
 
   public:
     Server(std::unique_ptr<Acceptor> &acceptor,
            unsigned int max_connections,
            unsigned int buf_size,
-           unsigned long long file_timeout_speed);
+           unsigned long long file_timeout_seconds);
     void run(std::unique_ptr<Client::Factory> &client_factory);
     void interrupt();
   };

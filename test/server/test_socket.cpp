@@ -108,15 +108,14 @@ protected:
   }
 };
 
-TEST(TCPAcceptorTest, GetPortAndInstrWithNoSubsequentPorts) {
+TEST(TCPAcceptorTest, GetInstrWithNoSubsequentPorts) {
   const unsigned short port = 2475;
   aperf::TCPAcceptor::Factory factory("127.0.0.1", port, false);
   std::unique_ptr<aperf::Acceptor> acceptor = factory.make_acceptor(UNLIMITED_ACCEPTED);
-  ASSERT_EQ(((aperf::TCPAcceptor *)acceptor.get())->get_port(), port);
-  ASSERT_EQ(acceptor->get_connection_instructions(), std::to_string(port));
+  ASSERT_EQ(acceptor->get_connection_instructions(), "127.0.0.1_" + std::to_string(port));
 }
 
-TEST(TCPAcceptorTest, GetPortAndInstrWithSubsequentPorts) {
+TEST(TCPAcceptorTest, GetInstrWithSubsequentPorts) {
   const unsigned short port = 3333;
 
   // Block port and port + 1
@@ -127,8 +126,7 @@ TEST(TCPAcceptorTest, GetPortAndInstrWithSubsequentPorts) {
   // Test
   aperf::TCPAcceptor::Factory factory("127.0.0.1", port, true);
   std::unique_ptr<aperf::Acceptor> acceptor = factory.make_acceptor(UNLIMITED_ACCEPTED);
-  ASSERT_EQ(((aperf::TCPAcceptor *)acceptor.get())->get_port(), port + 2);
-  ASSERT_EQ(acceptor->get_connection_instructions(), std::to_string(port + 2));
+  ASSERT_EQ(acceptor->get_connection_instructions(), "127.0.0.1_" + std::to_string(port + 2));
 }
 
 TEST_F(TCPAcceptorTestWithSocket, AcceptWithTwoMaxAccepted) {
@@ -171,7 +169,11 @@ TEST_F(TCPSocketTest, SocketCorrectness) {
   ASSERT_EQ(tcp_socket.get_buf_size(), buf_size);
 
   char buf[12];
-  int bytes = tcp_socket.read(buf, 12, 5);
+  int bytes = 0;
+
+  while (bytes < 12) {
+    bytes += tcp_socket.read(buf + bytes, 12 - bytes, 5);
+  }
 
   ASSERT_EQ(bytes, 12);
   ASSERT_EQ(buf[0], 22);

@@ -4,8 +4,18 @@
 #include "socket.hpp"
 #include <iostream>
 #include <cstring>
+#include <unistd.h>
+#include <fstream>
+#include <poll.h>
 #include <Poco/Buffer.h>
 #include <Poco/Net/NetException.h>
+#include <Poco/StreamCopier.h>
+#include <Poco/FileStream.h>
+#include <Poco/Net/SocketStream.h>
+
+#ifndef FILE_BUFFER_SIZE
+#define FILE_BUFFER_SIZE 1048576
+#endif
 
 namespace aperf {
   class charstreambuf : public std::streambuf {
@@ -64,12 +74,8 @@ namespace aperf {
     }
   }
 
-  unsigned short TCPAcceptor::get_port() {
-    return this->acceptor.address().port();
-  }
-
   std::string TCPAcceptor::get_connection_instructions() {
-    return std::to_string(this->get_port());
+    return this->acceptor.address().host().toString() + "_" + std::to_string(this->acceptor.address().port());
   }
 
   void TCPAcceptor::close() {
@@ -106,7 +112,7 @@ namespace aperf {
   int TCPSocket::read(char *buf, unsigned int len, long timeout_seconds) {
     try {
       this->socket.setReceiveTimeout(Poco::Timespan(timeout_seconds, 0));
-      int bytes = this->socket.receiveBytes(buf, len, MSG_WAITALL);
+      int bytes = this->socket.receiveBytes(buf, len);
       this->socket.setReceiveTimeout(Poco::Timespan());
       return bytes;
     } catch (net::NetException &e) {
@@ -118,7 +124,7 @@ namespace aperf {
     }
   }
 
-  std::string TCPSocket::read() {
+  std::string TCPSocket::read(long timeout_seconds) {
     try {
       if (!this->buffered_msgs.empty()) {
         std::string msg = this->buffered_msgs.front();
@@ -129,8 +135,17 @@ namespace aperf {
       std::string cur_msg = "";
 
       while (true) {
-        int bytes_received = this->socket.receiveBytes(this->buf.get() + this->start_pos,
-                                                       this->buf_size - this->start_pos);
+        int bytes_received;
+
+        if (timeout_seconds == NO_TIMEOUT) {
+          bytes_received =
+            this->socket.receiveBytes(this->buf.get() + this->start_pos,
+                                      this->buf_size - this->start_pos);
+        } else {
+          bytes_received =
+              this->read(this->buf.get() + this->start_pos,
+                         this->buf_size - this->start_pos, timeout_seconds);
+        }
 
         bool first_msg_to_receive = true;
         std::string first_msg;
@@ -200,4 +215,230 @@ namespace aperf {
       throw ConnectionException(e);
     }
   }
+
+  void TCPSocket::write(fs::path file) {
+    try {
+      net::SocketStream socket_stream(this->socket);
+      Poco::FileInputStream stream(file);
+      Poco::StreamCopier::copyStream(stream, socket_stream);
+
+      char end_of_text[1] = {0x3};
+      this->socket.sendBytes(end_of_text, 1);
+    } catch (net::NetException &e) {
+      throw ConnectionException(e);
+    }
+  }
+
+#ifndef SERVER_ONLY
+  FileDescriptor::FileDescriptor(int read_fd[2], int write_fd[2],
+                                 unsigned int buf_size) {
+    this->buf.reset(new char[buf_size]);
+    this->buf_size = buf_size;
+    this->start_pos = 0;
+    this->read_fd[0] = read_fd[0];
+    this->read_fd[1] = read_fd[1];
+    this->write_fd[0] = write_fd[0];
+    this->write_fd[1] = write_fd[1];
+  }
+
+  FileDescriptor::~FileDescriptor() {
+    this->close();
+  }
+
+  void FileDescriptor::close() {
+    ::close(this->read_fd[0]);
+    ::close(this->write_fd[1]);
+  }
+
+  int FileDescriptor::read(char *buf, unsigned int len, long timeout_seconds) {
+    struct pollfd poll_struct;
+    poll_struct.fd = this->read_fd[0];
+    poll_struct.events = POLLIN;
+
+    int code = ::poll(&poll_struct, 1, 1000 * timeout_seconds);
+
+    if (code == -1) {
+      throw ConnectionException();
+    } else if (code == 0) {
+      throw TimeoutException();
+    }
+
+    return ::read(this->read_fd[0], buf, len);
+  }
+
+  std::string FileDescriptor::read(long timeout_seconds) {
+    if (!this->buffered_msgs.empty()) {
+      std::string msg = this->buffered_msgs.front();
+      this->buffered_msgs.pop();
+      return msg;
+    }
+
+    std::string cur_msg = "";
+
+    while (true) {
+      int bytes_received;
+
+      if (timeout_seconds == NO_TIMEOUT) {
+        bytes_received =
+            ::read(this->read_fd[0], this->buf.get() + this->start_pos,
+                   this->buf_size - this->start_pos);
+      } else {
+        bytes_received = this->read(this->buf.get() + this->start_pos,
+                                    this->buf_size - this->start_pos,
+                                    timeout_seconds);
+      }
+
+      if (bytes_received == -1) {
+        throw ConnectionException();
+      }
+
+      bool first_msg_to_receive = true;
+      std::string first_msg;
+
+      charstreambuf buf(this->buf, bytes_received + this->start_pos);
+      std::istream in(&buf);
+
+      int cur_pos = 0;
+      bool last_is_newline = this->buf.get()[bytes_received + this->start_pos - 1] == '\n';
+
+      while (!in.eof()) {
+        std::string msg;
+        std::getline(in, msg);
+
+        if (in.eof() && !last_is_newline) {
+          int size = bytes_received + this->start_pos - cur_pos;
+
+          if (size == this->buf_size) {
+            cur_msg += std::string(this->buf.get(), this->buf_size);
+            this->start_pos = 0;
+          } else {
+            std::memmove(this->buf.get(), this->buf.get() + cur_pos, size);
+            this->start_pos = size;
+          }
+        } else {
+          if (!cur_msg.empty() || !msg.empty()) {
+            if (first_msg_to_receive) {
+              first_msg = cur_msg + msg;
+              first_msg_to_receive = false;
+            } else {
+              this->buffered_msgs.push(cur_msg + msg);
+            }
+
+            cur_msg = "";
+          }
+
+          cur_pos += msg.length() + 1;
+        }
+      }
+
+      if (last_is_newline) {
+        this->start_pos = 0;
+      }
+
+      if (!first_msg_to_receive) {
+        return first_msg;
+      }
+    }
+
+    // Should not get here.
+    return "";
+  }
+
+  void FileDescriptor::write(std::string msg, bool new_line) {
+    if (new_line) {
+      msg += "\n";
+    }
+
+    const char *buf = msg.c_str();
+    int written = ::write(this->write_fd[1], buf, msg.size());
+
+    if (written != msg.size()) {
+      std::runtime_error err("Wrote " +
+                             std::to_string(written) +
+                             " bytes instead of " +
+                             std::to_string(msg.size()) +
+                             " to fd " +
+                             std::to_string(this->write_fd[1]));
+      throw ConnectionException(err);
+    }
+  }
+
+  void FileDescriptor::write(fs::path file) {
+    std::unique_ptr<char> buf(new char[FILE_BUFFER_SIZE]);
+    std::ifstream file_stream(file);
+
+    if (!file_stream) {
+      throw std::runtime_error("Could not open the file " +
+                               file.string() + "!");
+    }
+
+    while (file_stream) {
+      int bytes_read = file_stream.readsome(buf.get(),
+                                            FILE_BUFFER_SIZE);
+      int bytes_written = ::write(this->write_fd[1], buf.get(),
+                                  bytes_read);
+
+      if (bytes_written != bytes_read) {
+        throw std::runtime_error("Wrote " +
+                                 std::to_string(bytes_written) +
+                                 " bytes instead of " +
+                                 std::to_string(bytes_read) +
+                                 " to fd " +
+                                 std::to_string(this->write_fd[1]));
+      }
+    }
+  }
+
+  unsigned int FileDescriptor::get_buf_size() {
+    return this->buf_size;
+  }
+
+  PipeAcceptor::PipeAcceptor() : Acceptor(1) {
+    if (pipe(this->read_fd) != 0) {
+      throw std::runtime_error("Could not open read pipe for FileDescriptor, "
+                               "code " + std::to_string(errno));
+    }
+
+    if (pipe(this->write_fd) != 0) {
+      throw std::runtime_error("Could not open write pipe for FileDescriptor, "
+                               "code " + std::to_string(errno));
+    }
+  }
+
+  std::unique_ptr<Connection> PipeAcceptor::accept_connection(unsigned int buf_size) {
+    std::string expected = "connect";
+    const int size = expected.size();
+
+    char buf[size];
+    int bytes_received = 0;
+
+    while (bytes_received < size) {
+      int received = ::read(this->read_fd[0], buf + bytes_received,
+                            size - bytes_received);
+
+      if (received <= 0) {
+        break;
+      }
+
+      bytes_received += received;
+    }
+
+    std::string msg(buf, size);
+
+    if (msg != expected) {
+      throw std::runtime_error("Message received from pipe when establishing connection "
+                               "is \"" + msg + "\" instead of \"" + expected + "\".");
+    }
+
+    return std::unique_ptr<Connection>(new FileDescriptor(this->read_fd,
+                                                          this->write_fd,
+                                                          buf_size));
+  }
+
+  void PipeAcceptor::close() {}
+
+  std::string PipeAcceptor::get_connection_instructions() {
+    return std::to_string(this->write_fd[0]) + "_" + std::to_string(this->read_fd[1]);
+  }
+#endif
 }

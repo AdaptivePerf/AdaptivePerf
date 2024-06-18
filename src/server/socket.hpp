@@ -7,23 +7,28 @@
 #include <string>
 #include <queue>
 #include <memory>
+#include <iostream>
+#include <filesystem>
 #include <Poco/Net/ServerSocket.h>
 
 #define UNLIMITED_ACCEPTED -1
+#define NO_TIMEOUT -1
 
 namespace aperf {
   namespace net = Poco::Net;
-
-  class AlreadyInUseException : std::exception {
-
-  };
+  namespace fs = std::filesystem;
 
   class ConnectionException : public std::exception {
   public:
+    ConnectionException() {}
     ConnectionException(std::exception &other) : std::exception(other) { }
   };
 
-  class TimeoutException : std::exception {
+  class AlreadyInUseException : public ConnectionException {
+
+  };
+
+  class TimeoutException : public std::exception {
 
   };
 
@@ -34,8 +39,9 @@ namespace aperf {
   public:
     virtual ~Connection() { }
     virtual int read(char *buf, unsigned int len, long timeout_seconds) = 0;
-    virtual std::string read() = 0;
+    virtual std::string read(long timeout_seconds = NO_TIMEOUT) = 0;
     virtual void write(std::string msg, bool new_line = true) = 0;
+    virtual void write(fs::path file) = 0;
     virtual unsigned int get_buf_size() = 0;
   };
 
@@ -49,8 +55,9 @@ namespace aperf {
     virtual unsigned short get_port() = 0;
     virtual unsigned int get_buf_size() = 0;
     virtual int read(char *buf, unsigned int len, long timeout_seconds) = 0;
-    virtual std::string read() = 0;
+    virtual std::string read(long timeout_seconds = NO_TIMEOUT) = 0;
     virtual void write(std::string msg, bool new_line = true) = 0;
+    virtual void write(fs::path file) = 0;
   };
 
   class Acceptor {
@@ -66,6 +73,7 @@ namespace aperf {
     class Factory {
     public:
       virtual std::unique_ptr<Acceptor> make_acceptor(int max_accepted) = 0;
+      virtual std::string get_type() = 0;
     };
 
     Acceptor(int max_accepted) {
@@ -107,8 +115,9 @@ namespace aperf {
     unsigned short get_port();
     unsigned int get_buf_size();
     int read(char *buf, unsigned int len, long timeout_seconds);
-    std::string read();
-    void write(std::string msg, bool new_line = true);
+    std::string read(long timeout_seconds = NO_TIMEOUT);
+    void write(std::string msg, bool new_line);
+    void write(fs::path file);
   };
 
   class TCPAcceptor : public Acceptor {
@@ -144,12 +153,69 @@ namespace aperf {
                                                          max_accepted,
                                                          this->try_subsequent_ports));
       }
+
+      std::string get_type() {
+        return "tcp";
+      }
     };
 
     ~TCPAcceptor();
-    unsigned short get_port();
     std::string get_connection_instructions();
   };
+
+#ifndef SERVER_ONLY
+  class FileDescriptor : public Connection {
+  private:
+    int read_fd[2];
+    int write_fd[2];
+    unsigned int buf_size;
+    std::queue<std::string> buffered_msgs;
+    std::unique_ptr<char> buf;
+    int start_pos;
+
+  protected:
+    void close();
+
+  public:
+    FileDescriptor(int read_fd[2],
+                   int write_fd[2],
+                   unsigned int buf_size);
+    ~FileDescriptor();
+    int read(char *buf, unsigned int len, long timeout_seconds);
+    std::string read(long timeout_seconds = NO_TIMEOUT);
+    void write(std::string msg, bool new_line);
+    void write(fs::path file);
+    unsigned int get_buf_size();
+  };
+
+  class PipeAcceptor : public Acceptor {
+  private:
+    int read_fd[2];
+    int write_fd[2];
+    PipeAcceptor();
+
+  protected:
+    std::unique_ptr<Connection> accept_connection(unsigned int buf_size);
+    void close();
+
+  public:
+    class Factory : public Acceptor::Factory {
+      std::unique_ptr<Acceptor> make_acceptor(int max_accepted) {
+        if (max_accepted != 1) {
+          throw std::runtime_error("max_accepted can only be 1 for FileDescriptor");
+        }
+
+        return std::unique_ptr<Acceptor>(new PipeAcceptor());
+      }
+
+      std::string get_type() {
+        return "pipe";
+      }
+    };
+
+    std::string get_connection_instructions();
+  };
+#endif
 }
 
 #endif

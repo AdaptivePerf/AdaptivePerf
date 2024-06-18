@@ -12,11 +12,11 @@ namespace aperf {
   Server::Server(std::unique_ptr<Acceptor> &acceptor,
                  unsigned int max_connections,
                  unsigned int buf_size,
-                 unsigned long long file_timeout_speed) {
+                 unsigned long long file_timeout_seconds) {
     this->acceptor = std::move(acceptor);
     this->max_connections = max_connections;
     this->buf_size = buf_size;
-    this->file_timeout_speed = file_timeout_speed;
+    this->file_timeout_seconds = file_timeout_seconds;
     this->interrupted = false;
   }
 
@@ -37,10 +37,12 @@ namespace aperf {
         }
 
         if (working_count >= std::max(1U, this->max_connections)) {
-          connection->write("try_again");
+          connection->write("try_again", true);
         } else {
-          clients.push_back(client_factory->make_client(connection, this->file_timeout_speed));
-          threads.push_back(std::async(&Client::process, clients.back().get()));
+          clients.push_back(client_factory->make_client(connection, this->file_timeout_seconds));
+
+          Client *client = clients.back().get();
+          threads.push_back(std::async([client]() { client->process(); }));
 
           if (this->max_connections == 0) {
             break;

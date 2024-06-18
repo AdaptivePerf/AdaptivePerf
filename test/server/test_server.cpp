@@ -49,7 +49,7 @@ TEST(ServerTest, ZeroMaxConnections) {
         created_clients++;
         EXPECT_CALL(client, construct(last_connection, file_timeout_speed)).Times(1);
         client.set_interrupt_ptr(&interrupted);
-        EXPECT_CALL(client, real_process).Times(1).WillOnce([&]() {
+        EXPECT_CALL(client, real_process(fs::current_path())).Times(1).WillOnce([&]() {
           interrupted = true;
         });
       }, true);
@@ -95,6 +95,7 @@ TEST(ServerTest, TwoMaxConnections) {
       }, false);
 
     std::unique_ptr<aperf::Acceptor> acceptor = factory.make_acceptor(UNLIMITED_ACCEPTED);
+    fs::path current_path = fs::current_path();
 
     // A separate scope is needed for ensuring the correct order
     // of destructor calls (gmock will seg fault otherwise).
@@ -107,7 +108,7 @@ TEST(ServerTest, TwoMaxConnections) {
 
           EXPECT_CALL(client, construct(last_connection, file_timeout_speed)).Times(1);
           client.set_interrupt_ptr(&interrupted);
-          EXPECT_CALL(client, real_process).Times(1);
+          EXPECT_CALL(client, real_process(current_path)).Times(1);
 
           if (created_clients == 4) {
             server.interrupt();

@@ -27,7 +27,7 @@ protected:
 TEST_F(StdClientTest, StandardCommTest) {
   for (int i = 0; i < CLIENT_TEST_REPEAT; i++) {
     const fs::path result_path("test_result_dir");
-    const unsigned long long file_timeout_speed = 124941;
+    const unsigned long long file_timeout_seconds = 124941;
     const std::string result_dir = result_path.filename();
     const std::string profiled_filename = "test_command123";
     const unsigned int buf_size = 1024;
@@ -116,38 +116,16 @@ TEST_F(StdClientTest, StandardCommTest) {
 
     {
       InSequence sequence;
-      EXPECT_CALL(connection, read())
+      EXPECT_CALL(connection, read(NO_TIMEOUT))
         .Times(2)
         .WillOnce(Return("start" + std::to_string(subclients) + " " + result_dir))
         .WillOnce(Return(profiled_filename));
-      EXPECT_CALL(connection, write("1 2 3 4", true)).Times(1);
+      EXPECT_CALL(connection, write("mock 1 2 3 4", true)).Times(1);
       EXPECT_CALL(connection, write("start_profile", true)).Times(1);
       EXPECT_CALL(connection, write("out_files", true)).Times(1);
-      EXPECT_CALL(connection, read())
-        .Times(6)
-        .WillOnce(Return("10 o out1.dat"))
-        .WillOnce(Return("2 p proc1.dat"))
-        .WillOnce(Return("0 o out2.dat"))
-        .WillOnce(Return("3 o out3.dat"))
-        .WillOnce(Return("6 p proc2.dat"))
-        .WillOnce(Return("<STOP>"));
-      EXPECT_CALL(connection, read(_, 2, std::ceil(2.0 / file_timeout_speed))).Times(1)
-        .WillOnce([&](char *buf, unsigned int bytes, long timeout) {
-          buf[0] = ' ';
-          buf[1] = '!';
-          return bytes;
-        });
-      EXPECT_CALL(connection, read(_, 6, std::ceil(6.0 / file_timeout_speed))).Times(1)
-        .WillOnce([&](char *buf, unsigned int bytes, long timeout) {
-          buf[0] = 'O';
-          buf[1] = 'p';
-          buf[2] = '%';
-          buf[3] = '%';
-          buf[4] = 'b';
-          buf[5] = '+';
-          return bytes;
-        });
-      EXPECT_CALL(connection, read(_, 10, std::ceil(10.0 / file_timeout_speed))).Times(1)
+      EXPECT_CALL(connection, read(NO_TIMEOUT)).Times(1)
+        .WillOnce(Return("o out1.dat"));
+      EXPECT_CALL(connection, read(_, _, file_timeout_seconds)).Times(1)
         .WillOnce([&](char *buf, unsigned int bytes, long timeout) {
           buf[0] = 'a';
           buf[1] = 'b';
@@ -159,17 +137,51 @@ TEST_F(StdClientTest, StandardCommTest) {
           buf[7] = '3';
           buf[8] = '4';
           buf[9] = '5';
-          return bytes;
+          buf[10] = 0x03;
+          return 11;
         });
-      EXPECT_CALL(connection, read(_, 0, 0)).Times(1)
-        .WillOnce(Return(0));
-      EXPECT_CALL(connection, read(_, 3, std::ceil(3.0 / file_timeout_speed))).Times(1)
+      EXPECT_CALL(connection, read(NO_TIMEOUT)).Times(1)
+        .WillOnce(Return("p proc1.dat"));
+      EXPECT_CALL(connection, read(_, _, file_timeout_seconds)).Times(1)
+        .WillOnce([&](char *buf, unsigned int bytes, long timeout) {
+          buf[0] = ' ';
+          buf[1] = '!';
+          buf[2] = 0x03;
+          return 3;
+        });
+      EXPECT_CALL(connection, read(NO_TIMEOUT)).Times(1)
+        .WillOnce(Return("o out2.dat"));
+      EXPECT_CALL(connection, read(_, _, file_timeout_seconds)).Times(1)
+        .WillOnce([&](char *buf, unsigned int bytes, long timeout) {
+          buf[0] = 0x03;
+          return 1;
+        });
+      EXPECT_CALL(connection, read(NO_TIMEOUT)).Times(1)
+        .WillOnce(Return("o out3.dat"));
+      EXPECT_CALL(connection, read(_, _, file_timeout_seconds)).Times(1)
         .WillOnce([&](char *buf, unsigned int bytes, long timeout) {
           buf[0] = 'X';
           buf[1] = '@';
           buf[2] = '?';
-          return bytes;
+          buf[3] = 0x03;
+          return 4;
         });
+      EXPECT_CALL(connection, read(NO_TIMEOUT)).Times(1)
+        .WillOnce(Return("p proc2.dat"));
+      EXPECT_CALL(connection, read(_, _, file_timeout_seconds)).Times(1)
+        .WillOnce([&](char *buf, unsigned int bytes, long timeout) {
+          buf[0] = 'O';
+          buf[1] = 'p';
+          buf[2] = '%';
+          buf[3] = '%';
+          buf[4] = 'b';
+          buf[5] = '+';
+          buf[6] = 0x03;
+          return 7;
+        });
+      EXPECT_CALL(connection, read(NO_TIMEOUT)).Times(1)
+        .WillOnce(Return("<STOP>"));
+
       EXPECT_CALL(connection, write("finished", true)).Times(1);
       EXPECT_CALL(connection, close).Times(1);
     }
@@ -179,7 +191,7 @@ TEST_F(StdClientTest, StandardCommTest) {
     {
       aperf::StdClient::Factory factory(subclient_factory);
       std::unique_ptr<aperf::Client> client = factory.make_client(mock_connection,
-                                                                  file_timeout_speed);
+                                                                  file_timeout_seconds);
       client->process();
     }
 
@@ -228,7 +240,7 @@ TEST_F(StdClientTest, StandardCommTest) {
 TEST_F(StdClientTest, StandardCommTestNoValidFiles) {
   for (int i = 0; i < CLIENT_TEST_REPEAT; i++) {
     const fs::path result_path("test_result_dir");
-    const unsigned long long file_timeout_speed = 124941;
+    const unsigned long long file_timeout_seconds = 124941;
     const std::string result_dir = result_path.filename();
     const std::string profiled_filename = "test_command123";
     const unsigned int buf_size = 1024;
@@ -311,34 +323,34 @@ TEST_F(StdClientTest, StandardCommTestNoValidFiles) {
 
     {
       InSequence sequence;
-      EXPECT_CALL(connection, read())
+      EXPECT_CALL(connection, read(NO_TIMEOUT))
         .Times(2)
         .WillOnce(Return("start" + std::to_string(subclients) + " " + result_dir))
         .WillOnce(Return(profiled_filename));
-      EXPECT_CALL(connection, write("1 2 3 4 5", true)).Times(1);
+      EXPECT_CALL(connection, write("mock 1 2 3 4 5", true)).Times(1);
       EXPECT_CALL(connection, write("start_profile", true)).Times(1);
       EXPECT_CALL(connection, write("out_files", true)).Times(1);
-      EXPECT_CALL(connection, read())
+      EXPECT_CALL(connection, read(NO_TIMEOUT))
         .Times(1)
         .WillOnce(Return("some_garbage"));
       EXPECT_CALL(connection, write("error_wrong_file_format", true)).Times(1);
-      EXPECT_CALL(connection, read())
+      EXPECT_CALL(connection, read(NO_TIMEOUT))
         .Times(1)
-        .WillOnce(Return("10000 z invalid.dat"));
+        .WillOnce(Return("z invalid.dat"));
       EXPECT_CALL(connection, write("error_wrong_file_format", true)).Times(1);
-      EXPECT_CALL(connection, read())
+      EXPECT_CALL(connection, read(NO_TIMEOUT))
         .Times(1)
         .WillOnce(Return("1 p"));
       EXPECT_CALL(connection, write("error_wrong_file_format", true)).Times(1);
-      EXPECT_CALL(connection, read())
+      EXPECT_CALL(connection, read(NO_TIMEOUT))
         .Times(1)
         .WillOnce(Return("s1 p test.dat"));
       EXPECT_CALL(connection, write("error_wrong_file_format", true)).Times(1);
-      EXPECT_CALL(connection, read())
+      EXPECT_CALL(connection, read(NO_TIMEOUT))
         .Times(1)
-        .WillOnce(Return("700@ o test.dat"));
+        .WillOnce(Return("700@o test.dat"));
       EXPECT_CALL(connection, write("error_wrong_file_format", true)).Times(1);
-      EXPECT_CALL(connection, read())
+      EXPECT_CALL(connection, read(NO_TIMEOUT))
         .Times(1)
         .WillOnce(Return("<STOP>"));
       EXPECT_CALL(connection, write("finished", true)).Times(1);
@@ -350,7 +362,7 @@ TEST_F(StdClientTest, StandardCommTestNoValidFiles) {
     {
       aperf::StdClient::Factory factory(subclient_factory);
       std::unique_ptr<aperf::Client> client = factory.make_client(mock_connection,
-                                                                  file_timeout_speed);
+                                                                  file_timeout_seconds);
       client->process();
     }
 
@@ -383,7 +395,7 @@ TEST_F(StdClientTest, StandardCommTestNoValidFiles) {
 
 TEST_F(StdClientTest, InvalidCommTest1) {
   for (int i = 0; i < CLIENT_TEST_REPEAT; i++) {
-    const unsigned long long file_timeout_speed = 124941;
+    const unsigned long long file_timeout_seconds = 124941;
     int created_subclients = 0;
 
     std::unique_ptr<aperf::Subclient::Factory> subclient_factory =
@@ -398,7 +410,7 @@ TEST_F(StdClientTest, InvalidCommTest1) {
 
     {
       InSequence sequence;
-      EXPECT_CALL(connection, read())
+      EXPECT_CALL(connection, read(NO_TIMEOUT))
         .Times(1)
         .WillOnce(Return("some_garbage123"));
       EXPECT_CALL(connection, write("error_wrong_command", true)).Times(1);
@@ -410,7 +422,7 @@ TEST_F(StdClientTest, InvalidCommTest1) {
     {
       aperf::StdClient::Factory factory(subclient_factory);
       std::unique_ptr<aperf::Client> client = factory.make_client(mock_connection,
-                                                                  file_timeout_speed);
+                                                                  file_timeout_seconds);
       client->process();
     }
 
@@ -420,7 +432,7 @@ TEST_F(StdClientTest, InvalidCommTest1) {
 
 TEST_F(StdClientTest, InvalidCommTest2) {
   for (int i = 0; i < CLIENT_TEST_REPEAT; i++) {
-    const unsigned long long file_timeout_speed = 124941;
+    const unsigned long long file_timeout_seconds = 124941;
     int created_subclients = 0;
 
     std::unique_ptr<aperf::Subclient::Factory> subclient_factory =
@@ -435,7 +447,7 @@ TEST_F(StdClientTest, InvalidCommTest2) {
 
     {
       InSequence sequence;
-      EXPECT_CALL(connection, read())
+      EXPECT_CALL(connection, read(NO_TIMEOUT))
         .Times(1)
         .WillOnce(Return("start test"));
       EXPECT_CALL(connection, write("error_wrong_command", true)).Times(1);
@@ -447,7 +459,7 @@ TEST_F(StdClientTest, InvalidCommTest2) {
     {
       aperf::StdClient::Factory factory(subclient_factory);
       std::unique_ptr<aperf::Client> client = factory.make_client(mock_connection,
-                                                                  file_timeout_speed);
+                                                                  file_timeout_seconds);
       client->process();
     }
 
@@ -457,7 +469,7 @@ TEST_F(StdClientTest, InvalidCommTest2) {
 
 TEST_F(StdClientTest, InvalidCommTest3) {
   for (int i = 0; i < CLIENT_TEST_REPEAT; i++) {
-    const unsigned long long file_timeout_speed = 124941;
+    const unsigned long long file_timeout_seconds = 124941;
     int created_subclients = 0;
 
     std::unique_ptr<aperf::Subclient::Factory> subclient_factory =
@@ -472,7 +484,7 @@ TEST_F(StdClientTest, InvalidCommTest3) {
 
     {
       InSequence sequence;
-      EXPECT_CALL(connection, read())
+      EXPECT_CALL(connection, read(NO_TIMEOUT))
         .Times(1)
         .WillOnce(Return("start700! test"));
       EXPECT_CALL(connection, write("error_wrong_command", true)).Times(1);
@@ -484,7 +496,7 @@ TEST_F(StdClientTest, InvalidCommTest3) {
     {
       aperf::StdClient::Factory factory(subclient_factory);
       std::unique_ptr<aperf::Client> client = factory.make_client(mock_connection,
-                                                                  file_timeout_speed);
+                                                                  file_timeout_seconds);
       client->process();
     }
 
@@ -494,7 +506,7 @@ TEST_F(StdClientTest, InvalidCommTest3) {
 
 TEST_F(StdClientTest, InvalidCommTest4) {
   for (int i = 0; i < CLIENT_TEST_REPEAT; i++) {
-    const unsigned long long file_timeout_speed = 124941;
+    const unsigned long long file_timeout_seconds = 124941;
     int created_subclients = 0;
 
     std::unique_ptr<aperf::Subclient::Factory> subclient_factory =
@@ -509,7 +521,7 @@ TEST_F(StdClientTest, InvalidCommTest4) {
 
     {
       InSequence sequence;
-      EXPECT_CALL(connection, read())
+      EXPECT_CALL(connection, read(NO_TIMEOUT))
         .Times(1)
         .WillOnce(Return("start8 "));
       EXPECT_CALL(connection, write("error_wrong_command", true)).Times(1);
@@ -521,7 +533,7 @@ TEST_F(StdClientTest, InvalidCommTest4) {
     {
       aperf::StdClient::Factory factory(subclient_factory);
       std::unique_ptr<aperf::Client> client = factory.make_client(mock_connection,
-                                                                  file_timeout_speed);
+                                                                  file_timeout_seconds);
       client->process();
     }
 
@@ -531,7 +543,7 @@ TEST_F(StdClientTest, InvalidCommTest4) {
 
 TEST_F(StdClientTest, InvalidCommTest5) {
   for (int i = 0; i < CLIENT_TEST_REPEAT; i++) {
-    const unsigned long long file_timeout_speed = 124941;
+    const unsigned long long file_timeout_seconds = 124941;
     int created_subclients = 0;
 
     std::unique_ptr<aperf::Subclient::Factory> subclient_factory =
@@ -546,7 +558,7 @@ TEST_F(StdClientTest, InvalidCommTest5) {
 
     {
       InSequence sequence;
-      EXPECT_CALL(connection, read())
+      EXPECT_CALL(connection, read(NO_TIMEOUT))
         .Times(1)
         .WillOnce(Return("start1"));
       EXPECT_CALL(connection, write("error_wrong_command", true)).Times(1);
@@ -558,7 +570,7 @@ TEST_F(StdClientTest, InvalidCommTest5) {
     {
       aperf::StdClient::Factory factory(subclient_factory);
       std::unique_ptr<aperf::Client> client = factory.make_client(mock_connection,
-                                                                  file_timeout_speed);
+                                                                  file_timeout_seconds);
       client->process();
     }
 
@@ -568,7 +580,7 @@ TEST_F(StdClientTest, InvalidCommTest5) {
 
 TEST_F(StdClientTest, InvalidCommTest6) {
   for (int i = 0; i < CLIENT_TEST_REPEAT; i++) {
-    const unsigned long long file_timeout_speed = 124941;
+    const unsigned long long file_timeout_seconds = 124941;
     int created_subclients = 0;
 
     std::unique_ptr<aperf::Subclient::Factory> subclient_factory =
@@ -583,7 +595,7 @@ TEST_F(StdClientTest, InvalidCommTest6) {
 
     {
       InSequence sequence;
-      EXPECT_CALL(connection, read())
+      EXPECT_CALL(connection, read(NO_TIMEOUT))
         .Times(1)
         .WillOnce(Return("start0 test_result_dir"));
       EXPECT_CALL(connection, write("error_wrong_command", true)).Times(1);
@@ -595,7 +607,7 @@ TEST_F(StdClientTest, InvalidCommTest6) {
     {
       aperf::StdClient::Factory factory(subclient_factory);
       std::unique_ptr<aperf::Client> client = factory.make_client(mock_connection,
-                                                                  file_timeout_speed);
+                                                                  file_timeout_seconds);
       client->process();
     }
 
