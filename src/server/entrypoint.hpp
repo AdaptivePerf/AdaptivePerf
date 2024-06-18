@@ -4,6 +4,11 @@
 #ifndef SERVER_ENTRYPOINT_HPP_
 #define SERVER_ENTRYPOINT_HPP_
 
-int server_entrypoint(int argc, char **argv);
+namespace aperf {
+#ifndef ENTRYPOINT_HPP_
+  extern const char *version;
+#endif
+  int server_entrypoint(int argc, char **argv);
+};
 
 #endif
