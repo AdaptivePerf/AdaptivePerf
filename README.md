@@ -92,3 +92,12 @@ The structure of ```results``` is as follows:
     * **(PID)\_(TID).json**: all samples gathered by on-CPU/off-CPU profiling and custom perf event profiling (if any) stored in JSON, per thread/process.
 
 It is recommended to use [AdaptivePerfHTML](https://github.com/AdaptivePerf/adaptiveperfhtml) for creating an interactive HTML summary of your profiling sessions.
+
+## Troubleshooting
+
+### libaperfserv.so not found
+After installing AdaptivePerf/adaptiveperf-server, you may get an error like the one below when trying to run the tool on Linux:
+```
+adaptiveperf: error while loading shared libraries: libaperfserv.so: cannot open shared object file: No such file or directory
+```
+If this happens, please add ```<your installation prefix>/lib``` (it's ```/usr/local/lib``` by default) to ```/etc/ld.so.conf``` and run ```ldconfig``` afterwards. Alternatively, run AdaptivePerf with ```<your installation prefix>/lib``` appended to the ```LD_LIBRARY_PATH``` environment variable.
