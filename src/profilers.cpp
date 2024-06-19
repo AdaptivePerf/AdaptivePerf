@@ -9,7 +9,6 @@
 #include <sys/wait.h>
 #include <fcntl.h>
 #include <nlohmann/json.hpp>
-#include <perfmon/pfmlib.h>
 
 #ifndef APERF_SCRIPT_PATH
 #define APERF_SCRIPT_PATH "."

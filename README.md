@@ -68,7 +68,7 @@ You also need to set the maximum number of stack entries to be collected by runn
 
 If your machine has NUMA (non-uniform memory access), you should note that NUMA memory balancing in Linux limits the reliability of obtaining complete stacks across all CPUs / CPU cores. In this case, you must either disable NUMA balancing by running ```sysctl kernel.numa_balancing=0``` or run AdaptivePerf on a single NUMA node.
 
-To profile your program, please run the following command:
+To profile your program, please run the following command (you may need to do it as root):
 ```
 adaptiveperf "<command to be profiled>"
 ```
