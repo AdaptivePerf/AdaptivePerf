@@ -72,14 +72,14 @@ namespace aperf {
 
   class InitClient : public Client {
   protected:
-    std::unique_ptr<Subclient::Factory> subclient_factory;
+    std::shared_ptr<Subclient::Factory> subclient_factory;
     std::unique_ptr<Connection> connection;
     unsigned long long file_timeout_seconds;
 
-    InitClient(std::unique_ptr<Subclient::Factory> &subclient_factory,
+    InitClient(std::shared_ptr<Subclient::Factory> &subclient_factory,
                std::unique_ptr<Connection> &connection,
                unsigned long long file_timeout_seconds) {
-      this->subclient_factory = std::move(subclient_factory);
+      this->subclient_factory = subclient_factory;
       this->connection = std::move(connection);
       this->file_timeout_seconds = file_timeout_seconds;
     }
@@ -106,7 +106,7 @@ namespace aperf {
   public:
     class Factory : public Subclient::Factory {
     private:
-      std::unique_ptr<Acceptor::Factory> factory;
+      std::shared_ptr<Acceptor::Factory> factory;
 
     public:
       Factory(std::unique_ptr<Acceptor::Factory> &factory) {
@@ -137,14 +137,14 @@ namespace aperf {
     std::mutex accepted_mutex;
     std::condition_variable accepted_cond;
 
-    StdClient(std::unique_ptr<Subclient::Factory> &subclient_factory,
+    StdClient(std::shared_ptr<Subclient::Factory> &subclient_factory,
               std::unique_ptr<Connection> &connection,
               unsigned long long file_timeout_seconds);
 
   public:
     class Factory : public Client::Factory {
     private:
-      std::unique_ptr<Subclient::Factory> factory;
+      std::shared_ptr<Subclient::Factory> factory;
 
     public:
       Factory(std::unique_ptr<Subclient::Factory> &factory) {
