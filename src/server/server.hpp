@@ -62,6 +62,7 @@ namespace aperf {
     class Factory {
     public:
       virtual std::unique_ptr<Client> make_client(std::unique_ptr<Connection> &connection,
+                                                  std::unique_ptr<Acceptor> &file_acceptor,
                                                   unsigned long long file_timeout_seconds) = 0;
     };
 
@@ -74,13 +75,16 @@ namespace aperf {
   protected:
     std::shared_ptr<Subclient::Factory> subclient_factory;
     std::unique_ptr<Connection> connection;
+    std::unique_ptr<Acceptor> file_acceptor;
     unsigned long long file_timeout_seconds;
 
     InitClient(std::shared_ptr<Subclient::Factory> &subclient_factory,
                std::unique_ptr<Connection> &connection,
+               std::unique_ptr<Acceptor> &file_acceptor,
                unsigned long long file_timeout_seconds) {
       this->subclient_factory = subclient_factory;
       this->connection = std::move(connection);
+      this->file_acceptor = std::move(file_acceptor);
       this->file_timeout_seconds = file_timeout_seconds;
     }
 
@@ -139,6 +143,7 @@ namespace aperf {
 
     StdClient(std::shared_ptr<Subclient::Factory> &subclient_factory,
               std::unique_ptr<Connection> &connection,
+              std::unique_ptr<Acceptor> &file_acceptor,
               unsigned long long file_timeout_seconds);
 
   public:
@@ -152,10 +157,12 @@ namespace aperf {
       }
 
       std::unique_ptr<Client> make_client(std::unique_ptr<Connection> &connection,
+                                          std::unique_ptr<Acceptor> &file_acceptor,
                                           unsigned long long file_timeout_seconds) {
         return std::unique_ptr<
           StdClient>(new StdClient(this->factory,
                                    connection,
+                                   file_acceptor,
                                    file_timeout_seconds));
       }
     };
@@ -177,7 +184,8 @@ namespace aperf {
            unsigned int max_connections,
            unsigned int buf_size,
            unsigned long long file_timeout_seconds);
-    void run(std::unique_ptr<Client::Factory> &client_factory);
+    void run(std::unique_ptr<Client::Factory> &client_factory,
+             std::unique_ptr<Acceptor::Factory> &file_acceptor_factory);
     void interrupt();
   };
 };

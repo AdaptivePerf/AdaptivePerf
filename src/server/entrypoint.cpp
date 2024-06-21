@@ -50,6 +50,9 @@ namespace aperf {
         std::unique_ptr<Acceptor::Factory> acceptor_factory =
           std::make_unique<TCPAcceptor::Factory>(address,
                                                  port + 1, true);
+        std::unique_ptr<Acceptor::Factory> file_acceptor_factory =
+          std::make_unique<TCPAcceptor::Factory>(address,
+                                                 port + 1, true);
         std::unique_ptr<Subclient::Factory> subclient_factory =
           std::make_unique<StdSubclient::Factory>(acceptor_factory);
         std::unique_ptr<Client::Factory> client_factory =
@@ -63,7 +66,7 @@ namespace aperf {
           std::cout << " (TCP)..." << std::endl;
         }
 
-        server.run(client_factory);
+        server.run(client_factory, file_acceptor_factory);
 
         return 0;
       } catch (AlreadyInUseException &e) {

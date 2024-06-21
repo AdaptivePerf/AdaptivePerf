@@ -14,6 +14,10 @@
 #define UNLIMITED_ACCEPTED -1
 #define NO_TIMEOUT -1
 
+#ifndef FILE_BUFFER_SIZE
+#define FILE_BUFFER_SIZE 1048576
+#endif
+
 namespace aperf {
   namespace net = Poco::Net;
   namespace fs = std::filesystem;
@@ -95,6 +99,7 @@ namespace aperf {
 
     virtual ~Acceptor() { }
     virtual std::string get_connection_instructions() = 0;
+    virtual std::string get_type() = 0;
   };
 
   class TCPSocket : public Socket {
@@ -161,6 +166,7 @@ namespace aperf {
 
     ~TCPAcceptor();
     std::string get_connection_instructions();
+    std::string get_type();
   };
 
 #ifndef SERVER_ONLY
@@ -200,6 +206,7 @@ namespace aperf {
 
   public:
     class Factory : public Acceptor::Factory {
+    public:
       std::unique_ptr<Acceptor> make_acceptor(int max_accepted) {
         if (max_accepted != 1) {
           throw std::runtime_error("max_accepted can only be 1 for FileDescriptor");
@@ -214,6 +221,7 @@ namespace aperf {
     };
 
     std::string get_connection_instructions();
+    std::string get_type();
   };
 #endif
 }
