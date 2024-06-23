@@ -155,9 +155,10 @@ TEST_F(TCPAcceptorTestWithSocket, AcceptWithTwoMaxAccepted) {
     }, std::runtime_error);
 }
 
-TEST_F(TCPSocketTest, SocketCorrectness) {
-  const unsigned int buf_size = 512;
-
+inline void test_socket_correctness(const unsigned int buf_size,
+                                    unsigned int port,
+                                    bool &interrupted,
+                                    std::future<std::string> &future) {
   Poco::Net::ServerSocket socket;
   socket.bind(Poco::Net::SocketAddress("127.0.0.1", port));
   socket.listen();
@@ -205,4 +206,16 @@ TEST_F(TCPSocketTest, SocketCorrectness) {
 
   ASSERT_EQ(message_str, "123test!@#*@!$^^$@!(#*#&)@!$)*&!)&@#&@!$&!(*ABCDE\n"
             SOCKET_LOREM_IPSUM2);
+}
+
+TEST_F(TCPSocketTest, SocketCorrectnessBufSize512) {
+  test_socket_correctness(512, port, interrupted, future);
+}
+
+TEST_F(TCPSocketTest, SocketCorrectnessBufSize16) {
+  test_socket_correctness(16, port, interrupted, future);
+}
+
+TEST_F(TCPSocketTest, SocketCorrectnessBufSize10001) {
+  test_socket_correctness(10001, port, interrupted, future);
 }
