@@ -115,12 +115,14 @@ namespace test {
       }
 
       std::unique_ptr<Client> make_client(std::unique_ptr<aperf::Connection> &connection,
+                                          std::unique_ptr<aperf::Acceptor> &file_acceptor,
                                           unsigned long long file_timeout_speed) {
         std::unique_ptr<StrictMock<MockClient> > client(new StrictMock<MockClient>());
         this->init(*client);
 
         if (call_constructor) {
           client->construct(connection.get(),
+                            file_acceptor.get(),
                             file_timeout_speed);
         }
 
@@ -129,6 +131,7 @@ namespace test {
     };
 
     MOCK_METHOD(void, construct, (aperf::Connection *,
+                                  aperf::Acceptor *,
                                   unsigned long long));
     MOCK_METHOD(void, real_process, (fs::path));
     MOCK_METHOD(void, notify, (), (override));
@@ -210,6 +213,10 @@ namespace test {
     };
 
     ~MockAcceptor() { this->close(); }
+
+    std::string get_type() {
+      return "mock";
+    }
 
     MOCK_METHOD(void, construct, (int));
     MOCK_METHOD(std::unique_ptr<aperf::Connection>, real_accept, (unsigned int));

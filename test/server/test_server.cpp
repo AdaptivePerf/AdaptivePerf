@@ -29,8 +29,10 @@ TEST(ServerTest, ZeroMaxConnections) {
     volatile bool interrupted = false;
 
     int created_connections = 0;
+    int created_file_acceptors = 0;
     int created_clients = 0;
     aperf::Connection *last_connection = nullptr;
+    aperf::Acceptor *last_file_acceptor = nullptr;
 
     test::MockAcceptor::Factory factory([=](test::MockAcceptor &acceptor) {
       EXPECT_CALL(acceptor, real_accept(buf_size)).Times(1);
@@ -47,25 +49,36 @@ TEST(ServerTest, ZeroMaxConnections) {
     std::unique_ptr<aperf::Client::Factory> client_factory =
       std::make_unique<test::MockClient::Factory>([&](test::MockClient &client) {
         created_clients++;
-        EXPECT_CALL(client, construct(last_connection, file_timeout_speed)).Times(1);
+        EXPECT_CALL(client, construct(last_connection,
+                                      last_file_acceptor,
+                                      file_timeout_speed)).Times(1);
         client.set_interrupt_ptr(&interrupted);
         EXPECT_CALL(client, real_process(fs::current_path())).Times(1).WillOnce([&]() {
           interrupted = true;
         });
       }, true);
 
+    std::unique_ptr<aperf::Acceptor::Factory> file_acceptor_factory =
+      std::make_unique<test::MockAcceptor::Factory>([&](test::MockAcceptor &a) {
+        created_file_acceptors++;
+        last_file_acceptor = &a;
+        EXPECT_CALL(a, construct(UNLIMITED_ACCEPTED)).Times(1);
+        EXPECT_CALL(a, close).Times(1);
+      }, [&](test::MockConnection &c) { }, true);
+
     // A separate scope is needed for ensuring the correct order
     // of destructor calls (gmock will seg fault otherwise).
     {
       aperf::Server server(acceptor, 0, buf_size, file_timeout_speed);
       auto async_future = std::async([&]() {
-        server.run(client_factory);
+        server.run(client_factory, file_acceptor_factory);
       });
       ASSERT_EQ(async_future.wait_for(SERVER_TEST_TIMEOUT), std::future_status::ready);
     }
 
     ASSERT_EQ(created_clients, 1);
     ASSERT_EQ(created_connections, 1);
+    ASSERT_EQ(created_file_acceptors, 1);
   }
 }
 
@@ -77,8 +90,10 @@ TEST(ServerTest, TwoMaxConnections) {
 
     int try_again_cnt = 0;
     int created_connections = 0;
+    int created_file_acceptors = 0;
     int created_clients = 0;
     aperf::Connection *last_connection = nullptr;
+    aperf::Acceptor *last_file_acceptor = nullptr;
 
     test::MockAcceptor::Factory factory([&](test::MockAcceptor &acceptor) {
         EXPECT_CALL(acceptor, real_accept(buf_size)).Times(AtLeast(5));
@@ -106,7 +121,9 @@ TEST(ServerTest, TwoMaxConnections) {
         std::make_unique<test::MockClient::Factory>([&](test::MockClient &client) {
           created_clients++;
 
-          EXPECT_CALL(client, construct(last_connection, file_timeout_speed)).Times(1);
+          EXPECT_CALL(client, construct(last_connection,
+                                        last_file_acceptor,
+                                        file_timeout_speed)).Times(1);
           client.set_interrupt_ptr(&interrupted);
           EXPECT_CALL(client, real_process(current_path)).Times(1);
 
@@ -118,14 +135,23 @@ TEST(ServerTest, TwoMaxConnections) {
           }
         }, true);
 
+      std::unique_ptr<aperf::Acceptor::Factory> file_acceptor_factory =
+        std::make_unique<test::MockAcceptor::Factory>([&](test::MockAcceptor &a) {
+          created_file_acceptors++;
+          last_file_acceptor = &a;
+          EXPECT_CALL(a, construct(UNLIMITED_ACCEPTED)).Times(1);
+          EXPECT_CALL(a, close).Times(1);
+        }, [&](test::MockConnection &c) { }, true);
+
       std::future<void> async_future = std::async([&]() {
-        server.run(client_factory);
+        server.run(client_factory, file_acceptor_factory);
       });
       ASSERT_EQ(async_future.wait_for(SERVER_TEST_TIMEOUT), std::future_status::ready);
     }
 
     ASSERT_EQ(created_clients, 4);
     ASSERT_GT(created_connections, 4);
+    ASSERT_EQ(created_file_acceptors, 4);
     ASSERT_EQ(try_again_cnt, created_connections - created_clients);
   }
 }
