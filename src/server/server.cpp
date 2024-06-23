@@ -29,8 +29,6 @@ namespace aperf {
       while (!interrupted) {
         std::unique_ptr<Connection> connection =
           this->acceptor->accept(this->buf_size);
-        std::unique_ptr<Acceptor> file_acceptor =
-          file_acceptor_factory->make_acceptor(UNLIMITED_ACCEPTED);
 
         int working_count = 0;
         for (int i = 0; i < threads.size(); i++) {
@@ -42,6 +40,9 @@ namespace aperf {
         if (working_count >= std::max(1U, this->max_connections)) {
           connection->write("try_again", true);
         } else {
+          std::unique_ptr<Acceptor> file_acceptor =
+            file_acceptor_factory->make_acceptor(UNLIMITED_ACCEPTED);
+
           clients.push_back(client_factory->make_client(connection,
                                                         file_acceptor,
                                                         this->file_timeout_seconds));
