@@ -292,7 +292,7 @@ namespace aperf {
 
         to_return = 2;
       } catch (std::exception &e) {
-        print("An unknown error has occurred! If the issue persits, "
+        print("A fatal error has occurred! If the issue persits, "
               "please contact the AdaptivePerf developers, citing \"" +
               std::string(e.what()) + "\".", false, true);
         print("For investigating what has gone wrong, you can check the files created in " +

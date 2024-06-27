@@ -13,10 +13,6 @@
 #include <Poco/FileStream.h>
 #include <Poco/Net/SocketStream.h>
 
-#ifndef FILE_BUFFER_SIZE
-#define FILE_BUFFER_SIZE 1048576
-#endif
-
 namespace aperf {
   class charstreambuf : public std::streambuf {
   public:
@@ -76,6 +72,10 @@ namespace aperf {
 
   std::string TCPAcceptor::get_connection_instructions() {
     return this->acceptor.address().host().toString() + "_" + std::to_string(this->acceptor.address().port());
+  }
+
+  std::string TCPAcceptor::get_type() {
+    return "tcp";
   }
 
   void TCPAcceptor::close() {
@@ -145,6 +145,10 @@ namespace aperf {
           bytes_received =
               this->read(this->buf.get() + this->start_pos,
                          this->buf_size - this->start_pos, timeout_seconds);
+        }
+
+        if (bytes_received == 0) {
+          return std::string(this->buf.get(), this->start_pos);
         }
 
         bool first_msg_to_receive = true;
@@ -219,11 +223,8 @@ namespace aperf {
   void TCPSocket::write(fs::path file) {
     try {
       net::SocketStream socket_stream(this->socket);
-      Poco::FileInputStream stream(file);
+      Poco::FileInputStream stream(file, std::ios::in | std::ios::binary);
       Poco::StreamCopier::copyStream(stream, socket_stream);
-
-      char end_of_text[1] = {0x3};
-      this->socket.sendBytes(end_of_text, 1);
     } catch (net::NetException &e) {
       throw ConnectionException(e);
     }
@@ -282,14 +283,18 @@ namespace aperf {
         bytes_received =
             ::read(this->read_fd[0], this->buf.get() + this->start_pos,
                    this->buf_size - this->start_pos);
+
+        if (bytes_received == -1) {
+          throw ConnectionException();
+        }
       } else {
         bytes_received = this->read(this->buf.get() + this->start_pos,
                                     this->buf_size - this->start_pos,
                                     timeout_seconds);
       }
 
-      if (bytes_received == -1) {
-        throw ConnectionException();
+      if (bytes_received == 0) {
+        return std::string(this->buf.get(), this->start_pos);
       }
 
       bool first_msg_to_receive = true;
@@ -365,7 +370,8 @@ namespace aperf {
 
   void FileDescriptor::write(fs::path file) {
     std::unique_ptr<char> buf(new char[FILE_BUFFER_SIZE]);
-    std::ifstream file_stream(file);
+    std::ifstream file_stream(file, std::ios_base::in |
+                              std::ios_base::binary);
 
     if (!file_stream) {
       throw std::runtime_error("Could not open the file " +
@@ -373,8 +379,8 @@ namespace aperf {
     }
 
     while (file_stream) {
-      int bytes_read = file_stream.readsome(buf.get(),
-                                            FILE_BUFFER_SIZE);
+      file_stream.read(buf.get(), FILE_BUFFER_SIZE);
+      int bytes_read = file_stream.gcount();
       int bytes_written = ::write(this->write_fd[1], buf.get(),
                                   bytes_read);
 
@@ -439,6 +445,10 @@ namespace aperf {
 
   std::string PipeAcceptor::get_connection_instructions() {
     return std::to_string(this->write_fd[0]) + "_" + std::to_string(this->read_fd[1]);
+  }
+
+  std::string PipeAcceptor::get_type() {
+    return "pipe";
   }
 #endif
 }

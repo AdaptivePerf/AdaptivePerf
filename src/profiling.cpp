@@ -356,8 +356,11 @@ namespace aperf {
       std::unique_ptr<Subclient::Factory> subclient_factory =
         std::make_unique<StdSubclient::Factory>(acceptor_factory);
 
+      std::unique_ptr<Acceptor> file_acceptor = nullptr;
+
       StdClient::Factory factory(subclient_factory);
       std::shared_ptr<Client> client = factory.make_client(server_connection,
+                                                           file_acceptor,
                                                            FILE_TIMEOUT);
 
       std::thread client_thread([client, results_dir, tmp_dir]() {
@@ -550,7 +553,7 @@ namespace aperf {
 
     std::string msg = connection->read();
 
-    if (msg != "out_files") {
+    if (msg != "out_files" && msg != "profiling_finished") {
       print("adaptiveperf-server has not indicated its successful completion! Exiting.",
             true, true);
       return 2;
@@ -590,61 +593,158 @@ namespace aperf {
       fs::remove(path);
     }
 
-    for (const fs::path &path : perf_map_paths) {
-      std::ifstream stream(path);
-      connection->write("p " + path.filename().string());
+    if (msg == "out_files") {
+      bool transfer_error = false;
 
-      while (stream) {
-        std::string line;
-        std::getline(stream, line);
+      std::string file_conn_instrs = connection->read();
+      std::smatch general_match;
 
-        std::vector<std::string> parts;
-        boost::split(parts, line, boost::is_any_of(" "));
-
-        std::string new_line = "";
-
-        for (int i = 0; i < parts.size(); i++) {
-          new_line += boost::core::demangle(parts[i].c_str()) +
-            (i < parts.size() - 1 ? " " : "");
-        }
-
-        connection->write(new_line);
+      if (!std::regex_match(file_conn_instrs,
+                            general_match,
+                            std::regex("^(\\S+) (.+)$"))) {
+        print("Received incorrect connection "
+              "instructions for file transfer from adaptiveperf-server! "
+              "Exiting.", true, true);
+        return 2;
       }
 
-      connection->write(std::string({0x03}), false);
-    }
+      std::function<std::unique_ptr<Connection>()> get_file_connection;
 
-    if (server_address != "") {
+      if (general_match[1] == "tcp") {
+        std::string tcp_instrs = general_match[2];
+        std::smatch match;
+
+        if (!std::regex_match(tcp_instrs,
+                              match,
+                              std::regex("^(\\S+)_(\\d+)$"))) {
+          print("Received incorrect connection "
+                "instructions for file transfer (tcp) from "
+                "adaptiveperf-server! Exiting.", true, true);
+          return 2;
+        }
+
+        std::string file_address = match[1];
+        int file_port = std::stoi(match[2]);
+
+        get_file_connection = [file_address, file_port]() {
+          std::unique_ptr<Connection> file_connection;
+
+          Poco::Net::SocketAddress address(file_address, file_port);
+          Poco::Net::StreamSocket socket(address);
+
+          // buf_size = 1 because it is only for string read which is unused here
+          file_connection = std::make_unique<TCPSocket>(socket, 1);
+
+          return file_connection;
+        };
+      } else {
+        print("File transfer type \"" + general_match[1].str() + "\" suggested by "
+              "adaptiveperf-server is not supported! Exiting.", true, true);
+        return 2;
+      }
+
+      auto check_file_transfer = [&](const fs::path &path) {
+        std::string status = connection->read();
+
+        if (status == "error_out_file") {
+          print("Could not send " + path.filename().string() + "!", true, true);
+          transfer_error = true;
+        } else if (status == "error_out_file_timeout") {
+          print("Could not send " + path.filename().string() + " due to timeout!",
+                true, true);
+          transfer_error = true;
+        } else if (status != "out_file_ok") {
+          print("Could not obtain confirmation of correct transfer of " +
+                path.filename().string() + "!", true, true);
+          transfer_error = true;
+        }
+      };
+
+      for (const fs::path &path : perf_map_paths) {
+        std::ifstream stream(path);
+        connection->write("p " + path.filename().string());
+
+        // A separate scope is needed for the file connection to close
+        // automatically after the transfer is finished.
+        {
+          std::unique_ptr<Connection> file_connection = get_file_connection();
+
+          while (stream) {
+            std::string line;
+            std::getline(stream, line);
+
+            std::vector<std::string> parts;
+            boost::split(parts, line, boost::is_any_of(" "));
+
+            std::string new_line = "";
+
+            for (int i = 0; i < parts.size(); i++) {
+              new_line += boost::core::demangle(parts[i].c_str()) +
+                (i < parts.size() - 1 ? " " : "");
+            }
+
+            file_connection->write(new_line);
+          }
+        }
+
+        check_file_transfer(path);
+      }
+
       for (auto &elem : fs::directory_iterator(result_processed)) {
         fs::path path = elem.path();
 
         if (!elem.is_regular_file()) {
-          print(path.string() + " is not a file, it will not be copied to the "
+          print(path.filename().string() + " is not a file, it will not be copied to the "
                 "\"processed\" directory.",
                 true, false);
           continue;
         }
 
         connection->write("p " + path.filename().string());
-        connection->write(path);
+
+        // A separate scope is needed for the file connection to close
+        // automatically after the transfer is finished.
+        {
+          std::unique_ptr<Connection> file_connection = get_file_connection();
+          file_connection->write(path);
+        }
+
+        check_file_transfer(path);
       }
 
       for (auto &elem : fs::directory_iterator(result_out)) {
         fs::path path = elem.path();
 
         if (!elem.is_regular_file()) {
-          print(path.string() + " is not a file, it will not be copied to the "
+          print(path.filename().string() + " is not a file, it will not be copied to the "
                 "\"out\" directory.",
                 true, false);
           continue;
         }
 
-        connection->write("o " + path.string());
-        connection->write(path);
+        connection->write("o " + path.filename().string());
+
+        // A separate scope is needed for the file connection to close
+        // automatically after the transfer is finished.
+        {
+          std::unique_ptr<Connection> file_connection = get_file_connection();
+          file_connection->write(path);
+        }
+
+        check_file_transfer(path);
+      }
+
+      connection->write("<STOP>", true);
+
+      if (transfer_error) {
+        print("One or more file transfer errors have occurred! Your profiling results may be "
+              "incomplete.", true, true);
+      }
+    } else {
+      for (const fs::path &path : perf_map_paths) {
+        fs::copy(path, result_processed);
       }
     }
-
-    connection->write("<STOP>", true);
 
     msg = connection->read();
 

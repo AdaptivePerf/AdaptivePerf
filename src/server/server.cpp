@@ -20,7 +20,8 @@ namespace aperf {
     this->interrupted = false;
   }
 
-  void Server::run(std::unique_ptr<Client::Factory> &client_factory) {
+  void Server::run(std::unique_ptr<Client::Factory> &client_factory,
+                   std::unique_ptr<Acceptor::Factory> &file_acceptor_factory) {
     try {
       std::vector<std::unique_ptr<Client> > clients;
       std::vector<std::future<void> > threads;
@@ -39,7 +40,12 @@ namespace aperf {
         if (working_count >= std::max(1U, this->max_connections)) {
           connection->write("try_again", true);
         } else {
-          clients.push_back(client_factory->make_client(connection, this->file_timeout_seconds));
+          std::unique_ptr<Acceptor> file_acceptor =
+            file_acceptor_factory->make_acceptor(UNLIMITED_ACCEPTED);
+
+          clients.push_back(client_factory->make_client(connection,
+                                                        file_acceptor,
+                                                        this->file_timeout_seconds));
 
           Client *client = clients.back().get();
           threads.push_back(std::async([client]() { client->process(); }));
