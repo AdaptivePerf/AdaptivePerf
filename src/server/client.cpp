@@ -87,6 +87,7 @@ namespace aperf {
       std::unordered_set<std::string> tids;
 
       metadata["thread_tree"] = nlohmann::json::array();
+      metadata["callchains"] = nlohmann::json::object();
 
       unsigned long long start_time = 0;
 
