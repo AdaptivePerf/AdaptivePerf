@@ -88,6 +88,8 @@ namespace aperf {
 
       metadata["thread_tree"] = nlohmann::json::array();
       metadata["callchains"] = nlohmann::json::object();
+      metadata["offcpu_regions"] = nlohmann::json::object();
+      metadata["sampled_times"] = nlohmann::json::object();
 
       unsigned long long start_time = 0;
 
