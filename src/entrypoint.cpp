@@ -6,9 +6,9 @@
 #include "profiling.hpp"
 #include "profilers.hpp"
 #include "server/socket.hpp"
+#include "cmd.hpp"
 #include <boost/algorithm/string.hpp>
 #include <boost/program_options/parsers.hpp>
-#include <CLI/CLI.hpp>
 #include <regex>
 #include <sys/wait.h>
 
@@ -39,6 +39,8 @@ namespace aperf {
 
   int main_entrypoint(int argc, char **argv) {
     CLI::App app("Comprehensive profiling tool based on Linux perf");
+
+    app.formatter(std::make_shared<PrettyFormatter>());
 
     bool print_version = false;
     app.add_flag("-v,--version", print_version, "Print version and exit");

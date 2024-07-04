@@ -26,6 +26,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 find_package(nlohmann_json REQUIRED)
 find_package(Poco REQUIRED Net Foundation)
@@ -52,6 +53,7 @@ if(SERVER_ONLY)
 endif()
 
 add_library(server_entrypoint.o OBJECT src/server/entrypoint.cpp)
+target_include_directories(server_entrypoint.o PRIVATE ${CMAKE_SOURCE_DIR}/src/cmd)
 
 add_library(aperfserv SHARED)
 target_link_libraries(aperfserv PRIVATE server.o client.o subclient.o socket.o)
@@ -71,6 +73,8 @@ if(NOT SERVER_ONLY)
     src/main.cpp)
 
   add_library(main_entrypoint.o OBJECT src/entrypoint.cpp)
+  target_include_directories(main_entrypoint.o PRIVATE ${CMAKE_SOURCE_DIR}/src/cmd)
+
   add_library(print.o OBJECT src/print.cpp)
   add_library(profilers.o OBJECT src/profilers.cpp)
   add_library(profiling.o OBJECT src/profiling.cpp)

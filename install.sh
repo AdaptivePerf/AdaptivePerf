@@ -47,6 +47,8 @@ else
     prefix=$1
 fi
 
+mkdir -p $prefix/bin $prefix/lib
+
 if [[ -f adaptiveperf ]]; then
     if [[ -f build/CMakeCache.txt ]]; then
         echo_main "Compiling and installing AdaptivePerf-patched \"perf\"..."

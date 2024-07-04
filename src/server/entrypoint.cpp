@@ -3,11 +3,14 @@
 
 #include "entrypoint.hpp"
 #include "server.hpp"
-#include <CLI/CLI.hpp>
+#include "cmd.hpp"
+#include <boost/algorithm/string.hpp>
 
 namespace aperf {
   int server_entrypoint(int argc, char **argv) {
     CLI::App app("Post-processing server for AdaptivePerf");
+
+    app.formatter(std::make_shared<PrettyFormatter>());
 
     bool print_version = false;
     app.add_flag("-v,--version", print_version, "Print version and exit");
