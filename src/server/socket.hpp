@@ -22,41 +22,118 @@ namespace aperf {
   namespace net = Poco::Net;
   namespace fs = std::filesystem;
 
+  /**
+     An exception which is thrown when a connection error occurs.
+
+     This can serve as a wrapper for another exception thrown by
+     a Connection implementation.
+  */
   class ConnectionException : public std::exception {
   public:
     ConnectionException() {}
     ConnectionException(std::exception &other) : std::exception(other) { }
   };
 
+  /**
+     An exception which is thrown when the specified address/port is
+     already in use.
+  */
   class AlreadyInUseException : public ConnectionException {
 
   };
 
+  /**
+     An exception which is thrown in case of timeout.
+  */
   class TimeoutException : public std::exception {
 
   };
 
+  /**
+     An interface describing a two-end connection.
+  */
   class Connection {
   protected:
+    /**
+       Closes the connection.
+    */
     virtual void close() = 0;
 
   public:
     virtual ~Connection() { }
+
+    /**
+       Reads data from the connection.
+
+       @param buf             A buffer where received data should
+                              be stored.
+       @param len             The size of the buffer.
+       @param timeout_seconds A maximum number of seconds that can pass
+                              while waiting for the data.
+
+       @throw TimeoutException    In case of timeout (see timeout_seconds).
+       @throw ConnectionException In case of any other errors.
+    */
     virtual int read(char *buf, unsigned int len, long timeout_seconds) = 0;
+
+    /**
+       Reads a line from the connection.
+
+       @param timeout_seconds A maximum number of seconds that can pass
+                              while waiting for the data. Use NO_TIMEOUT for
+                              no timeout.
+
+       @throw TimeoutException    In case of timeout (see timeout_seconds).
+       @throw ConnectionException In case of any other errors.
+    */
     virtual std::string read(long timeout_seconds = NO_TIMEOUT) = 0;
+
+    /**
+       Writes a string to the connection.
+
+       @param msg      A string to be sent.
+       @param new_line Indicates whether a newline character should be
+                       appended to the string.
+
+       @throw ConnectionException In case of any errors.
+    */
     virtual void write(std::string msg, bool new_line = true) = 0;
+
+    /**
+       Writes a file to the connection.
+
+       @param file The path to a file to be sent.
+
+       @throw ConnectionException In case of any errors.
+    */
     virtual void write(fs::path file) = 0;
+
+    /**
+       Gets the buffer size for communication, in bytes.
+    */
     virtual unsigned int get_buf_size() = 0;
   };
 
+  /**
+     An interface describing a network socket.
+  */
   class Socket : public Connection {
   protected:
     virtual void close() = 0;
 
   public:
     virtual ~Socket() { }
+
+    /**
+       Gets the socket address string.
+    */
     virtual std::string get_address() = 0;
+
+    /**
+       Gets the port of the socket.
+    */
     virtual unsigned short get_port() = 0;
+
     virtual unsigned int get_buf_size() = 0;
     virtual int read(char *buf, unsigned int len, long timeout_seconds) = 0;
     virtual std::string read(long timeout_seconds = NO_TIMEOUT) = 0;
@@ -64,27 +141,73 @@ namespace aperf {
     virtual void write(fs::path file) = 0;
   };
 
+  /**
+     A class describing a connection acceptor.
+  */
   class Acceptor {
   private:
     int max_accepted;
     int accepted;
 
   protected:
-    virtual std::unique_ptr<Connection> accept_connection(unsigned int buf_size) = 0;
-    virtual void close() = 0;
+    /**
+       Constructs an Acceptor object.
 
-  public:
-    class Factory {
-    public:
-      virtual std::unique_ptr<Acceptor> make_acceptor(int max_accepted) = 0;
-      virtual std::string get_type() = 0;
-    };
-
+       @param max_accepted A maximum number of connections that
+                           the acceptor can accept during its lifetime.
+                           Use UNLIMITED_ACCEPTED for no limit.
+    */
     Acceptor(int max_accepted) {
       this->max_accepted = max_accepted;
       this->accepted = 0;
     }
 
+    /**
+       An internal method called by accept() accepting a new connection.
+
+       It should always return the new connection, regardless of the
+       number of connections already accepted by the object.
+    */
+    virtual std::unique_ptr<Connection> accept_connection(unsigned int buf_size) = 0;
+
+    /**
+       Closes the acceptor.
+    */
+    virtual void close() = 0;
+
+  public:
+    /**
+       An Acceptor factory.
+    */
+    class Factory {
+    public:
+      /**
+         Makes a new Acceptor-derived object.
+
+         @param max_accepted A maximum number of connections that
+                             the acceptor can accept during its lifetime.
+                             Use UNLIMITED_ACCEPTED for no limit.
+      */
+      virtual std::unique_ptr<Acceptor> make_acceptor(int max_accepted) = 0;
+
+      /**
+         Gets the string describing the connection type of the acceptor
+         (e.g. TCP).
+      */
+      virtual std::string get_type() = 0;
+    };
+
+    /**
+       Accepts a new connection.
+
+       If the maximum number of accepted connections is reached,
+       a runtime error is thrown immediately.
+
+       @param buf_size The buffer size for communication, in bytes.
+
+       @throw std::runtime_error When the maximum number of accepted
+                                 connections is reached.
+    */
     std::unique_ptr<Connection> accept(unsigned int buf_size) {
       if (this->max_accepted != UNLIMITED_ACCEPTED &&
           this->accepted >= this->max_accepted) {
@@ -98,10 +221,27 @@ namespace aperf {
     }
 
     virtual ~Acceptor() { }
+
+    /**
+       Gets the instructions how the other end of the connection should
+       connect to this end so that accept() can return a Connection-derived
+       object.
+
+       These are in form of a "<field1>_<field2>_..._<fieldX>" string, where
+       the number of fields and their content are implementation-dependent.
+    */
     virtual std::string get_connection_instructions() = 0;
+
+    /**
+       Gets the string describing the connection type of the acceptor
+       (e.g. TCP).
+    */
     virtual std::string get_type() = 0;
   };
 
+  /**
+     A class describing a TCP socket.
+  */
   class TCPSocket : public Socket {
   private:
     net::StreamSocket socket;
@@ -125,6 +265,9 @@ namespace aperf {
     void write(fs::path file);
   };
 
+  /**
+     A class describing a TCP acceptor.
+  */
   class TCPAcceptor : public Acceptor {
   private:
     net::ServerSocket acceptor;
@@ -138,6 +281,9 @@ namespace aperf {
     void close();
 
   public:
+    /**
+       A TCPAcceptor factory.
+    */
     class Factory : public Acceptor::Factory {
     private:
       std::string address;
@@ -145,6 +291,17 @@ namespace aperf {
       bool try_subsequent_ports;
 
     public:
+      /**
+         Constructs a TCPAcceptor::Factory object.
+
+         @param address              An address where the TCP server should listen at.
+         @param port                 A port where the TCP server should listen at.
+         @param try_subsequent_ports Indicates whether subsequent ports should be
+                                     tried when the initially-specified port is
+                                     already in use. The potential port change
+                                     will be reflected in the output of
+                                     get_connection_instructions().
+      */
       Factory(std::string address, unsigned short port,
               bool try_subsequent_ports = false) {
         this->address = address;
@@ -170,6 +327,9 @@ namespace aperf {
   };
 
 #ifndef SERVER_ONLY
+  /**
+     A class describing a file-descriptor-based connection.
+  */
   class FileDescriptor : public Connection {
   private:
     int read_fd[2];
@@ -194,6 +354,9 @@ namespace aperf {
     unsigned int get_buf_size();
   };
 
+  /**
+     A class describing an inter-process pipe acceptor.
+  */
   class PipeAcceptor : public Acceptor {
   private:
     int read_fd[2];
@@ -205,8 +368,19 @@ namespace aperf {
     void close();
 
   public:
+    /**
+       A PipeAcceptor factory.
+    */
     class Factory : public Acceptor::Factory {
     public:
+      /**
+         Makes a new PipeAcceptor object.
+
+         @param max_accepted Must be set to 1.
+
+         @throw std::runtime_error  When max_accepted is not 1.
+         @throw ConnectionException In case of any other errors.
+      */
       std::unique_ptr<Acceptor> make_acceptor(int max_accepted) {
         if (max_accepted != 1) {
           throw std::runtime_error("max_accepted can only be 1 for FileDescriptor");

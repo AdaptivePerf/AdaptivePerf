@@ -1,0 +1,10 @@
+.main_page_img {
+   width:75%;
+}
+
+@media (prefers-color-scheme: dark) {
+   .main_page_img {
+      -webkit-filter: invert(100%);
+      filter: invert(100%);
+   }
+}

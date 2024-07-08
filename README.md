@@ -24,8 +24,12 @@ The project is distributed under the GNU GPL v2 license. See LICENSE for details
 
 Both single-threaded and multi-threaded programs are supported. All CPU architectures and vendors should also be supported (provided that the installation requirements are met, see below) since the main features of AdaptivePerf are based on kernel-based performance counters and portable stack traversal methods. However, if extra ```perf``` events are used for sampling, the list of available events should be checked beforehand by running ```perf list``` as this is architecture-dependent.
 
-## Current limitations
-* Support for CPUs only (GPUs coming soon!)
+## Current limitations / TODO
+Work is being done towards eliminating all of the limitations below step-by-step, stay tuned!
+* No support for non-CPU devices such as GPUs
+* No support for partial profiling
+* No API for profiling result analysis (only flame graphs can be produced right now)
+* No profiling with line number / compiler IR / assembly details
 
 ## Installation
 ### Requirements
@@ -39,6 +43,8 @@ Both single-threaded and multi-threaded programs are supported. All CPU architec
 * [Boost](https://www.boost.org)
 
 You should use the newest available version of libnuma, CLI11, nlohmann-json, the Poco libraries, and the Boost libraries. More information about the minimum tested version of each of these dependencies will be provided soon.
+
+If you want to enable tests (see the documentation for contributors), you don't have to install [the GoogleTest framework](https://github.com/google/googletest) beforehand, this is done automatically during the compilation.
 
 AdaptivePerf uses the patched "perf", temporarily available at https://gitlab.cern.ch/adaptiveperf/linux (inside ```tools/perf```). However, you don't have to download and install it manually, this is handled automatically by the installation scripts (see the "Manually" section below).
 
@@ -92,3 +98,17 @@ The structure of ```results``` is as follows:
     * **(PID)\_(TID).json**: all samples gathered by on-CPU/off-CPU profiling and custom perf event profiling (if any) stored in JSON, per thread/process.
 
 It is recommended to use [AdaptivePerfHTML](https://github.com/AdaptivePerf/adaptiveperfhtml) for creating an interactive HTML summary of your profiling sessions.
+
+## Documentation for contributors (Doxygen)
+If you want to contribute to AdaptivePerf or dive deeply into how it works, please check out the Doxygen documentation [here](https://adaptiveperf.github.io/contributors).
+
+You can also render it yourself by running ```doxygen Doxyfile``` inside the ```docs``` directory (you need to install Doxygen first).
+
+## Troubleshooting
+
+### libaperfserv.so not found
+After installing AdaptivePerf/adaptiveperf-server, you may get an error like the one below when trying to run the tool on Linux:
+```
+adaptiveperf: error while loading shared libraries: libaperfserv.so: cannot open shared object file: No such file or directory
+```
+If this happens, please add ```<your installation prefix>/lib``` (it's ```/usr/local/lib``` by default) to ```/etc/ld.so.conf``` and run ```ldconfig``` afterwards. Alternatively, run AdaptivePerf with ```<your installation prefix>/lib``` appended to the ```LD_LIBRARY_PATH``` environment variable.

@@ -41,6 +41,12 @@ namespace aperf {
     return false;
   }
 
+  /**
+     Constructs a PerfEventKernelSettingsReq object.
+
+     @param max_stack  Indicates where the value of kernel.perf_event_max_stack
+                       should be written to.
+  */
   PerfEventKernelSettingsReq::PerfEventKernelSettingsReq(int &max_stack) : max_stack(max_stack) {}
 
   std::string PerfEventKernelSettingsReq::get_name() {

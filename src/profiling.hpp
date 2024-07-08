@@ -18,14 +18,37 @@
 namespace aperf {
   namespace fs = std::filesystem;
 
+  /**
+     A class describing a requirement of a profiler that needs to be
+     satisfied before the profiler is used.
+  */
   class Requirement {
     inline static std::unordered_map<std::type_index, bool> already_checked;
 
   protected:
+    /**
+       Determines whether the requirement is satisfied (internal method
+       called by check()).
+
+       This is an internal method which should *always* perform the check
+       and return its result.
+    */
     virtual bool check_internal() = 0;
 
   public:
+    /**
+       Gets the name of the requirement (e.g. for diagnostic purposes).
+    */
     virtual std::string get_name() = 0;
+
+    /**
+       Determines whether the requirement is satisfied.
+
+       On the first call, the check is performed and its result is
+       cached. On all subsequent calls, the cached result
+       is returned immediately, regardless of how many objects of a
+       given Requirement-derived class are constructed.
+    */
     bool check() {
       std::type_index index(typeid(*this));
       if (Requirement::already_checked.find(index) ==
@@ -37,6 +60,14 @@ namespace aperf {
     }
   };
 
+  /**
+     A class describing the configuration of CPU cores for profiling.
+
+     Specifically, CPUConfig describes what cores should be used for
+     post-processing + profiling, what cores should be used for running
+     the command, what cores should be used for both, and what cores should
+     not be used at all.
+  */
   class CPUConfig {
   private:
     bool valid;
@@ -45,10 +76,6 @@ namespace aperf {
     cpu_set_t cpu_command_set;
 
   public:
-    // mask[i] = ' ' means the i-th core is not used
-    // mask[i] = 'p' means the i-th core is used for post-processing and profilers
-    // mask[i] = 'c' means the i-th core is used for the profiled command
-    // mask[i] = 'b' means the i-th core is used for everything
     CPUConfig(std::string mask);
     bool is_valid();
     int get_profiler_thread_count();
@@ -56,6 +83,11 @@ namespace aperf {
     cpu_set_t &get_cpu_command_set();
   };
 
+  /**
+     A class describing adaptiveperf-server connection instructions
+     for profilers, sent by adaptiveperf-server during the initial
+     setup phase.
+  */
   class ServerConnInstrs {
   private:
     std::string type;
@@ -66,29 +98,71 @@ namespace aperf {
     std::string get_instructions(int thread_count);
   };
 
+  /**
+     A class describing a profiler.
+  */
   class Profiler {
   public:
     virtual ~Profiler() { }
+
+    /**
+       Gets the name of this profiler instance.
+    */
     virtual std::string get_name() = 0;
+
+    /**
+       Starts the profiler.
+
+       @param pid                 The PID of a process the profiler should
+                                  be attached to. This may be left unused by
+                                  classes deriving from Profiler.
+       @param connection_instrs   adaptiveperf-server connection
+                                  instructions, sent by adaptiveperf-server
+                                  during the initial setup phase.
+       @param result_out          The path to the "out" directory of
+                                  results of the current profiling session.
+       @param result_processed    The path to the "processed" directory of
+                                  results of the current profiling session.
+       @param capture_immediately Indicates whether event capturing should
+                                  become immediately after starting the profiler.
+                                  If set to false, the call to start() must be
+                                  followed by the call to resume() at some point.
+    */
     virtual void start(pid_t pid,
                        ServerConnInstrs &connection_instrs,
                        fs::path result_out,
                        fs::path result_processed,
                        bool capture_immediately) = 0;
-    virtual void resume() = 0;
-    virtual void pause() = 0;
-    virtual int wait() = 0;
-    virtual unsigned int get_thread_count() = 0;
-    virtual std::vector<std::unique_ptr<Requirement> > &get_requirements() = 0;
-  };
 
-  class Child {
-  private:
-    bool is_thread;
-    union {
-      pid_t pid;
-      std::thread thread;
-    } data;
+    /**
+       Resumes event capturing by the profiler.
+
+       This is used for implementing partial profiling of the command.
+    */
+    virtual void resume() = 0;
+
+    /**
+       Pauses event capturing by the profiler.
+
+       This is used for implementing partial profiling of the command.
+    */
+    virtual void pause() = 0;
+
+    /**
+       Waits for the profiler to finish executing and returns its exit code.
+    */
+    virtual int wait() = 0;
+
+    /**
+       Gets the number of threads the profiler is expected to use.
+    */
+    virtual unsigned int get_thread_count() = 0;
+
+    /**
+       Gets the list of requirements that must be satisfied for the profiler
+       to run.
+    */
+    virtual std::vector<std::unique_ptr<Requirement> > &get_requirements() = 0;
   };
 
   CPUConfig get_cpu_config(int post_processing_threads, bool external_server);

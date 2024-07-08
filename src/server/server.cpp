@@ -9,6 +9,22 @@
 namespace aperf {
   using namespace std::chrono_literals;
 
+  /**
+     Constructs a Server object.
+
+     @param acceptor             An acceptor for accepting new initial
+                                 connections from the frontend.
+     @param max_connections      A maximum number of simultaneous
+                                 connections to be handled by the server.
+                                 Use 0 to finish after the first connection
+                                 is completed.
+     @param buf_size             A buffer size for communication, in
+                                 bytes.
+     @param file_timeout_seconds A maximum number of seconds every client
+                                 spawned by the server can wait for a next
+                                 packet of data during file transfer between
+                                 the client and the frontend.
+  */
   Server::Server(std::unique_ptr<Acceptor> &acceptor,
                  unsigned int max_connections,
                  unsigned int buf_size,
@@ -20,6 +36,14 @@ namespace aperf {
     this->interrupted = false;
   }
 
+  /**
+     Starts the server processing loop.
+
+     @param client_factory        A factory used for spawning new clients.
+     @param file_acceptor_factory A factory used for spawning acceptors for
+                                  establishing connections for file transfer
+                                  between every client and the frontend.
+  */
   void Server::run(std::unique_ptr<Client::Factory> &client_factory,
                    std::unique_ptr<Acceptor::Factory> &file_acceptor_factory) {
     try {
@@ -75,6 +99,12 @@ namespace aperf {
     }
   }
 
+  /**
+     Interrupts the server processing loop.
+
+     After calling interrupt(), no new initial connections will be accepted, but
+     all the existing ones will carry executing until their completion.
+  */
   void Server::interrupt() {
     this->interrupted = true;
   }

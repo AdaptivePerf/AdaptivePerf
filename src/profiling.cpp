@@ -31,6 +31,16 @@ namespace aperf {
   namespace ch = std::chrono;
   using namespace std::chrono_literals;
 
+  /**
+     Constructs a CPUConfig object.
+
+     @param mask A CPU mask string, where the i-th character
+                 defines the purpose of the i-th core as follows:
+                 ' ' means "not used",
+                 'p' means "used for post-processing and profilers",
+                 'c' means "used for the profiled command", and
+                 'b' means "used for both the profiled command and post-processing + profilers".
+  */
   CPUConfig::CPUConfig(std::string mask) {
     this->valid = false;
     this->profiler_thread_count = 0;
@@ -62,22 +72,55 @@ namespace aperf {
     }
   }
 
+  /**
+     Returns whether a CPUConfig object is valid.
+
+     A CPUConfig object can be invalid only if the string mask used
+     for its construction is invalid.
+  */
   bool CPUConfig::is_valid() {
     return this->valid;
   }
 
+  /**
+     Returns the number of profiler threads that can be spawned
+     based on how many cores are allowed for doing the profiling.
+  */
   int CPUConfig::get_profiler_thread_count() {
     return this->profiler_thread_count;
   }
 
+  /**
+     Returns the sched_setaffinity-compatible CPU set for doing
+     the profiling.
+  */
   cpu_set_t & CPUConfig::get_cpu_profiler_set() {
     return this->cpu_profiler_set;
   }
 
+  /**
+     Returns the sched_setaffinity-compatible CPU set for running
+     the profiled command.
+  */
   cpu_set_t & CPUConfig::get_cpu_command_set() {
     return this->cpu_command_set;
   }
 
+  /**
+     Constructs a ServerConnInstrs object.
+
+     @param all_connection_instrs An adaptiveperf-server connection
+                                  instructions string sent
+                                  by adaptiveperf-server during the initial
+                                  setup phase. It is in form of
+                                  "<method> <connection details>", where
+                                  \<connection details\> is provided once or
+                                  more than once per profiler, separated by
+                                  a space character. \<connection details\>
+                                  takes form of "<field1>_<field2>_..._<fieldX>"
+                                  where the number of fields and their content
+                                  are implementation-dependent.
+  */
   ServerConnInstrs::ServerConnInstrs(std::string all_connection_instrs) {
     std::vector<std::string> parts;
     boost::split(parts, all_connection_instrs, boost::is_any_of(" "));
@@ -91,6 +134,20 @@ namespace aperf {
     }
   }
 
+  /**
+     Gets a connection instructions string relevant to the profiler
+     requesting these instructions.
+
+     @param thread_count A number of threads expected to connect
+                         to adaptiveperf-server from the current
+                         profiler.
+
+     @throw std::runtime_error When the sum of thread_count amongst
+                               all get_instruction() calls within a
+                               single ServerConnInstrs object
+                               exceeds the number of \<connection details\>
+                               sent by adaptiveperf-server.
+  */
   std::string ServerConnInstrs::get_instructions(int thread_count) {
     std::string result = this->type;
 
@@ -108,6 +165,24 @@ namespace aperf {
     return result;
   }
 
+  /**
+     Analyses the current machine configuration and returns the most
+     appropriate CPUConfig object, taking into account user considerations.
+
+     @param post_processing_threads A number of cores that should be used
+                                    for post-processing and profiling. This
+                                    should not be larger than the number of
+                                    available cores minus 3. 0 marks all
+                                    cores as available for all activities.
+     @param external_server         Indicates if post-processing is delegated to
+                                    an external instance of adaptiveperf-server.
+                                    If only 1 core is available, this must be
+                                    set to true.
+
+     If the user-provided parameters are invalid or the current machine
+     configuration is considered unsuitable for profiling, an invalid CPUConfig
+     object is returned (i.e. CPUConfig::is_valid() returns false).
+  */
   CPUConfig get_cpu_config(int post_processing_threads,
                            bool external_server) {
     int num_proc = std::thread::hardware_concurrency();
@@ -189,6 +264,27 @@ namespace aperf {
     }
   }
 
+  /**
+     Starts a profiling session.
+
+     @param profilers        A list of profilers used to profile the command.
+     @param command          A command to be profiled.
+     @param server_address   The address and port of an external instance of adaptiveperf-server.
+                             If the external instance usage is not planned, server_address
+                             should be an empty string.
+     @param buf_size         A size of buffer for communication with adaptiveperf-server,
+                             in bytes.
+     @param warmup           A number of seconds between the profilers indicating their
+                             readiness and the actual execution of the command. This may have to
+                             be high on machines with weaker configurations.
+     @param cpu_config       A CPUConfig object describing how available cores should be used
+                             for profiling. It's recommended to call get_cpu_config() for this.
+     @param tmp_dir          A temporary directory where profiling-related files will be stored.
+     @param spawned_children A list of PIDs of children spawned during the profiling session.
+                             This will be populated as the function executes and it's mostly
+                             important in the context of cleaning up after the session finishes
+                             or terminates with an error.
+  */
   int start_profiling_session(std::vector<std::unique_ptr<Profiler> > &profilers,
                               std::string command, std::string server_address,
                               unsigned int buf_size, unsigned int warmup,

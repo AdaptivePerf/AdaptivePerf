@@ -18,6 +18,10 @@
 namespace aperf {
   namespace fs = std::filesystem;
 
+  /**
+     A class describing a Linux "perf" event, used
+     by the Perf class.
+  */
   class PerfEvent {
   private:
     std::string name;
@@ -41,6 +45,9 @@ namespace aperf {
               int buffer_events);
   };
 
+  /**
+     A class describing a Linux "perf" profiler.
+  */
   class Perf : public Profiler {
   private:
     fs::path perf_path;

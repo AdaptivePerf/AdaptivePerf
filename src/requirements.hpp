@@ -7,6 +7,10 @@
 #include "profiling.hpp"
 
 namespace aperf {
+  /**
+     A class describing the requirement of /sys/kernel/debug
+     being mounted.
+  */
   class SysKernelDebugReq : public Requirement {
   protected:
     bool check_internal();
@@ -15,6 +19,13 @@ namespace aperf {
     std::string get_name();
   };
 
+  /**
+     A class describing the requirement of the correct
+     "perf"-specific kernel settings.
+
+     These settings are kernel.perf_event_max_stack and
+     kernel.perf_event_paranoid.
+  */
   class PerfEventKernelSettingsReq : public Requirement {
   private:
     int &max_stack;
@@ -27,6 +38,13 @@ namespace aperf {
     std::string get_name();
   };
 
+  /**
+     A class describing the requirement of having proper
+     NUMA-specific mitigations.
+
+     The behaviour of this class depends on whether
+     AdaptivePerf is compiled with libnuma support.
+  */
   class NUMAMitigationReq : public Requirement {
   protected:
     bool check_internal();

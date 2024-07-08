@@ -7,8 +7,14 @@
 #include <mutex>
 
 namespace aperf {
+  /**
+     The mutex for ensuring that only one thread prints at a time.
+  */
   std::mutex print_mutex;
 
+  /**
+     Prints the GNU GPL v2 notice.
+  */
   void print_notice() {
     if (quiet) {
       return;
@@ -35,6 +41,15 @@ namespace aperf {
     std::cout << std::endl;
   }
 
+  /**
+     Prints a message.
+
+     @param message A string to be printed.
+     @param sub     Indicates whether this message belongs to
+                    a subsection (i.e. whether it should be printed
+                    with the "->" prefix instead of "==>").
+     @param error   Indicates whether this message is an error.
+  */
   void print(std::string message, bool sub, bool error) {
     if (quiet) {
       return;
@@ -65,14 +80,5 @@ namespace aperf {
     }
 
     std::cout << "\033[0m" << std::endl;
-  }
-
-  void print(char *message, int len) {
-    if (quiet) {
-      return;
-    }
-
-    std::unique_lock lock(print_mutex);
-    std::cout.write(message, len);
   }
 };

@@ -15,10 +15,35 @@
 #endif
 
 namespace aperf {
+  /**
+     Constructs a PerfEvent object corresponding to thread tree
+     profiling.
+
+     Thread tree profiling traces all system calls relevant to
+     spawning new threads/processes and exiting from them so that
+     a thread/process tree can be created for later analysis.
+  */
   PerfEvent::PerfEvent() {
     this->name = "<thread_tree>";
   }
 
+  /**
+     Constructs a PerfEvent object corresponding to on-CPU/off-CPU
+     profiling.
+
+     @param freq                  An on-CPU sampling frequency in Hz.
+     @param off_cpu_freq          An off-CPU sampling frequency in Hz.
+                                  0 disables off-CPU profiling.
+     @param buffer_events         A number of on-CPU events that
+                                  should be buffered before sending
+                                  them for post-processing. 1
+                                  effectively disables buffering.
+     @param buffer_off_cpu_events A number of off-CPU events that
+                                  should be buffered before sending
+                                  them for post-processing. 0 leaves
+                                  the default adaptive buffering, 1
+                                  effectively disables buffering.
+  */
   PerfEvent::PerfEvent(int freq,
                        int off_cpu_freq,
                        int buffer_events,
@@ -30,6 +55,19 @@ namespace aperf {
     this->options.push_back(std::to_string(buffer_off_cpu_events));
   }
 
+  /**
+     Constructs a PerfEvent object corresponding to a custom
+     Linux "perf" event.
+
+     @param name          The name of a "perf" event as displayed by
+                          "perf list".
+     @param period        A sampling period. The value of X means
+                          "do a sample on every X occurrences of the
+                          event".
+     @param buffer_events A number of events that should be buffered
+                          before sending them for post-processing. 1
+                          effectively disables buffering.
+  */
   PerfEvent::PerfEvent(std::string name,
                        int period,
                        int buffer_events) {
@@ -38,6 +76,16 @@ namespace aperf {
     this->options.push_back(std::to_string(buffer_events));
   }
 
+  /**
+     Constructs a Perf object.
+
+     @param perf_path  The full path to the "perf" executable.
+     @param perf_event The PerfEvent object corresponding to a "perf" event
+                       to be used in this "perf" instance.
+     @param cpu_config A CPUConfig object describing how CPU cores should
+                       be used for profiling.
+     @param name       The name of this "perf" instance.
+  */
   Perf::Perf(fs::path perf_path,
              PerfEvent &perf_event,
              CPUConfig &cpu_config,
@@ -164,7 +212,7 @@ namespace aperf {
 
       execv(this->perf_path.c_str(), argv);
 
-      // This is reached only if execvp fails
+      // This is reached only if execv fails
       std::exit(errno);
     }
 

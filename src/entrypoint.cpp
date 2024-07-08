@@ -22,6 +22,10 @@ namespace aperf {
 
   bool quiet;
 
+  /**
+     A class validating whether a supplied command-line
+     option is equal to or larger than a given value.
+  */
   class OnlyMinRange : public CLI::Validator {
   public:
     OnlyMinRange(int min) {
@@ -37,6 +41,10 @@ namespace aperf {
     }
   };
 
+  /**
+     Entry point to the AdaptivePerf frontend when it is run from
+     the command line.
+  */
   int main_entrypoint(int argc, char **argv) {
     CLI::App app("Comprehensive profiling tool based on Linux perf");
 
@@ -75,13 +83,19 @@ namespace aperf {
       ->option_text("UINT");
 
     unsigned int post_process = 1;
+    int max_allowed = std::thread::hardware_concurrency() - 3;
+
+    if (max_allowed < 1) {
+      max_allowed = 1;
+    }
+
     app.add_option("-p,--post-process", post_process, "Number of threads "
                    "isolated from profiled command to use for profilers "
-                   "and post-processing (must not be greater than the "
-                   "number of logical cores minus 3). Use 0 to not "
+                   "and post-processing (must not be greater than " +
+                   std::to_string(max_allowed) + "). Use 0 to not "
                    "isolate profiler and post-processing threads "
                    "from profiled command threads (NOT RECOMMENDED).")
-      ->check(OnlyMinRange(0))
+      ->check(CLI::Range(0, max_allowed))
       ->option_text("UINT");
 
     std::string address = "";

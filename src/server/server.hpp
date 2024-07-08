@@ -12,27 +12,83 @@
 #include <vector>
 
 namespace aperf {
+  /**
+     An interface whose implementation can be sent a notification
+     by a different thread.
+  */
   class Notifiable {
   public:
+    /**
+       Notifies a Notifiable-derived object.
+    */
     virtual void notify() = 0;
   };
 
+  /**
+     An interface describing a subclient.
+
+     A subclient is usually a separate thread reporting to the client
+     (i.e. a Client-derived object).
+
+     See the main page for learning how the server, clients, and subclients work.
+  */
   class Subclient {
   public:
+    /**
+       A Subclient factory.
+    */
     class Factory {
     public:
+      /**
+         Makes a new Subclient-derived object.
+
+         @param context            A context a subclient should notify when the
+                                   frontend successfully connects to it.
+         @param profiled_filename  The filename of a profiled executable.
+         @param buf_size           A buffer size used for communication, in bytes.
+      */
       virtual std::unique_ptr<Subclient> make_subclient(Notifiable &context,
                                                         std::string profiled_filename,
                                                         unsigned int buf_size) = 0;
+
+      /**
+         Gets a string describing the connection type the frontend should use for
+         connecting to a subclient made by the factory (e.g. TCP).
+      */
       virtual std::string get_type() = 0;
     };
 
-    virtual ~Subclient() { }
+    virtual ~Subclient() {}
+
+    /**
+       Starts the processing loop of the subclient.
+
+       The method should produce a JSON object that can be retrieved later
+       by calling get_result().
+    */
     virtual void process() = 0;
+
+    /**
+       Gets the JSON object produced after the call to process() finishes.
+    */
     virtual nlohmann::json &get_result() = 0;
+
+    /**
+       Gets a string describing how the frontend should connect to the
+       subclient.
+
+       The string is in form of "<field1>_<field2>_..._<fieldX>" where the
+       number of fields and their content are implementation-dependent.
+    */
     virtual std::string get_connection_instructions() = 0;
   };
 
+  /**
+     An internal class describing a Subclient with some fields initialised.
+
+     This is used for avoiding duplication between the source code
+     and the test code.
+  */
   class InitSubclient : public Subclient {
   protected:
     Notifiable &context;
@@ -57,20 +113,56 @@ namespace aperf {
     }
   };
 
+  /**
+     An interface describing a client.
+
+     See the main page for learning how the server, clients, and subclients work.
+  */
   class Client : public Notifiable {
   public:
+    /**
+       A Client factory.
+    */
     class Factory {
     public:
+      /**
+         Makes a Client-derived object.
+
+         @param connection           A connection used for communicating between the
+                                     client and the frontend.
+         @param file_acceptor        An acceptor used for opening a connection for
+                                     file transfer between the client and the frontend.
+         @param file_timeout_seconds A maximum number of seconds the client can wait
+                                     for receiving a next packet of data during file transfer.
+      */
       virtual std::unique_ptr<Client> make_client(std::unique_ptr<Connection> &connection,
                                                   std::unique_ptr<Acceptor> &file_acceptor,
                                                   unsigned long long file_timeout_seconds) = 0;
     };
 
     virtual ~Client() { }
+
+    /**
+       Starts the client processing loop.
+
+       @param working_dir A working directory where all profiling results are stored.
+    */
     virtual void process(fs::path working_dir = fs::current_path()) = 0;
+
+    /**
+       Notifies the client that a subclient has made a connection with the frontend.
+
+       This method should be called by a Subclient-derived object.
+    */
     virtual void notify() = 0;
   };
 
+  /**
+     An internal class describing a Client with some fields initialised.
+
+     This is used for avoiding duplication between the source code
+     and the test code.
+  */
   class InitClient : public Client {
   protected:
     std::shared_ptr<Subclient::Factory> subclient_factory;
@@ -93,6 +185,12 @@ namespace aperf {
     virtual void notify() = 0;
   };
 
+  /**
+     A class describing a standard subclient.
+
+     This class should be used for instantiating new subclients. See the main page for
+     learning how the server, clients, and subclients work.
+  */
   class StdSubclient : public InitSubclient {
   private:
     nlohmann::json json_result;
@@ -108,11 +206,21 @@ namespace aperf {
                  bool time_ordered, bool offcpu);
 
   public:
+    /**
+       A StdSubclient factory.
+    */
     class Factory : public Subclient::Factory {
     private:
       std::shared_ptr<Acceptor::Factory> factory;
 
     public:
+      /**
+         Constructs a StdSubclient::Factory object.
+
+         @param factory  An Acceptor factory. StdSubclient needs an acceptor
+                         as a way of establishing the conection between
+                         the subclient and the frontend.
+      */
       Factory(std::unique_ptr<Acceptor::Factory> &factory) {
         this->factory = std::move(factory);
       }
@@ -135,6 +243,12 @@ namespace aperf {
     nlohmann::json &get_result();
   };
 
+  /**
+     A class describing a standard client.
+
+     This class should be used for instantiating new clients. See the main page
+     for learning how the server, clients, and subclients work.
+  */
   class StdClient : public InitClient {
   private:
     unsigned int accepted;
@@ -147,11 +261,20 @@ namespace aperf {
               unsigned long long file_timeout_seconds);
 
   public:
+    /**
+       A StdClient factory.
+    */
     class Factory : public Client::Factory {
     private:
       std::shared_ptr<Subclient::Factory> factory;
 
     public:
+      /**
+         Constructs a StdClient::Factory object.
+
+         @param factory A Subclient factory for spawning new
+                        subclients by the client.
+      */
       Factory(std::unique_ptr<Subclient::Factory> &factory) {
         this->factory = std::move(factory);
       }
@@ -171,6 +294,11 @@ namespace aperf {
     void notify();
   };
 
+  /**
+     A class describing the server.
+
+     See the main page for learning how the server, clients, and subclients work.
+  */
   class Server {
   private:
     std::unique_ptr<Acceptor> acceptor;
