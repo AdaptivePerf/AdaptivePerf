@@ -1,3 +1,6 @@
+// AdaptivePerf: comprehensive profiling tool based on Linux perf
+// Copyright (C) CERN. See LICENSE for details.
+
 #ifndef CMD_HPP_
 #define CMD_HPP_
 
