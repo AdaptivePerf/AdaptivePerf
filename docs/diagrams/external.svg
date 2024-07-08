@@ -1,0 +1,314 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.0//EN" "http://www.w3.org/TR/2001/PR-SVG-20010719/DTD/svg10.dtd">
+<svg width="76cm" height="40cm" viewBox="258 186 1503 795" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+  <g>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke-dasharray: 10; stroke: #0000ff" x="456.112" y="753.988" width="916.082" height="139.384"/>
+    <text font-size="12.8" style="fill: #000000;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:normal" x="914.153" y="827.561">
+      <tspan x="914.153" y="827.561"></tspan>
+    </text>
+  </g>
+  <g>
+    <rect style="fill: #ffffff" x="425.502" y="320" width="108" height="47.4"/>
+    <path style="fill: #ffffff" d="M 425.502,320 A 20,20 0 0 0 405.502,340 L 425.502,340 z"/>
+    <path style="fill: #ffffff" d="M 553.502,340 A 20,20 0 0 0 533.502,320 L 533.502,340 z"/>
+    <rect style="fill: #ffffff" x="405.502" y="340" width="148" height="7.4"/>
+    <path style="fill: #ffffff" d="M 405.502,347.4 A 20,20 0 0 0 425.502,367.4 L 425.502,347.4 z"/>
+    <path style="fill: #ffffff" d="M 533.502,367.4 A 20,20 0 0 0 553.502,347.4 L 533.502,347.4 z"/>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="425.502" y1="320" x2="533.502" y2="320"/>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="425.502" y1="367.4" x2="533.502" y2="367.4"/>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 425.502,320 A 20,20 0 0 0 405.502,340"/>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 553.502,340 A 20,20 0 0 0 533.502,320"/>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="405.502" y1="340" x2="405.502" y2="347.4"/>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="553.502" y1="340" x2="553.502" y2="347.4"/>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 405.502,347.4 A 20,20 0 0 0 425.502,367.4"/>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 533.502,367.4 A 20,20 0 0 0 553.502,347.4"/>
+    <text font-size="20.32" style="fill: #000000;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:700" x="479.502" y="349.861">
+      <tspan x="479.502" y="349.861">Frontend</tspan>
+    </text>
+  </g>
+  <g>
+    <rect style="fill: #ffffff" x="725.502" y="320" width="108" height="47.4"/>
+    <path style="fill: #ffffff" d="M 725.502,320 A 20,20 0 0 0 705.502,340 L 725.502,340 z"/>
+    <path style="fill: #ffffff" d="M 853.502,340 A 20,20 0 0 0 833.502,320 L 833.502,340 z"/>
+    <rect style="fill: #ffffff" x="705.502" y="340" width="148" height="7.4"/>
+    <path style="fill: #ffffff" d="M 705.502,347.4 A 20,20 0 0 0 725.502,367.4 L 725.502,347.4 z"/>
+    <path style="fill: #ffffff" d="M 833.502,367.4 A 20,20 0 0 0 853.502,347.4 L 833.502,347.4 z"/>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="725.502" y1="320" x2="833.502" y2="320"/>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="725.502" y1="367.4" x2="833.502" y2="367.4"/>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 725.502,320 A 20,20 0 0 0 705.502,340"/>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 853.502,340 A 20,20 0 0 0 833.502,320"/>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="705.502" y1="340" x2="705.502" y2="347.4"/>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="853.502" y1="340" x2="853.502" y2="347.4"/>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 705.502,347.4 A 20,20 0 0 0 725.502,367.4"/>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 833.502,367.4 A 20,20 0 0 0 853.502,347.4"/>
+    <text font-size="20.32" style="fill: #000000;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:700" x="779.502" y="349.861">
+      <tspan x="779.502" y="349.861">Server</tspan>
+    </text>
+  </g>
+  <g>
+    <rect style="fill: #ffffff" x="1026.42" y="320" width="108" height="47.4"/>
+    <path style="fill: #ffffff" d="M 1026.42,320 A 20,20 0 0 0 1006.42,340 L 1026.42,340 z"/>
+    <path style="fill: #ffffff" d="M 1154.42,340 A 20,20 0 0 0 1134.42,320 L 1134.42,340 z"/>
+    <rect style="fill: #ffffff" x="1006.42" y="340" width="148" height="7.4"/>
+    <path style="fill: #ffffff" d="M 1006.42,347.4 A 20,20 0 0 0 1026.42,367.4 L 1026.42,347.4 z"/>
+    <path style="fill: #ffffff" d="M 1134.42,367.4 A 20,20 0 0 0 1154.42,347.4 L 1134.42,347.4 z"/>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="1026.42" y1="320" x2="1134.42" y2="320"/>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="1026.42" y1="367.4" x2="1134.42" y2="367.4"/>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 1026.42,320 A 20,20 0 0 0 1006.42,340"/>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 1154.42,340 A 20,20 0 0 0 1134.42,320"/>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="1006.42" y1="340" x2="1006.42" y2="347.4"/>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="1154.42" y1="340" x2="1154.42" y2="347.4"/>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 1006.42,347.4 A 20,20 0 0 0 1026.42,367.4"/>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 1134.42,367.4 A 20,20 0 0 0 1154.42,347.4"/>
+    <text font-size="20.32" style="fill: #000000;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:700" x="1080.42" y="349.861">
+      <tspan x="1080.42" y="349.861">Client</tspan>
+    </text>
+  </g>
+  <g>
+    <rect style="fill: #ffffff" x="1320" y="300" width="120" height="72.8"/>
+    <path style="fill: #ffffff" d="M 1320,300 A 20,20 0 0 0 1300,320 L 1320,320 z"/>
+    <path style="fill: #ffffff" d="M 1460,320 A 20,20 0 0 0 1440,300 L 1440,320 z"/>
+    <rect style="fill: #ffffff" x="1300" y="320" width="160" height="32.8"/>
+    <path style="fill: #ffffff" d="M 1300,352.8 A 20,20 0 0 0 1320,372.8 L 1320,352.8 z"/>
+    <path style="fill: #ffffff" d="M 1440,372.8 A 20,20 0 0 0 1460,352.8 L 1440,352.8 z"/>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="1320" y1="300" x2="1440" y2="300"/>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="1320" y1="372.8" x2="1440" y2="372.8"/>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 1320,300 A 20,20 0 0 0 1300,320"/>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 1460,320 A 20,20 0 0 0 1440,300"/>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="1300" y1="320" x2="1300" y2="352.8"/>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="1460" y1="320" x2="1460" y2="352.8"/>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 1300,352.8 A 20,20 0 0 0 1320,372.8"/>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 1440,372.8 A 20,20 0 0 0 1460,352.8"/>
+    <text font-size="20.32" style="fill: #000000;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:700" x="1380" y="329.861">
+      <tspan x="1380" y="329.861">Each</tspan>
+      <tspan x="1380" y="355.261">Subclient</tspan>
+    </text>
+  </g>
+  <g>
+    <rect style="fill: #ffffff" x="1620" y="300" width="120" height="72.8"/>
+    <path style="fill: #ffffff" d="M 1620,300 A 20,20 0 0 0 1600,320 L 1620,320 z"/>
+    <path style="fill: #ffffff" d="M 1760,320 A 20,20 0 0 0 1740,300 L 1740,320 z"/>
+    <rect style="fill: #ffffff" x="1600" y="320" width="160" height="32.8"/>
+    <path style="fill: #ffffff" d="M 1600,352.8 A 20,20 0 0 0 1620,372.8 L 1620,352.8 z"/>
+    <path style="fill: #ffffff" d="M 1740,372.8 A 20,20 0 0 0 1760,352.8 L 1740,352.8 z"/>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="1620" y1="300" x2="1740" y2="300"/>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="1620" y1="372.8" x2="1740" y2="372.8"/>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 1620,300 A 20,20 0 0 0 1600,320"/>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 1760,320 A 20,20 0 0 0 1740,300"/>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="1600" y1="320" x2="1600" y2="352.8"/>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="1760" y1="320" x2="1760" y2="352.8"/>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 1600,352.8 A 20,20 0 0 0 1620,372.8"/>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" d="M 1740,372.8 A 20,20 0 0 0 1760,352.8"/>
+    <text font-size="20.32" style="fill: #000000;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:700" x="1680" y="329.861">
+      <tspan x="1680" y="329.861">Each</tspan>
+      <tspan x="1680" y="355.261">profiler</tspan>
+    </text>
+  </g>
+  <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="479.502" y1="367.4" x2="480" y2="980"/>
+  <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="779.502" y1="367.4" x2="780" y2="440"/>
+  <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="1080.42" y1="367.4" x2="1080" y2="980"/>
+  <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="1380" y1="372.8" x2="1380" y2="980"/>
+  <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="1680" y1="372.8" x2="1680" y2="980"/>
+  <g>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="491" y1="400" x2="769" y2="400"/>
+    <polygon style="fill: #000000" points="491,395 481,400 491,405 "/>
+    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="491,395 481,400 491,405 "/>
+    <polygon style="fill: #000000" points="769,405 779,400 769,395 "/>
+    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="769,405 779,400 769,395 "/>
+  </g>
+  <g>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="780" y1="420" x2="1069" y2="420"/>
+    <polygon style="fill: #000000" points="1069,425 1079,420 1069,415 "/>
+    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="1069,425 1079,420 1069,415 "/>
+  </g>
+  <g>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="480" y1="460" x2="1069" y2="460"/>
+    <polygon style="fill: #000000" points="1069,465 1079,460 1069,455 "/>
+    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="1069,465 1079,460 1069,455 "/>
+  </g>
+  <g>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="480" y1="500" x2="1069" y2="500"/>
+    <polygon style="fill: #000000" points="1069,505 1079,500 1069,495 "/>
+    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="1069,505 1079,500 1069,495 "/>
+  </g>
+  <g>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="1080" y1="600" x2="491" y2="600"/>
+    <polygon style="fill: #000000" points="491,595 481,600 491,605 "/>
+    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="491,595 481,600 491,605 "/>
+  </g>
+  <g>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="1080" y1="520" x2="1369" y2="520"/>
+    <polygon style="fill: #000000" points="1369,525 1379,520 1369,515 "/>
+    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="1369,525 1379,520 1369,515 "/>
+  </g>
+  <g>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="1391" y1="560" x2="1669" y2="560"/>
+    <polygon style="fill: #000000" points="1391,555 1381,560 1391,565 "/>
+    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="1391,555 1381,560 1391,565 "/>
+    <polygon style="fill: #000000" points="1669,565 1679,560 1669,555 "/>
+    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="1669,565 1679,560 1669,555 "/>
+  </g>
+  <g>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="1380" y1="580" x2="1091" y2="580"/>
+    <polygon style="fill: #000000" points="1091,575 1081,580 1091,585 "/>
+    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="1091,575 1081,580 1091,585 "/>
+  </g>
+  <g>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="1680" y1="620" x2="1391" y2="620"/>
+    <polygon style="fill: #000000" points="1391,615 1381,620 1391,625 "/>
+    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="1391,615 1381,620 1391,625 "/>
+  </g>
+  <g>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="1680" y1="660" x2="1391" y2="660"/>
+    <polygon style="fill: #000000" points="1391,655 1381,660 1391,665 "/>
+    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="1391,655 1381,660 1391,665 "/>
+  </g>
+  <g>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="1080" y1="680" x2="491" y2="680"/>
+    <polygon style="fill: #000000" points="491,675 481,680 491,685 "/>
+    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="491,675 481,680 491,685 "/>
+  </g>
+  <g>
+    <rect style="fill: #ffffff" x="1180" y="780" width="22" height="100"/>
+    <rect style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x="1180" y="780" width="22" height="100"/>
+    <text font-size="12.8" style="fill: #000000;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:normal" x="1191" y="833.881">
+      <tspan x="1191" y="833.881"></tspan>
+    </text>
+  </g>
+  <g>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="1080" y1="720" x2="491" y2="720"/>
+    <polygon style="fill: #000000" points="491,715 481,720 491,725 "/>
+    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="491,715 481,720 491,725 "/>
+  </g>
+  <g>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="480" y1="780" x2="1069" y2="780"/>
+    <polygon style="fill: #000000" points="1069,785 1079,780 1069,775 "/>
+    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="1069,785 1079,780 1069,775 "/>
+  </g>
+  <g>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="491" y1="820" x2="1169" y2="820"/>
+    <polygon style="fill: #000000" points="491,815 481,820 491,825 "/>
+    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="491,815 481,820 491,825 "/>
+    <polygon style="fill: #000000" points="1169,825 1179,820 1169,815 "/>
+    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="1169,825 1179,820 1169,815 "/>
+  </g>
+  <g>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="480" y1="860" x2="1169" y2="860"/>
+    <polygon style="fill: #000000" points="1169,865 1179,860 1169,855 "/>
+    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="1169,865 1179,860 1169,855 "/>
+  </g>
+  <g>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="480" y1="920" x2="1069" y2="920"/>
+    <polygon style="fill: #000000" points="1069,925 1079,920 1069,915 "/>
+    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="1069,925 1079,920 1069,915 "/>
+  </g>
+  <g>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="1080" y1="960" x2="491" y2="960"/>
+    <polygon style="fill: #000000" points="491,955 481,960 491,965 "/>
+    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="491,955 481,960 491,965 "/>
+  </g>
+  <g>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="1080" y1="800" x2="1169" y2="800"/>
+    <polygon style="fill: #000000" points="1169,805 1179,800 1169,795 "/>
+    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="1169,805 1179,800 1169,795 "/>
+  </g>
+  <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:sans-serif;font-style:normal;font-weight:normal" x="680" y="400">
+    <tspan x="680" y="400"></tspan>
+  </text>
+  <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:sans-serif;font-style:normal;font-weight:normal" x="500" y="395.416">
+    <tspan x="500" y="395.416">connects</tspan>
+  </text>
+  <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:sans-serif;font-style:normal;font-weight:normal" x="800" y="415.416">
+    <tspan x="800" y="415.416">spawns and transfers connection to</tspan>
+  </text>
+  <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:sans-serif;font-style:normal;font-weight:normal" x="500" y="455.416">
+    <tspan x="500" y="455.416">sends "startX &lt;result directory&gt;"</tspan>
+  </text>
+  <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:sans-serif;font-style:normal;font-weight:normal" x="500" y="495.416">
+    <tspan x="500" y="495.416">sends "&lt;profiled filename&gt;"</tspan>
+  </text>
+  <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:sans-serif;font-style:normal;font-weight:normal" x="1100" y="515.416">
+    <tspan x="1100" y="515.416">spawns X instances of</tspan>
+  </text>
+  <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:sans-serif;font-style:normal;font-weight:normal" x="1400" y="555.416">
+    <tspan x="1400" y="555.416">connects</tspan>
+  </text>
+  <g>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="1080" y1="540" x2="491" y2="540"/>
+    <polygon style="fill: #000000" points="491,535 481,540 491,545 "/>
+    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="491,535 481,540 491,545 "/>
+  </g>
+  <text font-size="12.8" style="fill: #000000;text-anchor:end;font-family:sans-serif;font-style:normal;font-weight:normal" x="1060" y="520">
+    <tspan x="1060" y="520">sends "&lt;type&gt; &lt;conn. details&gt; &lt;conn. details&gt; ... &lt;conn. details&gt;"</tspan>
+    <tspan x="1060" y="536">(with one &lt;conn. details&gt; per Subclient instance)</tspan>
+  </text>
+  <text font-size="12.8" style="fill: #000000;text-anchor:end;font-family:sans-serif;font-style:normal;font-weight:normal" x="1360" y="575.416">
+    <tspan x="1360" y="575.416">notifies</tspan>
+  </text>
+  <text font-size="12.8" style="fill: #000000;text-anchor:end;font-family:sans-serif;font-style:normal;font-weight:normal" x="1060" y="595.416">
+    <tspan x="1060" y="595.416">sends "start_profile" (after all instances of Subclient have a connection)</tspan>
+  </text>
+  <text font-size="12.8" style="fill: #000000;text-anchor:end;font-family:sans-serif;font-style:normal;font-weight:normal" x="1660" y="600">
+    <tspan x="1660" y="600">sends profiling data separated</tspan>
+    <tspan x="1660" y="616">by newline</tspan>
+  </text>
+  <text font-size="12.8" style="fill: #000000;text-anchor:end;font-family:sans-serif;font-style:normal;font-weight:normal" x="1660" y="640">
+    <tspan x="1660" y="640">sends "&lt;STOP&gt;" and terminates</tspan>
+    <tspan x="1660" y="656">connection</tspan>
+  </text>
+  <text font-size="12.8" style="fill: #000000;text-anchor:end;font-family:sans-serif;font-style:normal;font-weight:normal" x="1060" y="675.416">
+    <tspan x="1060" y="675.416">sends "out_files" (after all instances of Subclient finish executing)</tspan>
+  </text>
+  <text font-size="12.8" style="fill: #000000;text-anchor:end;font-family:sans-serif;font-style:normal;font-weight:normal" x="1060" y="715.416">
+    <tspan x="1060" y="715.416">sends "&lt;type&gt; &lt;conn. details&gt;" for the file transfer server</tspan>
+  </text>
+  <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:sans-serif;font-style:normal;font-weight:normal" x="500" y="775.416">
+    <tspan x="500" y="775.416">sends "p &lt;name of file to be put in 'processed'&gt;" or "o &lt;name of file to be put in 'out'&gt;"</tspan>
+  </text>
+  <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:sans-serif;font-style:normal;font-weight:normal" x="1100" y="795.416">
+    <tspan x="1100" y="795.416">starts</tspan>
+  </text>
+  <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:sans-serif;font-style:normal;font-weight:normal" x="500" y="815.416">
+    <tspan x="500" y="815.416">connects</tspan>
+  </text>
+  <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:sans-serif;font-style:normal;font-weight:normal" x="500" y="855.416">
+    <tspan x="500" y="855.416">sends file data and terminates connection</tspan>
+  </text>
+  <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:sans-serif;font-style:normal;font-weight:normal" x="500" y="915.416">
+    <tspan x="500" y="915.416">sends "&lt;STOP&gt;"</tspan>
+  </text>
+  <text font-size="12.8" style="fill: #000000;text-anchor:end;font-family:sans-serif;font-style:normal;font-weight:normal" x="1060" y="955.416">
+    <tspan x="1060" y="955.416">sends "finished"</tspan>
+  </text>
+  <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:sans-serif;font-style:normal;font-weight:normal" x="1340" y="780">
+    <tspan x="1340" y="780"></tspan>
+  </text>
+  <text font-size="18.0622" style="fill: #000000;text-anchor:middle;font-family:sans-serif;font-style:normal;font-weight:700" x="1289" y="813.754">
+    <tspan x="1289" y="813.754">Client separate</tspan>
+    <tspan x="1289" y="836.332">server for file</tspan>
+    <tspan x="1289" y="858.91">transfer</tspan>
+  </text>
+  <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:sans-serif;font-style:normal;font-weight:normal" x="429.518" y="809.926">
+    <tspan x="429.518" y="809.926"></tspan>
+  </text>
+  <text font-size="14.6756" style="fill: #0000ff;text-anchor:end;font-family:sans-serif;font-style:italic;font-weight:normal" x="443.272" y="787">
+    <tspan x="443.272" y="787">Performed for each</tspan>
+    <tspan x="443.272" y="805.344">file to be transferred,</tspan>
+    <tspan x="443.272" y="823.689">can also be done 0 times</tspan>
+    <tspan x="443.272" y="842.033">in case of no files</tspan>
+  </text>
+  <g>
+    <path style="fill: none; fill-opacity:0; stroke-width: 2; stroke-dasharray: 10; stroke: #0000ff" d="M 900,220 A 163.249,163.249 0 0 0 783.895,309.936"/>
+    <polygon style="fill: #0000ff" points="778.913,307.931 779.871,319.071 788.208,311.621 "/>
+    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #0000ff" points="778.913,307.931 779.871,319.071 788.208,311.621 "/>
+  </g>
+  <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:sans-serif;font-style:normal;font-weight:normal" x="1300" y="260">
+    <tspan x="1300" y="260"></tspan>
+  </text>
+  <text font-size="14.6756" style="fill: #0000ff;text-anchor:start;font-family:sans-serif;font-style:italic;font-weight:normal" x="920" y="200">
+    <tspan x="920" y="200">Can handle multiple</tspan>
+    <tspan x="920" y="218.344">connections simultaneously,</tspan>
+    <tspan x="920" y="236.689">with one Client instance</tspan>
+    <tspan x="920" y="255.033">per connection</tspan>
+  </text>
+</svg>
