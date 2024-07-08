@@ -70,6 +70,9 @@ namespace aperf {
     }
   }
 
+  /**
+     Returns "<TCP server address>_<TCP server port>".
+  */
   std::string TCPAcceptor::get_connection_instructions() {
     return this->acceptor.address().host().toString() + "_" + std::to_string(this->acceptor.address().port());
   }
@@ -82,6 +85,13 @@ namespace aperf {
     this->acceptor.close();
   }
 
+  /**
+     Constructs a TCPSocket object.
+
+     @param sock     The Poco::Net::StreamSocket object corresponding to
+                     the already-established TCP socket.
+     @param buf_size The buffer size for communication, in bytes.
+  */
   TCPSocket::TCPSocket(net::StreamSocket & sock, unsigned int buf_size) {
     this->socket = sock;
     this->buf.reset(new char[buf_size]);
@@ -231,6 +241,15 @@ namespace aperf {
   }
 
 #ifndef SERVER_ONLY
+  /**
+     Constructs a FileDescriptor object.
+
+     @param read_fd  The pair of file descriptors for read()
+                     as returned by the pipe system call.
+     @param write_fd The pair of file descriptors for write()
+                     as returned by the pipe system call.
+     @param buf_size The buffer size for communication, in bytes.
+  */
   FileDescriptor::FileDescriptor(int read_fd[2], int write_fd[2],
                                  unsigned int buf_size) {
     this->buf.reset(new char[buf_size]);
@@ -374,8 +393,9 @@ namespace aperf {
                               std::ios_base::binary);
 
     if (!file_stream) {
-      throw std::runtime_error("Could not open the file " +
-                               file.string() + "!");
+      std::runtime_error err("Could not open the file " +
+                             file.string() + "!");
+      throw ConnectionException(err);
     }
 
     while (file_stream) {
@@ -385,12 +405,13 @@ namespace aperf {
                                   bytes_read);
 
       if (bytes_written != bytes_read) {
-        throw std::runtime_error("Wrote " +
-                                 std::to_string(bytes_written) +
-                                 " bytes instead of " +
-                                 std::to_string(bytes_read) +
-                                 " to fd " +
-                                 std::to_string(this->write_fd[1]));
+        std::runtime_error err("Wrote " +
+                               std::to_string(bytes_written) +
+                               " bytes instead of " +
+                               std::to_string(bytes_read) +
+                               " to fd " +
+                               std::to_string(this->write_fd[1]));
+        throw ConnectionException(err);
       }
     }
   }
@@ -399,15 +420,22 @@ namespace aperf {
     return this->buf_size;
   }
 
+  /**
+     Constructs a PipeAcceptor object.
+
+     @throw ConnectionException When the pipe system call fails.
+  */
   PipeAcceptor::PipeAcceptor() : Acceptor(1) {
     if (pipe(this->read_fd) != 0) {
-      throw std::runtime_error("Could not open read pipe for FileDescriptor, "
-                               "code " + std::to_string(errno));
+      std::runtime_error err("Could not open read pipe for FileDescriptor, "
+                             "code " + std::to_string(errno));
+      throw ConnectionException(err);
     }
 
     if (pipe(this->write_fd) != 0) {
-      throw std::runtime_error("Could not open write pipe for FileDescriptor, "
-                               "code " + std::to_string(errno));
+      std::runtime_error err("Could not open write pipe for FileDescriptor, "
+                             "code " + std::to_string(errno));
+      throw ConnectionException(err);
     }
   }
 
@@ -432,8 +460,9 @@ namespace aperf {
     std::string msg(buf, size);
 
     if (msg != expected) {
-      throw std::runtime_error("Message received from pipe when establishing connection "
-                               "is \"" + msg + "\" instead of \"" + expected + "\".");
+      std::runtime_error err("Message received from pipe when establishing connection "
+                             "is \"" + msg + "\" instead of \"" + expected + "\".");
+      throw ConnectionException(err);
     }
 
     return std::unique_ptr<Connection>(new FileDescriptor(this->read_fd,
@@ -443,6 +472,9 @@ namespace aperf {
 
   void PipeAcceptor::close() {}
 
+  /**
+     Returns "<file descriptor for reading from this end>_<file descriptor for writing by the other end>".
+  */
   std::string PipeAcceptor::get_connection_instructions() {
     return std::to_string(this->write_fd[0]) + "_" + std::to_string(this->read_fd[1]);
   }

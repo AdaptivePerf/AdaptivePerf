@@ -11,6 +11,10 @@
 #define COLUMN_WIDTH 35
 
 namespace aperf {
+  /**
+     A class ensuring that the help message is formatted in
+     an eye-friendly way complying with the 80-character limit.
+  */
   class PrettyFormatter : public CLI::Formatter {
   public:
     PrettyFormatter() {

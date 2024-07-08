@@ -7,6 +7,10 @@
 #include <boost/algorithm/string.hpp>
 
 namespace aperf {
+  /**
+     Entry point to the AdaptivePerf backend (i.e. adaptiveperf-server)
+     when it is run from the command line.
+  */
   int server_entrypoint(int argc, char **argv) {
     CLI::App app("Post-processing server for AdaptivePerf");
 
