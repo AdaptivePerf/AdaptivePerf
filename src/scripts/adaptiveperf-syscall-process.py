@@ -1,6 +1,9 @@
 # AdaptivePerf: comprehensive profiling tool based on Linux perf
 # Copyright (C) CERN. See LICENSE for details.
 
+# This script uses the perf-script Python API.
+# See the man page for perf-script-python for learning how the API works.
+
 from __future__ import print_function
 import os
 import sys
@@ -14,7 +17,7 @@ from collections import defaultdict
 sys.path.append(os.environ['PERF_EXEC_PATH'] +
                 '/scripts/python/Perf-Trace-Util/lib/Perf/Trace')
 
-cur_code = [32]
+cur_code = [32]  # In ASCII
 
 def next_code():
     global cur_code
@@ -55,6 +58,19 @@ def syscall_callback(stack, ret_value):
     if int(ret_value) == 0:
         return
 
+    # Callchain symbol names are attempted to be obtained here. In case of
+    # failure, an instruction address is put instead, along with
+    # the name of an executable/library if available.
+    #
+    # If obtained, symbol names are compressed to save memory.
+    # The dictionary mapping compressed names to full ones
+    # is saved at the end of profiling to syscall_callchains.json
+    # (see reverse_callchain_dict in trace_end()).
+    #
+    # Also, if a symbol name is detected to come from a perf symbol
+    # map (i.e. the name of an executable/library is in form of
+    # perf-<number>.map), the path to the map is saved so that AdaptivePerf
+    # can copy it to the profiling results directory later.
     def process_callchain_elem(elem):
         if 'dso' in elem and \
            re.search(r'^perf\-\d+\.map$', Path(elem['dso']).name) is not None:
