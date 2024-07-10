@@ -15,12 +15,17 @@ Copyright (C) CERN.
 The project is distributed under the GNU GPL v2 license. See LICENSE for details. **Only version 2 of GNU GPL can be used!**
 
 ## Current features
-* Profiling on-CPU and off-CPU activity with ```perf```, hot-and-cold flame graphs, and hot-and-cold time-ordered flame charts
+* Profiling on-CPU and off-CPU activity with ```perf```
 * Profiling thread/process tree by tracing relevant syscalls with ```perf```
+* Producing data needed for rendering a thread/process timeline view with non-time-ordered and time-ordered flame graphs per thread/process (where on-CPU and off-CPU activity is visualised in one graph)
 * Profiling stack traces of functions spawning new threads/processes
-* Profiling any event supported by ```perf``` for sampling
+* Profiling any sampling-based event supported by ```perf```
 * Streaming profiling events in real-time through TCP to a different machine running adaptiveperf-server (part of this repository)
 * Detecting inappropriate CPU and kernel configurations automatically and therefore helping ```perf``` traverse stack completely in all cases
+
+On-CPU profiling uses ```perf``` with the ```task-clock``` event. Off-CPU profiling is based on sampling explained with the diagram below (using the example of a single process with interleaving on-CPU and off-CPU activity). The sampling period is calculated from a user-provided off-CPU sampling frequency.
+
+![Off-CPU sampling](https://github.com/AdaptivePerf/AdaptivePerf/assets/24892582/cfe3d882-9ce1-40f8-8f57-e286f04057dd)
 
 Both single-threaded and multi-threaded programs are supported. All CPU architectures and vendors should also be supported (provided that the installation requirements are met, see below) since the main features of AdaptivePerf are based on kernel-based performance counters and portable stack traversal methods. However, if extra ```perf``` events are used for sampling, the list of available events should be checked beforehand by running ```perf list``` as this is architecture-dependent.
 
@@ -80,7 +85,7 @@ adaptiveperf "<command to be profiled>"
 ```
 (quoting is important if your command has whitespaces)
 
-You can adjust profiling settings, e.g. specify extra perf events for sampling and change the sampling rate. See ```adaptiveperf --help``` for details (```man``` pages coming soon!).
+If you want to see what extra options you can set (e.g. an on-CPU/off-CPU sampling frequency, the quiet mode), run ```adaptiveperf --help```.
 
 After profiling is completed, you can check the results inside ```results```.
 
@@ -99,6 +104,19 @@ The structure of ```results``` is as follows:
 
 It is recommended to use [AdaptivePerfHTML](https://github.com/AdaptivePerf/adaptiveperfhtml) for creating an interactive HTML summary of your profiling sessions.
 
+## External instance of adaptiveperf-server
+AdaptivePerf runs adaptiveperf-server internally by default, which means that both profiling and profiling data (post-)processing are performed on the same machine. However, you can delegate the (post-)processing to an external instance of adaptiveperf-server running e.g. on a separate machine.
+
+To do this, run ```adaptiveperf-server``` first on the machine where you want the (post-)processing to be done and note down the IP address and port it prints. If you want to specify extra options (e.g. a custom IP address and/or port), look at the output of ```adaptiveperf-server --help```.
+
+Afterwards, run the following command on the machine with your program to be profiled:
+```
+adaptiveperf -a <IP address>:<port> "<command to be profiled>"
+```
+(you are free to specify extra options as well)
+
+When AdaptivePerf finishes profiling, all results will be stored on the machine running ```adaptiveperf-server``` (**not the machine with the profiled program**).
+
 ## Documentation for contributors (Doxygen)
 If you want to contribute to AdaptivePerf or dive deeply into how it works, please check out the Doxygen documentation [here](https://adaptiveperf.github.io/contributors).
 
@@ -112,3 +130,8 @@ After installing AdaptivePerf/adaptiveperf-server, you may get an error like the
 adaptiveperf: error while loading shared libraries: libaperfserv.so: cannot open shared object file: No such file or directory
 ```
 If this happens, please add ```<your installation prefix>/lib``` (it's ```/usr/local/lib``` by default) to ```/etc/ld.so.conf``` and run ```ldconfig``` afterwards. Alternatively, run AdaptivePerf with ```<your installation prefix>/lib``` appended to the ```LD_LIBRARY_PATH``` environment variable.
+
+### Profiler "..." (perf-record / perf-script) has returned non-zero exit code
+If you get an error message similar to the one in the title, please look at the logs in the temporary directory printed by AdaptivePerf.
+
+If the logs mention "can't access trace events", permission denied issues, or problems with eBPF, please try either running AdaptivePerf as root or increasing "perf" and eBPF privileges for your user account. If it doesn't work or the logs mention a different problem, feel free to file an issue on GitHub.
