@@ -74,6 +74,7 @@ namespace aperf {
     const int ERROR_TOO_MANY_NUMBERS_REGEX = 205;
     const int ERROR_CONVERSION_TO_FLOAT = 206;
     const int ERROR_PARSING_CONNECTION_INSTRS = 207;
+    const int ERROR_USER_REGEX_MATCH = 208;
     
     
     std::vector<std::string> parts = boost::program_options::split_unix(this->metric_command);
@@ -152,15 +153,14 @@ namespace aperf {
 
           if(!this->regex.empty()){
 
-            std::regex number_regex(this->regex);
-
-            std::sregex_iterator numbers_begin = std::sregex_iterator(data.begin(), data.end(), number_regex);
-            std::sregex_iterator numbers_end = std::sregex_iterator();
-            for (std::sregex_iterator i = numbers_begin; i != numbers_end; ++i) {
-              std::smatch match = *i;
-
-              parsed_data += std::stoi(match.str());
+            std::regex regexPattern(this->regex);
+            std::smatch match_pattern;
+            if (std::regex_search(data, match_pattern, regexPattern)) {
+                parsed_data = match_pattern.str();
+            }else{
+                std::exit(ERROR_USER_REGEX_MATCH);
             }
+
           }else{
             parsed_data = data;
           }
@@ -330,6 +330,10 @@ namespace aperf {
 
         case ERROR_PARSING_CONNECTION_INSTRS:
           print(hint + "metric reader tried to parse instructions to connect to server", true, true);
+          break;
+
+        case ERROR_USER_REGEX_MATCH:
+          print(hint + "input regex did not match any metric command output ", true, true);
           break;
 
         }
