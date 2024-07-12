@@ -2,6 +2,7 @@
 // Copyright (C) CERN. See LICENSE for details.
 
 #include "profilers.hpp"
+#include "server/server.hpp"
 #include <cstdlib>
 #include <future>
 #include <iostream>
@@ -9,12 +10,361 @@
 #include <sys/wait.h>
 #include <fcntl.h>
 #include <nlohmann/json.hpp>
+#include <Poco/Net/StreamSocket.h>
+#include <boost/core/demangle.hpp>
+#include <boost/algorithm/string.hpp>
+#include <boost/program_options/parsers.hpp>
+
 
 #ifndef APERF_SCRIPT_PATH
 #define APERF_SCRIPT_PATH "."
 #endif
 
+
+
 namespace aperf {
+
+
+  /**
+    Constructs a MetricReader object.
+
+    @param metric_command  Metric command to be executed
+    @param metric_name     Alias for the metric command given by the user                
+    @param freq            The frequency at which the metric command will be "sampled"                   
+    @param regex           Regular expression provided by the user 
+                           to parse the output from the metric command
+    @param server_buffer   Size of the connection buffer to the server        
+  */
+
+  MetricReader::MetricReader(std::string metric_command, 
+                            std::string metric_name, 
+                            int freq,
+                            std::string regex,
+                            unsigned int server_buffer){
+    
+    this->metric_command = metric_command;
+    this->metric_name = metric_name;
+    this->freq = freq;
+    this->regex = regex;
+    this->server_buffer = server_buffer;
+    this->name = "MetricReader";
+
+  }
+
+  std::string MetricReader::get_name() {
+    return this->name;
+  }
+
+  void MetricReader::start(pid_t pid,
+                   ServerConnInstrs &connection_instrs,
+                   fs::path result_out,
+                   fs::path result_processed,
+                   bool capture_immediately) {
+
+    this->result_out = result_out;
+    std::string instrs = connection_instrs.get_instructions(this->get_thread_count());
+
+    fs::path stderr_metric_command;
+    stderr_metric_command = result_out / "metric_command_stderr.log";
+
+    const int ERROR_STDERR = 201;
+    const int ERROR_STDOUT_DUP2 = 202;
+    const int ERROR_STDERR_DUP2 = 203;
+    const int ERROR_NO_NUMBER_REGEX = 204;
+    const int ERROR_TOO_MANY_NUMBERS_REGEX = 205;
+    const int ERROR_CONVERSION_TO_FLOAT = 206;
+    const int ERROR_PARSING_CONNECTION_INSTRS = 207;
+    
+    
+    std::vector<std::string> parts = boost::program_options::split_unix(this->metric_command);
+
+    const char *path = parts[0].c_str();
+    char *parts_c_str[parts.size() + 1];
+
+    for (int i = 0; i < parts.size(); i++) {
+      parts_c_str[i] = (char *)parts[i].c_str();
+    }
+    parts_c_str[parts.size()] = NULL;
+
+
+    pid_t forked_metric_profiler = fork(); //separate process for profiler, parent handles errors
+
+    if(forked_metric_profiler == 0){
+      int code_metric_exec = 0;
+
+      int status;
+      pid_t command_status = waitpid(pid, &status, WNOHANG); //check if profiled command has finished executing
+      const int interval_ns = 1000 * 1000000 / this->freq;
+
+      while (command_status > 0){
+
+        struct timespec start, end;
+        clock_gettime(CLOCK_MONOTONIC, &start);
+
+        int pipe_fd[2];
+
+        if (pipe(pipe_fd) == -1) {
+          print("Could not establish communication pipe between metric-exec "
+                "and metric-read in \"" + this->get_name() + "\"! Terminating "
+                "the profiled command wrapper.", true, true);
+          kill(pid, SIGTERM);
+          return;
+        }
+
+        pid_t forked_metric_exec = fork();
+        if (forked_metric_exec == 0){
+          close(pipe_fd[0]);
+
+          fs::current_path(result_processed);
+
+          int stderr_fd = creat(stderr_metric_command.c_str(), O_WRONLY);
+
+          if (stderr_fd == -1) {
+            std::exit(ERROR_STDERR);
+          }
+
+          if (dup2(stderr_fd, STDERR_FILENO) == -1) {
+            std::exit(ERROR_STDERR_DUP2);
+          }
+
+          if (dup2(pipe_fd[1], STDOUT_FILENO) == -1) {
+            std::exit(ERROR_STDOUT_DUP2);
+          }
+
+          close(pipe_fd[1]);
+          execvp(path, parts_c_str);
+
+          std::exit(errno);
+        }
+        else
+        {
+          close(pipe_fd[1]);
+          //read
+          char buffer[1024];
+          ssize_t bytes_read;
+          std::string data;
+          
+          while ((bytes_read = read(pipe_fd[0], buffer, sizeof(buffer) - 1)) > 0) {
+              buffer[bytes_read] = '\0';
+              data += buffer;
+          }
+          std::string parsed_data;
+
+          if(!this->regex.empty()){
+
+            std::regex number_regex(this->regex);
+
+            std::sregex_iterator numbers_begin = std::sregex_iterator(data.begin(), data.end(), number_regex);
+            std::sregex_iterator numbers_end = std::sregex_iterator();
+            for (std::sregex_iterator i = numbers_begin; i != numbers_end; ++i) {
+              std::smatch match = *i;
+
+              parsed_data += std::stoi(match.str());
+            }
+          }else{
+            parsed_data = data;
+          }
+
+          std::regex number_regex(R"(-?\d+(\.\d+)?)");;
+
+          std::smatch match;
+          std::string temp_data = parsed_data;
+          int count = 0;
+          float metric_val;
+                    
+          while (std::regex_search(temp_data, match, number_regex)) {
+            count++;
+            if(count > 1){break;}
+  
+            std::string number_str = match.str(0);
+              try {
+                  metric_val = std::stof(number_str);  
+              } catch (const std::exception&) {
+                    // failed conversion need to handle later
+                    std::exit(ERROR_CONVERSION_TO_FLOAT);
+              }
+            temp_data = match.suffix().str();
+          
+          }
+          if(count == 0){
+            //no numbers found 
+            std::exit(ERROR_NO_NUMBER_REGEX);
+          }
+          if(count > 1){
+            //error too many numbers
+            std::exit(ERROR_TOO_MANY_NUMBERS_REGEX);
+          }
+
+          close(pipe_fd[0]);
+
+
+          // ["<CUSTOM_METRIC>", <metric-reading command string>, <user-provided metric name string>, <timestamp in nanoseconds>, <value of the metric>]
+          clock_gettime(CLOCK_MONOTONIC, &end);
+          long timestamp = (end.tv_sec - start.tv_sec) * 1000 * 1000000 + (end.tv_nsec - start.tv_nsec);
+          nlohmann::json metric = nlohmann::json::array({"<CUSTOM_METRIC>", this->metric_command , this->metric_name, timestamp, metric_val });
+
+          std::string s = metric.dump();
+
+
+          //connection write s
+          std::unique_ptr<Connection> connection;
+
+          std::regex pipe_regex(R"(pipe\s+(\d+)_(\d+))");
+          std::regex tcp_regex(R"(TCP\s+([\d\.]+)_(\d+))");
+          std::smatch instruction_match;
+
+          if (std::regex_match(instrs, instruction_match, pipe_regex)) {
+              
+              int read_fd[2];
+              int write_fd[2];
+
+              write_fd[1] = std::stoi(match[1].str());
+              read_fd[0] = std::stoi(match[2].str());
+              connection = std::make_unique<FileDescriptor>(write_fd, read_fd, this->server_buffer);
+          } else if (std::regex_match(instrs, instruction_match, tcp_regex)) {
+              
+              std::string server_address = match[1].str() + ":" + match[2].str();
+              
+
+              Poco::Net::SocketAddress address(server_address);
+              Poco::Net::StreamSocket socket(address);
+
+              connection = std::make_unique<TCPSocket>(socket, this->server_buffer);
+              
+          }else{
+              // instruction is not correct
+              std::exit(ERROR_PARSING_CONNECTION_INSTRS);
+          }
+
+          connection->write(s);
+        }
+
+        close(pipe_fd[1]);
+        close(pipe_fd[0]);
+
+        command_status = waitpid(pid, &status, WNOHANG); //check if command to be profiled is still executing
+       
+        
+        int status_metric_exec;
+        waitpid(forked_metric_exec, &status_metric_exec, 0); //wait and check if metric command has finished executing
+        code_metric_exec = WEXITSTATUS(status_metric_exec);
+        if (code_metric_exec != 0){
+          break; //stop spawning metric_command
+        }
+
+
+        long elapsed_ns = (end.tv_sec - start.tv_sec) * 1000 * 1000000 + (end.tv_nsec - start.tv_nsec);
+
+        // Calculate sleep duration
+        int sleep_duration = interval_ns - elapsed_ns;
+        if (sleep_duration > 0) {
+            struct timespec ts = {0, sleep_duration};
+            nanosleep(&ts, NULL);
+        }
+
+      }
+      //return code for metric exec
+      std::exit(code_metric_exec);
+    }
+
+
+    this->process = std::async([=]() {
+      int status_metric_reader;
+      int result = waitpid(forked_metric_profiler, &status_metric_reader, 0);
+
+      if (result != forked_metric_profiler) {
+        print("Could not wait properly for the metric-reader process of "
+              "\"" + this->get_name() + "\"! Terminating "
+              "the profiled command wrapper.", true, true);
+        kill(pid, SIGTERM);
+        return 2;
+      }
+
+      int code = WEXITSTATUS(status_metric_reader);
+
+      if (code != 0) {
+        int status;
+        waitpid(pid, &status, WNOHANG);
+
+        if (status == 0) {
+          print("Profiler \"" + this->get_name() + "\" (metric-reader) has "
+                "returned non-zero exit code " + std::to_string(code) + ". "
+                "Terminating the profiled command wrapper.", true, true);
+          kill(pid, SIGTERM);
+        } else {
+          print("Profiler \"" + this->get_name() + "\" (metric-reader) "
+                "has returned non-zero exit code " + std::to_string(code) + " "
+                "and the profiled command "
+                "wrapper is no longer running.", true, true);
+        }
+
+        std::string hint = "Hint: metric-reader wrapper has returned exit "
+          "code " + std::to_string(code) + ", suggesting something bad "
+          "happened when ";
+
+        switch (code) {
+
+        case ERROR_STDERR:
+          print(hint + "creating stderr log file.", true, true);
+          break;
+
+        case ERROR_STDOUT_DUP2:
+          print(hint + "redirecting stdout to perf-script.", true, true);
+          break;
+
+        case ERROR_STDERR_DUP2:
+          print(hint + "redirecting stderr to file.", true, true);
+          break;
+
+        case ERROR_NO_NUMBER_REGEX:
+          print(hint + "metric command returned no number", true, true);
+          break;
+
+        case ERROR_TOO_MANY_NUMBERS_REGEX:
+          print(hint + "metric command returned too many numbers", true, true);
+          break;
+
+        case ERROR_CONVERSION_TO_FLOAT:
+          print(hint + "metric reader tried to parse float from metric command", true, true);
+          break;
+
+        case ERROR_PARSING_CONNECTION_INSTRS:
+          print(hint + "metric reader tried to parse instructions to connect to server", true, true);
+          break;
+
+        }
+
+        return code;
+      }
+
+      return code;
+    });
+      
+  }
+
+
+  unsigned int MetricReader::get_thread_count() {
+    return 1;
+  }
+
+  void MetricReader::resume() {
+    // TODO
+  }
+
+  void MetricReader::pause() {
+    // TODO
+  }
+
+  int MetricReader::wait() {
+    return this->process.get();
+  }
+
+  std::vector<std::unique_ptr<Requirement> > &MetricReader::get_requirements() {
+    return this->requirements;
+   
+  }
+
+
   /**
      Constructs a PerfEvent object corresponding to thread tree
      profiling.

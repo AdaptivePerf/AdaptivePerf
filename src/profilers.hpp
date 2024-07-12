@@ -16,6 +16,49 @@
 #include <unordered_set>
 
 namespace aperf {
+
+
+   /**
+     A class describing metric reader profiler.
+  */
+  class MetricReader : public Profiler{
+
+    private:
+      std::string metric_command;
+      std::string metric_name;
+      std::string regex;
+      int freq;
+      unsigned int server_buffer;
+      std::string name;
+      std::vector<std::unique_ptr<Requirement> > requirements;
+      fs::path result_out;
+      std::future<int> process;
+
+    public:
+      MetricReader(std::string metric_command,
+      std::string metric_name,
+      int freq,
+      std::string regex,
+      unsigned int server_buffer);
+
+      ~MetricReader() {}
+
+      void start(pid_t pid,
+                  ServerConnInstrs &connection_instrs,
+                  fs::path result_out,
+                  fs::path result_processed,
+                  bool capture_immediately);
+      unsigned int get_thread_count();
+      void resume();
+      void pause();
+      int wait();
+      std::string get_name();
+      std::vector<std::unique_ptr<Requirement> > &get_requirements();
+  };
+
+
+
+
   namespace fs = std::filesystem;
 
   /**
