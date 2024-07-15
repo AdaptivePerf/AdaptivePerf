@@ -61,11 +61,23 @@ namespace aperf {
                    fs::path result_processed,
                    bool capture_immediately) {
 
-    this->result_out = result_out;
     std::string instrs = connection_instrs.get_instructions(this->get_thread_count());
 
+    //sanitize metric name for log file name
+    std::regex invalidChars(R"([\/:*?"<>|])");
+
+    std::string sanitized_metric_name = std::regex_replace(this->metric_name, invalidChars, "_");
+
+    sanitized_metric_name = std::regex_replace(sanitized_metric_name, std::regex(R"(^\s+|\s+$)"), "");
+
+    if (sanitized_metric_name.empty()) {
+        sanitized_metric_name = "metric_command_stderr.log";
+    }else{
+      sanitized_metric_name += "_stderr.log";
+    }
+
     fs::path stderr_metric_command;
-    stderr_metric_command = result_out / "metric_command_stderr.log";
+    stderr_metric_command = result_out / sanitized_metric_name;
 
     const int ERROR_STDERR = 201;
     const int ERROR_STDOUT_DUP2 = 202;
@@ -75,22 +87,22 @@ namespace aperf {
     const int ERROR_CONVERSION_TO_FLOAT = 206;
     const int ERROR_PARSING_CONNECTION_INSTRS = 207;
     const int ERROR_USER_REGEX_MATCH = 208;
+    const int ERROR_PIPE_METRIC_EXEC = 209;
     
     
-    std::vector<std::string> parts = boost::program_options::split_unix(this->metric_command);
+    std::future<int> metric_profiler = std::async(std::launch::async, [=]() -> int
+    {
 
-    const char *path = parts[0].c_str();
-    char *parts_c_str[parts.size() + 1];
+      std::vector<std::string> parts = boost::program_options::split_unix(this->metric_command);
 
-    for (int i = 0; i < parts.size(); i++) {
-      parts_c_str[i] = (char *)parts[i].c_str();
-    }
-    parts_c_str[parts.size()] = NULL;
+      const char *path = parts[0].c_str();
+      char *parts_c_str[parts.size() + 1];
 
+      for (int i = 0; i < parts.size(); i++) {
+        parts_c_str[i] = (char *)parts[i].c_str();
+      }
+      parts_c_str[parts.size()] = NULL;
 
-    pid_t forked_metric_profiler = fork(); //separate process for profiler, parent handles errors
-
-    if(forked_metric_profiler == 0){
       int code_metric_exec = 0;
 
       int status;
@@ -141,14 +153,12 @@ namespace aperf {
                 "and metric-read in \"" + this->get_name() + "\"! Terminating "
                 "the profiled command wrapper.", true, true);
           kill(pid, SIGTERM);
-          return;
+          return ERROR_PIPE_METRIC_EXEC;
         }
 
         pid_t forked_metric_exec = fork();
         if (forked_metric_exec == 0){
           close(pipe_fd[0]);
-
-          fs::current_path(result_processed);
 
           int stderr_fd = creat(stderr_metric_command.c_str(), O_WRONLY);
 
@@ -240,9 +250,6 @@ namespace aperf {
           connection->write(s);
         }
 
-        close(pipe_fd[1]);
-        close(pipe_fd[0]);
-
         int status_metric_exec;
         waitpid(forked_metric_exec, &status_metric_exec, 0); //wait and check if metric command has finished executing
         code_metric_exec = WEXITSTATUS(status_metric_exec);
@@ -265,15 +272,16 @@ namespace aperf {
 
       }
       //return code for metric exec
-      std::exit(code_metric_exec);
-    }
+      return code_metric_exec;
+    });
 
+    int result_metric_profiler = metric_profiler.get();
 
     this->process = std::async([=]() {
       int status_metric_reader;
-      int result = waitpid(forked_metric_profiler, &status_metric_reader, 0);
+      //int result = waitpid(forked_metric_profiler, &status_metric_reader, 0);
 
-      if (result != forked_metric_profiler) {
+      if (result_metric_profiler != 0) {
         print("Could not wait properly for the metric-reader process of "
               "\"" + this->get_name() + "\"! Terminating "
               "the profiled command wrapper.", true, true);
@@ -300,21 +308,21 @@ namespace aperf {
         }
 
         std::string hint = "Hint: metric-reader wrapper has returned exit "
-          "code " + std::to_string(code) + ", suggesting something bad "
-          "happened when ";
+          "code " + std::to_string(code) + ", "
+          "because ";
 
         switch (code) {
 
         case ERROR_STDERR:
-          print(hint + "creating stderr log file.", true, true);
+          print(hint + "stderr log file could not be created.", true, true);
           break;
 
         case ERROR_STDOUT_DUP2:
-          print(hint + "redirecting stdout to metric-reader.", true, true);
+          print(hint + "stdout could not be redirected to metric-reader.", true, true);
           break;
 
         case ERROR_STDERR_DUP2:
-          print(hint + "redirecting stderr to file.", true, true);
+          print(hint + "stderr could not be redirected to a file.", true, true);
           break;
 
         case ERROR_NO_NUMBER_REGEX:
@@ -326,11 +334,11 @@ namespace aperf {
           break;
 
         case ERROR_CONVERSION_TO_FLOAT:
-          print(hint + "metric reader tried to parse float from metric command", true, true);
+          print(hint + "metric reader failed to parse float from metric command", true, true);
           break;
 
         case ERROR_PARSING_CONNECTION_INSTRS:
-          print(hint + "metric reader tried to parse instructions to connect to server", true, true);
+          print(hint + "metric reader failed to parse instructions to connect to server", true, true);
           break;
 
         case ERROR_USER_REGEX_MATCH:
