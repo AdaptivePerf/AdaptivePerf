@@ -116,6 +116,7 @@ namespace aperf {
       std::regex pipe_regex(R"(pipe\s+(\d+)_(\d+))");
       std::regex tcp_regex(R"(tcp\s+([\d\.]+)_(\d+))");
       std::smatch instruction_match;
+      std::string connect_msg = "connect";
 
       if (std::regex_match(instrs, instruction_match, pipe_regex)) {
           
@@ -124,7 +125,8 @@ namespace aperf {
 
           write_fd[1] = std::stoi(instruction_match[1].str());
           read_fd[0] = std::stoi(instruction_match[2].str());
-          connection = std::make_unique<FileDescriptor>(write_fd, read_fd, this->server_buffer);
+          connection = std::make_unique<FileDescriptor>(read_fd, write_fd, this->server_buffer);
+          connection->write(connect_msg);
       } else if (std::regex_match(instrs, instruction_match, tcp_regex)) {
           
           std::string server_address = instruction_match[1].str() + ":" + instruction_match[2].str();
@@ -218,7 +220,7 @@ namespace aperf {
             count++;
             if(count > 1){break;}
   
-            std::string number_str = match.str(0);
+            std::string number_str = match.str(1);
               try {
                   metric_val = std::stof(number_str);  
               } catch (const std::exception&) {
