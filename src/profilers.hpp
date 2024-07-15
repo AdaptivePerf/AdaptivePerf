@@ -30,8 +30,8 @@ namespace aperf {
       int freq;
       unsigned int server_buffer;
       std::string name;
-      std::vector<std::unique_ptr<Requirement> > requirements;
       fs::path result_out;
+      std::vector<std::unique_ptr<Requirement>> requirements;
       std::future<int> process;
 
     public:

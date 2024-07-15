@@ -97,6 +97,38 @@ namespace aperf {
       pid_t command_status = waitpid(pid, &status, WNOHANG); //check if profiled command has finished executing
       const int interval_ns = 1000 * 1000000 / this->freq;
 
+
+      //connection write s
+      std::unique_ptr<Connection> connection;
+
+      std::regex pipe_regex(R"(pipe\s+(\d+)_(\d+))");
+      std::regex tcp_regex(R"(tcp\s+([\d\.]+)_(\d+))");
+      std::smatch instruction_match;
+
+      if (std::regex_match(instrs, instruction_match, pipe_regex)) {
+          
+          int read_fd[2];
+          int write_fd[2];
+
+          write_fd[1] = std::stoi(instruction_match[1].str());
+          read_fd[0] = std::stoi(instruction_match[2].str());
+          connection = std::make_unique<FileDescriptor>(write_fd, read_fd, this->server_buffer);
+      } else if (std::regex_match(instrs, instruction_match, tcp_regex)) {
+          
+          std::string server_address = instruction_match[1].str() + ":" + instruction_match[2].str();
+          
+
+          Poco::Net::SocketAddress address(server_address);
+          Poco::Net::StreamSocket socket(address);
+
+          connection = std::make_unique<TCPSocket>(socket, this->server_buffer);
+          
+      }else{
+          // instruction is not correct
+          std::exit(ERROR_PARSING_CONNECTION_INSTRS);
+      }
+
+
       while (command_status > 0){
 
         struct timespec start, end;
@@ -200,41 +232,10 @@ namespace aperf {
 
           // ["<CUSTOM_METRIC>", <metric-reading command string>, <user-provided metric name string>, <timestamp in nanoseconds>, <value of the metric>]
           clock_gettime(CLOCK_MONOTONIC, &end);
-          long timestamp = (end.tv_sec - start.tv_sec) * 1000 * 1000000 + (end.tv_nsec - start.tv_nsec);
+          long timestamp = (end.tv_sec) * 1000 * 1000000 + (end.tv_nsec);
           nlohmann::json metric = nlohmann::json::array({"<CUSTOM_METRIC>", this->metric_command , this->metric_name, timestamp, metric_val });
 
           std::string s = metric.dump();
-
-
-          //connection write s
-          std::unique_ptr<Connection> connection;
-
-          std::regex pipe_regex(R"(pipe\s+(\d+)_(\d+))");
-          std::regex tcp_regex(R"(TCP\s+([\d\.]+)_(\d+))");
-          std::smatch instruction_match;
-
-          if (std::regex_match(instrs, instruction_match, pipe_regex)) {
-              
-              int read_fd[2];
-              int write_fd[2];
-
-              write_fd[1] = std::stoi(match[1].str());
-              read_fd[0] = std::stoi(match[2].str());
-              connection = std::make_unique<FileDescriptor>(write_fd, read_fd, this->server_buffer);
-          } else if (std::regex_match(instrs, instruction_match, tcp_regex)) {
-              
-              std::string server_address = match[1].str() + ":" + match[2].str();
-              
-
-              Poco::Net::SocketAddress address(server_address);
-              Poco::Net::StreamSocket socket(address);
-
-              connection = std::make_unique<TCPSocket>(socket, this->server_buffer);
-              
-          }else{
-              // instruction is not correct
-              std::exit(ERROR_PARSING_CONNECTION_INSTRS);
-          }
 
           connection->write(s);
         }
@@ -242,9 +243,6 @@ namespace aperf {
         close(pipe_fd[1]);
         close(pipe_fd[0]);
 
-        command_status = waitpid(pid, &status, WNOHANG); //check if command to be profiled is still executing
-       
-        
         int status_metric_exec;
         waitpid(forked_metric_exec, &status_metric_exec, 0); //wait and check if metric command has finished executing
         code_metric_exec = WEXITSTATUS(status_metric_exec);
@@ -261,6 +259,9 @@ namespace aperf {
             struct timespec ts = {0, sleep_duration};
             nanosleep(&ts, NULL);
         }
+
+        command_status = waitpid(pid, &status, WNOHANG); //check if command to be profiled is still executing
+       
 
       }
       //return code for metric exec
@@ -309,7 +310,7 @@ namespace aperf {
           break;
 
         case ERROR_STDOUT_DUP2:
-          print(hint + "redirecting stdout to perf-script.", true, true);
+          print(hint + "redirecting stdout to metric-reader.", true, true);
           break;
 
         case ERROR_STDERR_DUP2:
