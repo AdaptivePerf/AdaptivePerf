@@ -64,11 +64,9 @@ namespace aperf {
     std::string instrs = connection_instrs.get_instructions(this->get_thread_count());
 
     //sanitize metric name for log file name
-    std::regex invalidChars(R"([\/:*?"<>|])");
+    std::regex invalidChars(R"([\/:*?"<>|\s]*)");
 
     std::string sanitized_metric_name = std::regex_replace(this->metric_name, invalidChars, "_");
-
-    sanitized_metric_name = std::regex_replace(sanitized_metric_name, std::regex(R"(^\s+|\s+$)"), "");
 
     if (sanitized_metric_name.empty()) {
         sanitized_metric_name = "metric_command_stderr.log";
@@ -123,15 +121,14 @@ namespace aperf {
           int read_fd[2];
           int write_fd[2];
 
-          write_fd[1] = std::stoi(instruction_match[1].str());
-          read_fd[0] = std::stoi(instruction_match[2].str());
+          write_fd[1] = std::stoi(instruction_match[2].str());
+          read_fd[0] = std::stoi(instruction_match[1].str());
           connection = std::make_unique<FileDescriptor>(read_fd, write_fd, this->server_buffer);
           connection->write(connect_msg);
+
       } else if (std::regex_match(instrs, instruction_match, tcp_regex)) {
           
           std::string server_address = instruction_match[1].str() + ":" + instruction_match[2].str();
-          
-
           Poco::Net::SocketAddress address(server_address);
           Poco::Net::StreamSocket socket(address);
 
@@ -151,9 +148,6 @@ namespace aperf {
         int pipe_fd[2];
 
         if (pipe(pipe_fd) == -1) {
-          print("Could not establish communication pipe between metric-exec "
-                "and metric-read in \"" + this->get_name() + "\"! Terminating "
-                "the profiled command wrapper.", true, true);
           kill(pid, SIGTERM);
           return ERROR_PIPE_METRIC_EXEC;
         }
@@ -277,21 +271,9 @@ namespace aperf {
       return code_metric_exec;
     });
 
-    int result_metric_profiler = metric_profiler.get();
-
-    this->process = std::async([=]() {
-      int status_metric_reader;
-      //int result = waitpid(forked_metric_profiler, &status_metric_reader, 0);
-
-      if (result_metric_profiler != 0) {
-        print("Could not wait properly for the metric-reader process of "
-              "\"" + this->get_name() + "\"! Terminating "
-              "the profiled command wrapper.", true, true);
-        kill(pid, SIGTERM);
-        return 2;
-      }
-
-      int code = WEXITSTATUS(status_metric_reader);
+    this->process = std::async(std::launch::async, [=, &metric_profiler] {
+      
+      int code = metric_profiler.get();
 
       if (code != 0) {
         int status;
@@ -328,23 +310,29 @@ namespace aperf {
           break;
 
         case ERROR_NO_NUMBER_REGEX:
-          print(hint + "metric command returned no number", true, true);
+          print(hint + "metric command returned no number.", true, true);
           break;
 
         case ERROR_TOO_MANY_NUMBERS_REGEX:
-          print(hint + "metric command returned too many numbers", true, true);
+          print(hint + "metric command returned too many numbers.", true, true);
           break;
 
         case ERROR_CONVERSION_TO_FLOAT:
-          print(hint + "metric reader failed to parse float from metric command", true, true);
+          print(hint + "metric reader failed to parse float from metric command.", true, true);
           break;
 
         case ERROR_PARSING_CONNECTION_INSTRS:
-          print(hint + "metric reader failed to parse instructions to connect to server", true, true);
+          print(hint + "metric reader failed to parse instructions to connect to server.", true, true);
           break;
 
         case ERROR_USER_REGEX_MATCH:
-          print(hint + "input regex did not match any metric command output ", true, true);
+          print(hint + "input regex did not match any metric command output.", true, true);
+          break;
+
+        case ERROR_PIPE_METRIC_EXEC:
+          print("Could not establish communication pipe between metric-exec "
+                "and metric-read in \"" + this->get_name() + "\"! Terminating "
+                "the profiled command wrapper.", true, true);
           break;
 
         }
