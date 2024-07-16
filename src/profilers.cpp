@@ -148,7 +148,6 @@ namespace aperf {
         int pipe_fd[2];
 
         if (pipe(pipe_fd) == -1) {
-          kill(pid, SIGTERM);
           return ERROR_PIPE_METRIC_EXEC;
         }
 
@@ -188,6 +187,8 @@ namespace aperf {
               data += buffer;
           }
           std::string parsed_data;
+          close(pipe_fd[0]);
+
 
           if(!this->regex.empty()){
 
@@ -225,7 +226,6 @@ namespace aperf {
           
           }
 
-          close(pipe_fd[0]);
 
           if(count == 0){
             //no numbers found 
