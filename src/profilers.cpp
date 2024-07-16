@@ -224,6 +224,9 @@ namespace aperf {
             temp_data = match.suffix().str();
           
           }
+
+          close(pipe_fd[0]);
+
           if(count == 0){
             //no numbers found 
             std::exit(ERROR_NO_NUMBER_REGEX);
@@ -233,7 +236,7 @@ namespace aperf {
             std::exit(ERROR_TOO_MANY_NUMBERS_REGEX);
           }
 
-          close(pipe_fd[0]);
+          
 
 
           // ["<CUSTOM_METRIC>", <metric-reading command string>, <user-provided metric name string>, <timestamp in nanoseconds>, <value of the metric>]
