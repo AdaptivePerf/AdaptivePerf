@@ -109,7 +109,6 @@ namespace aperf {
                    fs::path result_out,
                    fs::path result_processed,
                    bool capture_immediately) {
-    this->result_out = result_out;
     std::string instrs = connection_instrs.get_instructions(this->get_thread_count());
 
     fs::path stdout, stderr_record, stderr_script;
@@ -188,7 +187,8 @@ namespace aperf {
 
       fs::current_path(result_processed);
 
-      int stderr_fd = creat(stderr_record.c_str(), O_WRONLY);
+      int stderr_fd = creat(stderr_record.c_str(),
+                            S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
       if (stderr_fd == -1) {
         std::exit(ERROR_STDERR);
@@ -201,6 +201,9 @@ namespace aperf {
       if (dup2(pipe_fd[1], STDOUT_FILENO) == -1) {
         std::exit(ERROR_STDOUT_DUP2);
       }
+
+      close(pipe_fd[1]);
+      close(stderr_fd);
 
       char *argv[argv_record.size() + 1];
 
@@ -224,13 +227,15 @@ namespace aperf {
 
       fs::current_path(result_processed);
 
-      int stdout_fd = creat(stdout.c_str(), O_WRONLY);
+      int stdout_fd = creat(stdout.c_str(),
+                            S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
       if (stdout_fd == -1) {
         std::exit(ERROR_STDOUT);
       }
 
-      int stderr_fd = creat(stderr_script.c_str(), O_WRONLY);
+      int stderr_fd = creat(stderr_script.c_str(),
+                            S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
       if (stderr_fd == -1) {
         std::exit(ERROR_STDERR);
@@ -247,6 +252,10 @@ namespace aperf {
       if (dup2(stderr_fd, STDERR_FILENO) == -1) {
         std::exit(ERROR_STDERR_DUP2);
       }
+
+      close(pipe_fd[0]);
+      close(stdout_fd);
+      close(stderr_fd);
 
       char *argv[argv_script.size() + 1];
 

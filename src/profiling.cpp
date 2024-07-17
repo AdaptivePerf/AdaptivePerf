@@ -385,13 +385,15 @@ namespace aperf {
         std::exit(ERROR_START_PROFILE);
       }
 
-      int stdout_fd = creat((result_out / "stdout.log").c_str(), O_WRONLY);
+      int stdout_fd = creat((result_out / "stdout.log").c_str(),
+                            S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
       if (stdout_fd == -1) {
         std::exit(ERROR_STDOUT);
       }
 
-      int stderr_fd = creat((result_out / "stderr.log").c_str(), O_WRONLY);
+      int stderr_fd = creat((result_out / "stderr.log").c_str(),
+                            S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
       if (stderr_fd == -1) {
         std::exit(ERROR_STDERR);
@@ -404,6 +406,9 @@ namespace aperf {
       if (dup2(stderr_fd, STDERR_FILENO) == -1) {
         std::exit(ERROR_STDERR_DUP2);
       }
+
+      close(stdout_fd);
+      close(stderr_fd);
 
       cpu_set_t &cpu_set = cpu_config.get_cpu_command_set();
 
