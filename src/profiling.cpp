@@ -385,13 +385,15 @@ namespace aperf {
         std::exit(ERROR_START_PROFILE);
       }
 
-      int stdout_fd = creat((result_out / "stdout.log").c_str(), O_WRONLY);
+      int stdout_fd = creat((result_out / "stdout.log").c_str(),
+                            S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
       if (stdout_fd == -1) {
         std::exit(ERROR_STDOUT);
       }
 
-      int stderr_fd = creat((result_out / "stderr.log").c_str(), O_WRONLY);
+      int stderr_fd = creat((result_out / "stderr.log").c_str(),
+                            S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
       if (stderr_fd == -1) {
         std::exit(ERROR_STDERR);

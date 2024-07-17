@@ -187,7 +187,8 @@ namespace aperf {
 
       fs::current_path(result_processed);
 
-      int stderr_fd = creat(stderr_record.c_str(), O_WRONLY);
+      int stderr_fd = creat(stderr_record.c_str(),
+                            S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
       if (stderr_fd == -1) {
         std::exit(ERROR_STDERR);
@@ -223,13 +224,15 @@ namespace aperf {
 
       fs::current_path(result_processed);
 
-      int stdout_fd = creat(stdout.c_str(), O_WRONLY);
+      int stdout_fd = creat(stdout.c_str(),
+                            S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
       if (stdout_fd == -1) {
         std::exit(ERROR_STDOUT);
       }
 
-      int stderr_fd = creat(stderr_script.c_str(), O_WRONLY);
+      int stderr_fd = creat(stderr_script.c_str(),
+                            S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
       if (stderr_fd == -1) {
         std::exit(ERROR_STDERR);
