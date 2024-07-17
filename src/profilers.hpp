@@ -56,7 +56,6 @@ namespace aperf {
     CPUConfig &cpu_config;
     std::string name;
     std::vector<std::unique_ptr<Requirement> > requirements;
-    fs::path result_out;
     int max_stack;
 
   public:

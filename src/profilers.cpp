@@ -109,7 +109,6 @@ namespace aperf {
                    fs::path result_out,
                    fs::path result_processed,
                    bool capture_immediately) {
-    this->result_out = result_out;
     std::string instrs = connection_instrs.get_instructions(this->get_thread_count());
 
     fs::path stdout, stderr_record, stderr_script;
