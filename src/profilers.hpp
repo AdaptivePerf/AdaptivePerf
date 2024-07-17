@@ -32,6 +32,7 @@ namespace aperf {
       std::string name;
       std::vector<std::unique_ptr<Requirement>> requirements;
       std::future<int> process;
+      std::map<const int, std::string> errorMessages;
 
     public:
       MetricReader(std::string metric_command,
@@ -51,6 +52,7 @@ namespace aperf {
       void resume();
       void pause();
       int wait();
+      int handle_errors(int code, pid_t pid);
       std::string get_name();
       std::vector<std::unique_ptr<Requirement> > &get_requirements();
   };
