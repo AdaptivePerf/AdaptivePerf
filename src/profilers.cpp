@@ -191,7 +191,7 @@ namespace aperf {
         if (forked_metric_exec == 0){
           close(pipe_fd[0]);
 
-          int stderr_fd = creat(stderr_metric_command.c_str(), O_WRONLY);
+          int stderr_fd = creat(stderr_metric_command.c_str() , S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
           if (stderr_fd == -1) {
             std::exit(ERROR_STDERR);
@@ -200,6 +200,8 @@ namespace aperf {
           if (dup2(stderr_fd, STDERR_FILENO) == -1) {
             std::exit(ERROR_STDERR_DUP2);
           }
+
+          close(stderr_fd);
 
           if (dup2(pipe_fd[1], STDOUT_FILENO) == -1) {
             std::exit(ERROR_STDOUT_DUP2);
