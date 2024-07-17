@@ -407,6 +407,9 @@ namespace aperf {
         std::exit(ERROR_STDERR_DUP2);
       }
 
+      close(stdout_fd);
+      close(stderr_fd);
+
       cpu_set_t &cpu_set = cpu_config.get_cpu_command_set();
 
       if (sched_setaffinity(0, sizeof(cpu_set), &cpu_set) == -1) {

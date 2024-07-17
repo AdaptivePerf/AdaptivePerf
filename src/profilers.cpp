@@ -202,6 +202,9 @@ namespace aperf {
         std::exit(ERROR_STDOUT_DUP2);
       }
 
+      close(pipe_fd[1]);
+      close(stderr_fd);
+
       char *argv[argv_record.size() + 1];
 
       for (int i = 0; i < argv_record.size(); i++) {
@@ -249,6 +252,10 @@ namespace aperf {
       if (dup2(stderr_fd, STDERR_FILENO) == -1) {
         std::exit(ERROR_STDERR_DUP2);
       }
+
+      close(pipe_fd[0]);
+      close(stdout_fd);
+      close(stderr_fd);
 
       char *argv[argv_script.size() + 1];
 
