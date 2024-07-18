@@ -86,12 +86,14 @@ if(NOT SERVER_ONLY)
   target_compile_definitions(profilers.o PRIVATE APERF_SCRIPT_PATH="${APERF_SCRIPT_PATH}")
   target_compile_definitions(main_entrypoint.o PRIVATE APERF_CONFIG_FILE="${APERF_CONFIG_PATH}")
 
-  find_package(Boost REQUIRED headers filesystem program_options)
+  find_package(Boost REQUIRED program_options)
 
   target_link_libraries(adaptiveperf PRIVATE nlohmann_json::nlohmann_json)
   target_link_libraries(adaptiveperf PRIVATE Poco::Foundation Poco::Net)
   target_link_libraries(adaptiveperf PRIVATE CLI11::CLI11)
-  target_link_libraries(adaptiveperf PRIVATE Boost::headers Boost::program_options)
+  target_link_libraries(adaptiveperf PRIVATE Boost::program_options)
+
+  target_include_directories(adaptiveperf PRIVATE ${Boost_INCLUDE_DIRS})
 
   find_library(LIBNUMA
     NAMES numa
