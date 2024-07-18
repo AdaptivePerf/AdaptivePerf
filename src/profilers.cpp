@@ -50,15 +50,15 @@ namespace aperf {
     this->name = "MetricReader";
 
     this->errorMessages= {
-      {201, "(ERROR_SDERR) stderr log file could not be created."},
-      {202, "(ERROR_STDOUT_DUP2) stdout could not be redirected to metric-reader."},
-      {203, "(ERROR_STDERR_DUP2) stderr could not be redirected to a file."},
-      {204, "(ERROR_NO_NUMBER_REGEX) metric command returned no number."},
-      {205, "(ERROR_TOO_MANY_NUMBERS_REGEX) metric command returned too many numbers."},
-      {206, "(ERROR_CONVERSION_TO_FLOAT)metric reader failed to parse float from metric command."},
-      {207, "(ERROR_PARSING_CONNECTION_INSTRS) metric reader failed to parse instructions to connect to server."},
-      {208, "(ERROR_USER_REGEX_MATCH) input regex did not match any metric command output."},
-      {209, "(ERROR_PIPE_METRIC_EXEC) Could not establish communication pipe between metric-exec "
+      {ERROR_STDERR, "(ERROR_SDERR) stderr log file could not be created."},
+      {ERROR_STDOUT_DUP2, "(ERROR_STDOUT_DUP2) stdout could not be redirected to metric-reader."},
+      {ERROR_STDERR_DUP2, "(ERROR_STDERR_DUP2) stderr could not be redirected to a file."},
+      {ERROR_NO_NUMBER_REGEX, "(ERROR_NO_NUMBER_REGEX) metric command returned no number."},
+      {ERROR_TOO_MANY_NUMBERS_REGEX, "(ERROR_TOO_MANY_NUMBERS_REGEX) metric command returned too many numbers."},
+      {ERROR_CONVERSION_TO_FLOAT, "(ERROR_CONVERSION_TO_FLOAT)metric reader failed to parse float from metric command."},
+      {ERROR_PARSING_CONNECTION_INSTRS, "(ERROR_PARSING_CONNECTION_INSTRS) metric reader failed to parse instructions to connect to server."},
+      {ERROR_USER_REGEX_MATCH, "(ERROR_USER_REGEX_MATCH) input regex did not match any metric command output."},
+      {ERROR_PIPE_METRIC_EXEC, "(ERROR_PIPE_METRIC_EXEC) Could not establish communication pipe between metric-exec "
                 "and metric-read in \"" + this->get_name() + "\"! Terminating "
                 "the profiled command wrapper."}
     };
@@ -94,19 +94,6 @@ namespace aperf {
     
     this->process = std::async(std::launch::async, [=]() -> int
     {
-
-      const int ERROR_STDERR = 201;
-      const int ERROR_STDOUT_DUP2 = 202;
-      const int ERROR_STDERR_DUP2 = 203;
-      const int ERROR_NO_NUMBER_REGEX = 204;
-      const int ERROR_TOO_MANY_NUMBERS_REGEX = 205;
-      const int ERROR_CONVERSION_TO_FLOAT = 206;
-      const int ERROR_PARSING_CONNECTION_INSTRS = 207;
-      const int ERROR_USER_REGEX_MATCH = 208;
-      const int ERROR_PIPE_METRIC_EXEC = 209;
-
-
-
       auto handle_errors = [=](int code, pid_t pid) -> int {
 
         int status;
@@ -174,7 +161,7 @@ namespace aperf {
           
       }else{
           // instruction is not correct
-          std::exit(ERROR_PARSING_CONNECTION_INSTRS);
+          return handle_errors(ERROR_PARSING_CONNECTION_INSTRS, pid);
       }
 
 
