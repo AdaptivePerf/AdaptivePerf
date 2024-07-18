@@ -23,6 +23,16 @@ namespace aperf {
   */
   class MetricReader : public Profiler{
 
+    static inline const int ERROR_STDERR = 201;
+    static inline const int ERROR_STDOUT_DUP2 = 202;
+    static inline const int ERROR_STDERR_DUP2 = 203;
+    static inline const int ERROR_NO_NUMBER_REGEX = 204;
+    static inline const int ERROR_TOO_MANY_NUMBERS_REGEX = 205;
+    static inline const int ERROR_CONVERSION_TO_FLOAT = 206;
+    static inline const int ERROR_PARSING_CONNECTION_INSTRS = 207;
+    static inline const int ERROR_USER_REGEX_MATCH = 208;
+    static inline const int ERROR_PIPE_METRIC_EXEC = 209;
+
     private:
       std::string metric_command;
       std::string metric_name;
