@@ -76,7 +76,7 @@ if [[ -f adaptiveperf ]]; then
 
         if [[ ! -d linux/tools/perf ]]; then
             echo_sub "linux submodule seems to be missing, pulling it..."
-            git submodule update --init
+            git submodule update --init --depth 1
         fi
 
         old_dir=$(pwd)
