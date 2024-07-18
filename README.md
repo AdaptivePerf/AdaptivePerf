@@ -58,7 +58,13 @@ A profiled program along with dependencies should be compiled with frame pointer
 ### Manually
 Please clone this repository and run ```./build.sh``` (as either non-root or root, non-root recommended) followed by ```./install.sh``` (as root unless you run the installation for a non-system prefix).
 
-By default, AdaptivePerf is installed in ```/usr/local``` and its support files along with the bundled patched "perf" are installed in ```/opt/adaptiveperf```. If you want to change ```/usr/local```, specify an alternative path as an argument to ```install.sh```, e.g. ```./install.sh /usr```. If you want to change ```/opt/adaptiveperf```, run ```./build.sh -DAPERF_SCRIPT_PATH=<new path>``` before installing.
+By default, AdaptivePerf is installed in ```/usr/local```, its support files along with the bundled patched "perf" are installed in ```/opt/adaptiveperf```, and the configuration file of AdaptivePerf is installed in ```/etc/adaptiveperf.conf```.
+
+* If you want to change ```/usr/local```, specify an alternative path as an argument to ```install.sh```, e.g. ```./install.sh /usr```.
+* If you want to change ```/opt/adaptiveperf```, run ```./build.sh -DAPERF_SCRIPT_PATH=<new path>``` before installing.
+* If you want to change ```/etc/adaptiveperf.conf```, run ```./build.sh -DAPERF_CONFIG_PATH=<new path including the filename>``` before installing.
+
+The ```-DAPERF_SCRIPT_PATH``` and ```-DAPERF_CONFIG_PATH``` options can be combined in one ```./build.sh``` command.
 
 ### Manually (adaptiveperf-server only)
 If you want to install just adaptiveperf-server, please clone this repository and run ```./build_server.sh``` (as either non-root or root, non-root recommended) followed by ```./install.sh``` (as root unless you run the installation for a non-system prefix).
@@ -135,3 +141,18 @@ If this happens, please add ```<your installation prefix>/lib``` (it's ```/usr/l
 If you get an error message similar to the one in the title, please look at the logs in the temporary directory printed by AdaptivePerf.
 
 If the logs mention "can't access trace events", permission denied issues, or problems with eBPF, please try either running AdaptivePerf as root or increasing "perf" and eBPF privileges for your user account. If it doesn't work or the logs mention a different problem, feel free to file an issue on GitHub.
+
+### AdaptivePerf-patched "perf" doesn't compile
+When you get errors during the compilation of the AdaptivePerf-patched "perf", please make sure that all paths specified as options in the ```./build.sh``` command do not finish with a slash.
+
+For example, this command **is WRONG**:
+```
+./build.sh -DAPERF_SCRIPT_PATH=/opt/adaptiveperf/  # WRONG, the path ends with a slash
+```
+
+On the other hand, this command **is CORRECT**:
+```
+./build.sh -DAPERF_SCRIPT_PATH=/opt/adaptiveperf  # CORRECT, the path doesn't end with a slash
+```
+
+If the solution above doesn't work, feel free to file an issue on GitHub.
