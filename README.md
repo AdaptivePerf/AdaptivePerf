@@ -40,7 +40,7 @@ Work is being done towards eliminating all of the limitations below step-by-step
 ### Requirements
 * Linux 5.8 or newer compiled with ```CONFIG_DEBUG_INFO_BTF=y``` (or equivalent, you can check this by seeing if ```/sys/kernel/btf``` exists in your system)
 * Python 3
-* CMake 3.14 or newer
+* CMake 3.20 or newer
 * libnuma (if a machine with your profiled application has NUMA)
 * [CLI11](https://github.com/CLIUtils/CLI11)
 * [nlohmann-json](https://github.com/nlohmann/json)

@@ -1,10 +1,13 @@
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.20)
 
 if(COMMAND cmake_policy)
   cmake_policy(SET CMP0003 NEW)
   cmake_policy(SET CMP0012 NEW)
   cmake_policy(SET CMP0115 NEW)
-  cmake_policy(SET CMP0135 NEW)
+
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
+    cmake_policy(SET CMP0135 NEW)
+  endif()
 endif()
 
 option(SERVER_ONLY "Compile only adaptiveperf-server (OS-portable)" OFF)
