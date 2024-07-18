@@ -65,30 +65,6 @@ namespace aperf {
 
   }
 
-  int MetricReader::handle_errors(int code, pid_t pid){
-
-    int status;
-    waitpid(pid, &status, WNOHANG);
-
-    if (status == 0) {
-      print("Profiler \"" + this->get_name() + "\" (metric-reader) has "
-            "returned non-zero exit code " + std::to_string(code) + ". "
-            "Terminating the profiled command wrapper.", true, true);
-      kill(pid, SIGTERM);
-    } else {
-      print("Profiler \"" + this->get_name() + "\" (metric-reader) "
-            "has returned non-zero exit code " + std::to_string(code) + " "
-            "and the profiled command "
-            "wrapper is no longer running.", true, true);
-    }
-
-    std::string hint = "Hint: metric-reader wrapper has returned exit "
-      "code " + std::to_string(code) + " : " + this->errorMessages.find(code)->second;
-    
-    print(hint);
-    return code;
-  }
-
   std::string MetricReader::get_name() {
     return this->name;
   }
@@ -128,6 +104,32 @@ namespace aperf {
       const int ERROR_PARSING_CONNECTION_INSTRS = 207;
       const int ERROR_USER_REGEX_MATCH = 208;
       const int ERROR_PIPE_METRIC_EXEC = 209;
+
+
+
+      auto handle_errors = [=](int code, pid_t pid) -> int {
+
+        int status;
+        waitpid(pid, &status, WNOHANG);
+
+        if (status == 0) {
+          print("Profiler \"" + this->get_name() + "\" (metric-reader) has "
+                "returned non-zero exit code " + std::to_string(code) + ". "
+                "Terminating the profiled command wrapper.", true, true);
+          kill(pid, SIGTERM);
+        } else {
+          print("Profiler \"" + this->get_name() + "\" (metric-reader) "
+                "has returned non-zero exit code " + std::to_string(code) + " "
+                "and the profiled command "
+                "wrapper is no longer running.", true, true);
+        }
+
+        std::string hint = "Hint: metric-reader wrapper has returned exit "
+          "code " + std::to_string(code) + " : " + this->errorMessages[code];
+        
+        print(hint);
+        return code;
+      };
 
       std::vector<std::string> parts = boost::program_options::split_unix(this->metric_command);
 
@@ -184,7 +186,7 @@ namespace aperf {
         int pipe_fd[2];
 
         if (pipe(pipe_fd) == -1) {
-          return this->handle_errors(ERROR_PIPE_METRIC_EXEC,pid);
+          return handle_errors(ERROR_PIPE_METRIC_EXEC,pid);
         }
 
         pid_t forked_metric_exec = fork();
@@ -235,7 +237,7 @@ namespace aperf {
             if (std::regex_search(data, match_pattern, regexPattern)) {
                 parsed_data = match_pattern.str();
             }else{
-                return this->handle_errors(ERROR_USER_REGEX_MATCH , pid);
+                return handle_errors(ERROR_USER_REGEX_MATCH , pid);
             }
 
           }else{
@@ -258,7 +260,7 @@ namespace aperf {
                   metric_val = std::stof(number_str);  
               } catch (const std::exception&) {
                     // failed conversion need to handle later
-                    return this->handle_errors(ERROR_CONVERSION_TO_FLOAT , pid);
+                    return handle_errors(ERROR_CONVERSION_TO_FLOAT , pid);
               }
             temp_data = match.suffix().str();
           
@@ -267,11 +269,11 @@ namespace aperf {
 
           if(count == 0){
             //no numbers found 
-             return this->handle_errors(ERROR_NO_NUMBER_REGEX, pid);
+             return handle_errors(ERROR_NO_NUMBER_REGEX, pid);
           }
           if(count > 1){
             //error too many numbers
-             return this->handle_errors(ERROR_TOO_MANY_NUMBERS_REGEX , pid);
+             return handle_errors(ERROR_TOO_MANY_NUMBERS_REGEX , pid);
           }
 
           // ["<CUSTOM_METRIC>", <metric-reading command string>, <user-provided metric name string>, <timestamp in nanoseconds>, <value of the metric>]
@@ -288,7 +290,7 @@ namespace aperf {
         waitpid(forked_metric_exec, &status_metric_exec, 0); //wait and check if metric command has finished executing
         int code_metric_exec = WEXITSTATUS(status_metric_exec);
         if (code_metric_exec != 0){
-           return this->handle_errors(code_metric_exec , pid);//stop spawning metric_command
+           return handle_errors(code_metric_exec , pid);//stop spawning metric_command
         }
 
 
