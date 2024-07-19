@@ -16,13 +16,13 @@
 #include <unordered_set>
 
 namespace aperf {
+  namespace fs = std::filesystem;
 
-
-   /**
-     A class describing metric reader profiler.
+  /**
+     A class describing a profiler based on reading a metric
+     from the output of a user-provided command.
   */
-  class MetricReader : public Profiler{
-
+  class MetricReader : public Profiler {
     static inline const int ERROR_STDERR = 201;
     static inline const int ERROR_STDOUT_DUP2 = 202;
     static inline const int ERROR_STDERR_DUP2 = 203;
@@ -33,43 +33,36 @@ namespace aperf {
     static inline const int ERROR_USER_REGEX_MATCH = 208;
     static inline const int ERROR_PIPE_METRIC_EXEC = 209;
 
-    private:
-      std::string metric_command;
-      std::string metric_name;
-      std::string regex;
-      int freq;
-      unsigned int server_buffer;
-      std::string name;
-      std::vector<std::unique_ptr<Requirement>> requirements;
-      std::future<int> process;
-      std::unordered_map<int, std::string> errorMessages;
+  private:
+    std::string metric_command;
+    std::string metric_name;
+    std::string regex;
+    int freq;
+    unsigned int server_buffer;
+    std::string name;
+    std::vector<std::unique_ptr<Requirement>> requirements;
+    std::future<int> process;
+    std::unordered_map<int, std::string> error_messages;
 
-    public:
-      MetricReader(std::string metric_command,
-      std::string metric_name,
-      int freq,
-      std::string regex,
-      unsigned int server_buffer);
-
-      ~MetricReader() {}
-
-      void start(pid_t pid,
-                  ServerConnInstrs &connection_instrs,
-                  fs::path result_out,
-                  fs::path result_processed,
-                  bool capture_immediately);
-      unsigned int get_thread_count();
-      void resume();
-      void pause();
-      int wait();
-      std::string get_name();
-      std::vector<std::unique_ptr<Requirement> > &get_requirements();
+  public:
+    MetricReader(std::string metric_command,
+                 std::string metric_name,
+                 int freq,
+                 std::string regex,
+                 unsigned int server_buffer);
+    ~MetricReader() {}
+    void start(pid_t pid,
+               ServerConnInstrs &connection_instrs,
+               fs::path result_out,
+               fs::path result_processed,
+               bool capture_immediately);
+    unsigned int get_thread_count();
+    void resume();
+    void pause();
+    int wait();
+    std::string get_name();
+    std::vector<std::unique_ptr<Requirement> > &get_requirements();
   };
-
-
-
-
-  namespace fs = std::filesystem;
 
   /**
      A class describing a Linux "perf" event, used
