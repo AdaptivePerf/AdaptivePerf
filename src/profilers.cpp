@@ -297,8 +297,7 @@ namespace aperf {
       int code = WEXITSTATUS(status_record);
 
       if (code != 0) {
-        int status;
-        waitpid(pid, &status, WNOHANG);
+        int status = waitpid(pid, nullptr, WNOHANG);
 
         if (status == 0) {
           print("Profiler \"" + this->get_name() + "\" (perf-record) has "
@@ -351,8 +350,7 @@ namespace aperf {
       code = WEXITSTATUS(status_forked);
 
       if (code != 0) {
-        int status;
-        waitpid(pid, &status, WNOHANG);
+        int status = waitpid(pid, nullptr, WNOHANG);
 
         if (status == 0) {
           print("Profiler \"" + this->get_name() + "\" (perf-script) "
