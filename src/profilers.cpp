@@ -127,10 +127,8 @@ namespace aperf {
       }
       parts_c_str[parts.size()] = nullptr;
 
-      int status;
-
       // Check if profiled command has finished executing
-      pid_t command_status = waitpid(pid, &status, WNOHANG);
+      pid_t command_status = waitpid(pid, nullptr, WNOHANG);
 
       const int interval_ns = 1000 * 1000000 / this->freq;
 
@@ -292,7 +290,7 @@ namespace aperf {
         }
 
         // Check if command to be profiled is still executing
-        command_status = waitpid(pid, &status, WNOHANG);
+        command_status = waitpid(pid, nullptr, WNOHANG);
       }
 
       return 0;
