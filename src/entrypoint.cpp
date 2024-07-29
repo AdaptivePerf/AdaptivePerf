@@ -167,6 +167,56 @@ namespace aperf {
       })
       ->option_text(" ");
 
+    
+
+    struct SubcommandData {
+    std::string metric_command;
+    std::string metric_name;
+    unsigned int frequency;
+    std::string regular_expression;
+    };
+
+    std::vector<SubcommandData> subcommands;
+
+    auto *sub = app.add_subcommand("metric", "For extra metrics, an additional metric" 
+                                  "command can be specified to monitor the profiled" 
+                                  "command. For more details about this option," 
+                                  ": adaptiveperf metric --help")
+                  ->fallthrough()
+                  ->require_subcommand(0, 0);
+
+    std::string metric_cmd = "";
+    sub->add_option("SUBCMD", metric_cmd, "Metric command to be sampled"       
+                  " (required if metric subcommand is called)")
+       ->required()
+       ->check([](const std::string &arg) {
+        if (!arg.empty()) {
+          std::vector<std::string> parts = boost::program_options::split_unix(arg);
+
+          if (parts.empty()) {
+            return "The command you have provided is not a valid one!";
+          }
+        }
+
+        return "";
+      })
+      ->option_text(" ");
+    std::string metric_name = "m";
+    sub->add_option("-N, --metric_name", metric_name, "Name of the sampled metric.");
+    unsigned int metric_freq = 10;
+    sub->add_option("-R,--rate", metric_freq, "Sampling frequency per second for "
+                   "metric command")
+      ->check(OnlyMinRange(1))
+      ->option_text("UINT>0");
+    std::string regular_expression;
+    sub->add_option("-X,--regex", regular_expression, "Regular expression"
+                    "to filter output of the metric command");
+    
+    sub->callback([&subcommands, &metric_cmd, &metric_name, &metric_freq, &regular_expression]() {
+        SubcommandData data = {metric_cmd, metric_name, metric_freq, regular_expression};
+        subcommands.emplace_back(data);
+    });
+    
     CLI11_PARSE(app, argc, argv);
 
     if (print_version) {
@@ -270,6 +320,17 @@ namespace aperf {
         profilers.push_back(std::make_unique<Perf>(perf_path, event, cpu_config,
                                                    event_name));
       }
+
+
+      for (const auto &subcmd : subcommands) {
+        std::cout << "Running subcommand: " << subcmd.metric_command << " with parameter name " << subcmd.metric_name << " frequency " << subcmd.frequency << " regex " << subcmd.regular_expression << std::endl;
+        profilers.push_back(std::make_unique<MetricReader>(subcmd.metric_command, subcmd.metric_name, subcmd.frequency, subcmd.regular_expression, server_buffer));
+      }
+
+      // if (app.got_subcommand("SUBCMD")) {
+      //   //print("Running subcommand: "  + metric_cmd +  " with parameter ");
+      //   profilers.push_back(std::make_unique<MetricReader>(metric_cmd, metric_name, metric_freq, regular_expression, server_buffer));
+      // }
 
       pid_t current_pid = getpid();
       fs::path tmp_dir = fs::temp_directory_path() /
