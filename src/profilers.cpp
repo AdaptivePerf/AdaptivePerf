@@ -134,7 +134,7 @@ namespace aperf {
       stderr_record = result_out / "perf_record_main_stderr.log";
       stderr_script = result_out / "perf_script_main_stderr.log";
 
-      argv_record = {"perf", "record", "-o", "-", "--call-graph", "fp", "-k",
+      argv_record = {"perf", "record", "-s", "-o", "-", "--call-graph", "fp", "-k",
                      "CLOCK_MONOTONIC", "--sorted-stream", "-e",
                      "task-clock", "-F", this->perf_event.options[0],
                      "--off-cpu", this->perf_event.options[1],
@@ -150,7 +150,7 @@ namespace aperf {
       stderr_record = result_out / ("perf_record_" + this->perf_event.name + "_stderr.log");
       stderr_script = result_out / ("perf_script_" + this->perf_event.name + "_stderr.log");
 
-      argv_record = {"perf", "record", "-o", "-", "--call-graph", "fp", "-k",
+      argv_record = {"perf", "record", "-s", "-o", "-", "--call-graph", "fp", "-k",
                      "CLOCK_MONOTONIC", "--sorted-stream", "-e",
                      this->perf_event.name + "/period=" + this->perf_event.options[0] + "/",
                      "--buffer-events", this->perf_event.options[1],
