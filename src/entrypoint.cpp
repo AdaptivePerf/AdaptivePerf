@@ -41,6 +41,28 @@ namespace aperf {
     }
   };
 
+
+  std::vector<std::string> tokenize(const std::string& input, char delim) {
+    std::vector<std::string> tokens;
+    std::string current_token;
+    bool inside_quotes = false;
+
+    for (char c : input) {
+        if (c == '"' && (current_token.empty() || current_token.back() != '\\')) {
+            inside_quotes = !inside_quotes;
+        } else if (c == delim && !inside_quotes) {
+            tokens.push_back(current_token);
+            current_token.clear();
+        } else {
+            current_token += c;
+        }
+    }
+
+    tokens.push_back(current_token);
+    return tokens;
+}
+
+
   /**
      Entry point to the AdaptivePerf frontend when it is run from
      the command line.
@@ -167,8 +189,6 @@ namespace aperf {
       })
       ->option_text(" ");
 
-    
-
     struct SubcommandData {
     std::string metric_command;
     std::string metric_name;
@@ -176,46 +196,13 @@ namespace aperf {
     std::string regular_expression;
     };
 
-    std::vector<SubcommandData> subcommands;
-
-    auto *sub = app.add_subcommand("metric", "For extra metrics, an additional metric" 
-                                  "command can be specified to monitor the profiled" 
-                                  "command. For more details about this option," 
-                                  ": adaptiveperf metric --help")
-                  ->fallthrough()
-                  ->require_subcommand(0, 0);
-
-    std::string metric_cmd = "";
-    sub->add_option("SUBCMD", metric_cmd, "Metric command to be sampled"       
-                  " (required if metric subcommand is called)")
-       ->required()
-       ->check([](const std::string &arg) {
-        if (!arg.empty()) {
-          std::vector<std::string> parts = boost::program_options::split_unix(arg);
-
-          if (parts.empty()) {
-            return "The command you have provided is not a valid one!";
-          }
-        }
-
-        return "";
-      })
-      ->option_text(" ");
-    std::string metric_name = "m";
-    sub->add_option("-N, --metric_name", metric_name, "Name of the sampled metric.");
-    unsigned int metric_freq = 10;
-    sub->add_option("-R,--rate", metric_freq, "Sampling frequency per second for "
-                   "metric command")
-      ->check(OnlyMinRange(1))
-      ->option_text("UINT>0");
-    std::string regular_expression;
-    sub->add_option("-X,--regex", regular_expression, "Regular expression"
-                    "to filter output of the metric command");
-    
-    sub->callback([&subcommands, &metric_cmd, &metric_name, &metric_freq, &regular_expression]() {
-        SubcommandData data = {metric_cmd, metric_name, metric_freq, regular_expression};
-        subcommands.emplace_back(data);
-    });
+    std::vector<std::string> metric_strs;
+    std::regex pattern_metric("");
+    app.add_option("-m,--metric", metric_strs, "Extra metric to sample  "
+                   "based on an external profiler/metric command. ")
+      ->option_text("c:\"METRIC_COMAND\",n:\"METRIC_NAME\",f:SAMPLELING_FREQUENCY ( must "
+            "be a number),r:\"REGULAR_EXPRESSION\"")
+      ->take_all();
     
     CLI11_PARSE(app, argc, argv);
 
@@ -321,16 +308,75 @@ namespace aperf {
                                                    event_name));
       }
 
+      for (std::string &metric_str : metric_strs) {
+        std::vector<std::string> matches_metric = tokenize(metric_str, ',');
 
-      for (const auto &subcmd : subcommands) {
-        std::cout << "Running subcommand: " << subcmd.metric_command << " with parameter name " << subcmd.metric_name << " frequency " << subcmd.frequency << " regex " << subcmd.regular_expression << std::endl;
-        profilers.push_back(std::make_unique<MetricReader>(subcmd.metric_command, subcmd.metric_name, subcmd.frequency, subcmd.regular_expression, server_buffer));
+        SubcommandData metric_command_data = {"", "", 0, ""};
+
+        for (std::string &option : matches_metric){
+            std::vector<std::string> parsed_option = tokenize(option, ':');
+            if(parsed_option.size() == 2){
+                if(parsed_option[0] == "c")
+                if(metric_command_data.metric_command.empty()){
+                    metric_command_data.metric_command = parsed_option[1];
+                }else{
+                  print("Cannot specify multiple metric commands", true, true);
+                  return 2;
+                }
+                else if(parsed_option[0] == "n")
+                if(metric_command_data.metric_name.empty()){
+                    metric_command_data.metric_name = parsed_option[1];
+                }else{
+                  print("Cannot specify multiple metric names", true, true);
+                  return 2;
+                }
+                else if(parsed_option[0] == "f")
+                if(metric_command_data.frequency == 0){
+                try {
+                  metric_command_data.frequency = std::stoi(parsed_option[1]);
+                  if (metric_command_data.frequency < 0) {
+                      print("Cannot have negative frequency",true, true);
+                      return 2;
+                  }
+                  } catch (const std::invalid_argument& e) {
+                      print("Error: Invalid argument. Could not convert string to integer.", true, true);
+                      return 2;
+                  } catch (const std::out_of_range& e) {
+                      print("Error: Value out of range. ",true,true);
+                      return 2; 
+                  } 
+
+                }else{
+                  print("Cannot specify multiple frequencies for the metric", true, true);
+                  return 2;
+                }
+                else if(parsed_option[0] == "r")
+                if(metric_command_data.regular_expression.empty()){
+                    metric_command_data.regular_expression = parsed_option[1];
+                }else{
+                  print("Cannot specify multiple regular expressions for one metric command", true, true);
+                  return 2;
+                }
+                else{
+                  print("Metric command option not recognised.", true, true);
+                  return 2;
+                }
+              
+            }else{
+                print("Cannot parse option for metric command (too many or too little agruments were given)", true, true);
+                return 2;
+            }
+        }
+        if (metric_command_data.metric_command.empty()){
+            print("Metric command needs to be specified", true, true);
+            return 2;
+        }else{
+          if(metric_command_data.frequency == 0 ){
+            metric_command_data.frequency == 10;
+          }
+          profilers.push_back(std::make_unique<MetricReader>(metric_command_data.metric_command, metric_command_data.metric_name, metric_command_data.frequency, metric_command_data.regular_expression, server_buffer));
+        }
       }
-
-      // if (app.got_subcommand("SUBCMD")) {
-      //   //print("Running subcommand: "  + metric_cmd +  " with parameter ");
-      //   profilers.push_back(std::make_unique<MetricReader>(metric_cmd, metric_name, metric_freq, regular_expression, server_buffer));
-      // }
 
       pid_t current_pid = getpid();
       fs::path tmp_dir = fs::temp_directory_path() /
