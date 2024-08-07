@@ -199,9 +199,11 @@ namespace aperf {
     std::vector<std::string> metric_strs;
     std::regex pattern_metric("");
     app.add_option("-m,--metric", metric_strs, "Extra metric to sample "
-                   "based on an external profiler/metric command. ")
-      ->option_text("c:\"METRIC_COMAND\",n:\"METRIC_NAME\",f:SAMPLELING_FREQUENCY"
-                    "(must be a number), r:\"REGULAR_EXPRESSION\"")
+                   "based on an external profiler/metric command. Usage: -m "
+                   "c:\"METRIC_COMAND\",n:\"METRIC_NAME\",f:SAMPLELING_FREQUENCY"
+                    "(must be a number), r:\"REGULAR_EXPRESSION\""
+                   )
+      ->option_text("CONFIG")
       ->take_all();
     
     CLI11_PARSE(app, argc, argv);
