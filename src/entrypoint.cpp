@@ -197,13 +197,87 @@ namespace aperf {
     };
 
     std::vector<std::string> metric_strs;
+    std::vector<SubcommandData> metric_profilers_data;
     std::regex pattern_metric("");
-    app.add_option("-m,--metric", metric_strs, "Extra metric to sample "
-                   "based on an external profiler/metric command. Usage: -m "
-                   "c:\"METRIC_COMAND\",n:\"METRIC_NAME\",f:SAMPLELING_FREQUENCY"
-                    "(must be a number), r:\"REGULAR_EXPRESSION\""
-                   )
+    app.add_option("-m,--metric", metric_strs, 
+        "Extra metric to sample based on an external profiler/metric command. Usage: -m "
+        "c:\"METRIC_COMMAND\",n:\"METRIC_NAME\",f:SAMPLING_FREQUENCY (must be a number), r:\"REGULAR_EXPRESSION\"\n"
+        "Argument description:\n"
+        "  METRIC_COMMAND - required : Any command that outputs a number (float) to stdout.\n"
+        "  METRIC_NAME - required : Alias for the metric which will be displayed in Adaptiveperf HTML.\n"
+        "  SAMPLING_FREQUENCY - optional, default_value 10 : An integer which represents the sampling rate of the METRIC_COMMAND.\n"
+        "  REGULAR_EXPRESSION - optional : A regular expression (EcmaScript flavor) to parse the output of the METRIC_COMMAND."
+    )
       ->option_text("CONFIG")
+      ->check([&metric_profilers_data](const std::string &arg) {
+
+        std::vector<std::string> matches_metric = tokenize(arg, ',');
+
+        SubcommandData metric_command_data = {"", "", 0, ""};
+
+        for (std::string &option : matches_metric) {
+          std::vector<std::string> parsed_option = tokenize(option, ':');
+          if (parsed_option.size() == 2) {
+            if (parsed_option[0] == "c")
+              if (metric_command_data.metric_command.empty()) {
+                metric_command_data.metric_command = parsed_option[1];
+              } else {
+                return "Cannot specify multiple metric commands";
+
+              } 
+            else if (parsed_option[0] == "n")
+              if (metric_command_data.metric_name.empty()) {
+                metric_command_data.metric_name = parsed_option[1];
+              } else {
+                return "Cannot specify multiple metric names";
+
+              }
+            else if (parsed_option[0] == "f")
+              if (metric_command_data.frequency == 0){
+                try
+                {
+                  metric_command_data.frequency = std::stoi(parsed_option[1]);
+                  if (metric_command_data.frequency < 0) {
+                    return "Cannot have negative frequency";
+
+                  }
+                } catch (const std::invalid_argument &e) {
+                  return "Error: Invalid argument. Could not convert string to integer.";
+                } catch (const std::out_of_range &e) {
+                  return "Error: Value out of range. ";
+                }
+                if (metric_command_data.frequency == 0) {
+                  return "Cannot set frequency value to 0.";
+                }
+              } else {
+                return "Cannot specify multiple frequencies for the metric";
+
+              }
+            else if (parsed_option[0] == "r")
+              if (metric_command_data.regular_expression.empty()) {
+                metric_command_data.regular_expression = parsed_option[1];
+              } else {
+                return "Cannot specify multiple regular expressions for one metric command";
+              } else {
+              return "Metric command option not recognised.";
+            }
+          } else {
+            return "Cannot parse option for metric command (too many or too little agruments were given)";
+          }
+        }
+        if (metric_command_data.metric_command.empty()) {
+          return "Metric command needs to be specified";
+        }
+        if (metric_command_data.metric_name.empty()) {
+          return "Metric name needs to be specified";
+        }
+        if (metric_command_data.frequency == 0) {
+          metric_command_data.frequency = 10;
+        }
+
+        metric_profilers_data.push_back(metric_command_data);
+        return "";
+      })
       ->take_all();
     
     CLI11_PARSE(app, argc, argv);
@@ -310,79 +384,8 @@ namespace aperf {
                                                    event_name));
       }
 
-      for (std::string &metric_str : metric_strs) {
-        std::vector<std::string> matches_metric = tokenize(metric_str, ',');
-
-        SubcommandData metric_command_data = {"", "", 0, ""};
-
-        for (std::string &option : matches_metric) {
-          std::vector<std::string> parsed_option = tokenize(option, ':');
-          if (parsed_option.size() == 2) {
-            if (parsed_option[0] == "c")
-              if (metric_command_data.metric_command.empty()) {
-                metric_command_data.metric_command = parsed_option[1];
-              } else {
-                print("Cannot specify multiple metric commands", true, true);
-                return 2;
-              } 
-            else if (parsed_option[0] == "n")
-              if (metric_command_data.metric_name.empty()) {
-                metric_command_data.metric_name = parsed_option[1];
-              } else {
-                print("Cannot specify multiple metric names", true, true);
-                return 2;
-              }
-            else if (parsed_option[0] == "f")
-              if (metric_command_data.frequency == 0){
-                try
-                {
-                  metric_command_data.frequency = std::stoi(parsed_option[1]);
-                  if (metric_command_data.frequency < 0) {
-                    print("Cannot have negative frequency", true, true);
-                    return 2;
-                  }
-                } catch (const std::invalid_argument &e) {
-                  print("Error: Invalid argument. Could not convert string to integer.", true, true);
-                  return 2;
-                } catch (const std::out_of_range &e) {
-                  print("Error: Value out of range. ", true, true);
-                  return 2;
-                }
-                if (metric_command_data.frequency == 0) {
-                  print("Cannot set frequency value to 0.",true,true);
-                  return 2;
-                }
-              } else {
-                print("Cannot specify multiple frequencies for the metric", true, true);
-                return 2;
-              }
-            else if (parsed_option[0] == "r")
-              if (metric_command_data.regular_expression.empty()) {
-                metric_command_data.regular_expression = parsed_option[1];
-              } else {
-                print("Cannot specify multiple regular expressions for one metric command", true, true);
-                return 2;
-              } else {
-              print("Metric command option not recognised.", true, true);
-              return 2;
-            }
-          } else {
-            print("Cannot parse option for metric command (too many or too little agruments were given)", true, true);
-            return 2;
-          }
-        }
-        if (metric_command_data.metric_command.empty()) {
-          print("Metric command needs to be specified", true, true);
-          return 2;
-        }
-        if (metric_command_data.metric_name.empty()) {
-          print("Metric name needs to be specified", true, true);
-          return 2;
-        }
-        if (metric_command_data.frequency == 0) {
-          metric_command_data.frequency = 10;
-        }
-
+      for (SubcommandData metric_command_data : metric_profilers_data) {
+        
         profilers.push_back(std::make_unique<MetricReader>(metric_command_data.metric_command, metric_command_data.metric_name, metric_command_data.frequency, metric_command_data.regular_expression, server_buffer));
       }
 
