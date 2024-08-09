@@ -291,7 +291,7 @@ namespace aperf {
                     true, event_type == "offcpu-time");
 
             res.total_period += period;
-          }else if(arr[0] == "<CUSTOM_METRIC>"){
+          } else if (arr[0] == "<CUSTOM_METRIC>") {
             std::string metric_command, metric_name;
             long timestamp;
             float metric_val;
@@ -302,7 +302,7 @@ namespace aperf {
               metric_val = arr[4];
 
               nlohmann::json metric = nlohmann::json::array({"<CUSTOM_METRIC>",
-              metric_command, metric_name, timestamp, metric_val});
+                  metric_command, metric_name, timestamp, metric_val});
 
               std::string s = metric.dump();
               std::cout << s << std::endl;
