@@ -41,6 +41,31 @@ namespace aperf {
     }
   };
 
+  std::vector<std::string> tokenize(const std::string& input, char delim,
+                                    bool keep_quotes) {
+    std::vector<std::string> tokens;
+    std::string current_token;
+    bool inside_quotes = false;
+
+    for (char c : input) {
+      if (c == '"' && (current_token.empty() || current_token.back() != '\\')) {
+        inside_quotes = !inside_quotes;
+
+        if (keep_quotes) {
+          current_token += c;
+        }
+      } else if (c == delim && !inside_quotes) {
+        tokens.push_back(current_token);
+        current_token.clear();
+      } else {
+        current_token += c;
+      }
+    }
+
+    tokens.push_back(current_token);
+    return tokens;
+  }
+
   /**
      Entry point to the AdaptivePerf frontend when it is run from
      the command line.
@@ -135,7 +160,7 @@ namespace aperf {
                    "every PERIOD occurrences of an event and display the "
                    "results under the title TITLE in a website). Run "
                    "\"perf list\" for the list of possible events. You "
-                   "can specify multiple events by specifying this flag "
+                   "can specify multiple events by specifying this option "
                    "more than once. Use quotes if you need to use spaces.")
       ->check([](const std::string &arg) {
         if (!std::regex_match(arg, std::regex("^.+,[0-9\\.]+,.+$"))) {
@@ -166,6 +191,107 @@ namespace aperf {
         return "";
       })
       ->option_text(" ");
+
+    struct SubcommandData {
+      std::string metric_command;
+      std::string metric_name;
+      unsigned int frequency;
+      std::string regular_expression;
+    };
+
+    std::vector<std::string> metric_strs;
+    std::vector<SubcommandData> metric_profilers_data;
+    std::regex pattern_metric("");
+    app.add_option("-m,--metric", metric_strs,
+                   "Extra metric to sample based on an external "
+                   "profiler/metric command. You can specify multiple "
+                   "metrics by specifying this option more than once.\n\n"
+                   "CONFIG must be: c:\"COMMAND\",n:\"NAME\","
+                   "f:FREQ,r:\"REGEX\"\n\n"
+                   "COMMAND is a command that outputs a text with an "
+                   "integer/float to stdout.\n\nNAME is an alias for the metric "
+                   "to be displayed in a website.\n\nFREQ is a sampling rate per "
+                   "second for the metric (optional and must be an integer, "
+                   "default: 10).\n\n"
+                   "REGEX is a regex in the ECMAScript flavour to extract a "
+                   "number from the stdout (optional if the command outputs only "
+                   "a number).\n\n"
+                   "You may need to put CONFIG in single quotes, e.g. if CONFIG is "
+                   "c:\"abc \\\"x\\\"\"..., it might "
+                   "be necessary for you to run AdaptivePerf with -m "
+                   "'c:\"abc \\\"x\\\"\"...'. If not sure, test your "
+                   "shell for this.")
+      ->option_text("CONFIG")
+      ->check([&metric_profilers_data](const std::string &arg) {
+        std::vector<std::string> matches_metric = tokenize(arg, ',', true);
+
+        SubcommandData metric_command_data = {"", "", 0, ""};
+
+        for (std::string &option : matches_metric) {
+          std::vector<std::string> parsed_option = tokenize(option, ':', false);
+          if (parsed_option.size() == 2) {
+            if (parsed_option[0] == "c") {
+              if (metric_command_data.metric_command.empty()) {
+                metric_command_data.metric_command = parsed_option[1];
+              } else {
+                return "Cannot specify multiple metric commands.";
+              }
+            } else if (parsed_option[0] == "n") {
+              if (metric_command_data.metric_name.empty()) {
+                metric_command_data.metric_name = parsed_option[1];
+              } else {
+                return "Cannot specify multiple metric names.";
+              }
+            } else if (parsed_option[0] == "f") {
+              if (metric_command_data.frequency == 0){
+                try
+                  {
+                    metric_command_data.frequency = std::stoi(parsed_option[1]);
+                    if (metric_command_data.frequency < 0) {
+                      return "Cannot have negative frequency.";
+                    } else if (metric_command_data.frequency == 0) {
+                      return "Cannot set frequency value to 0.";
+                    }
+                  } catch (const std::invalid_argument &e) {
+                  return "Could not convert frequency string to integer.";
+                } catch (const std::out_of_range &e) {
+                  return "Frquency value out of range.";
+                }
+              } else {
+                return "Cannot specify multiple frequencies.";
+              }
+            } else if (parsed_option[0] == "r") {
+              if (metric_command_data.regular_expression.empty()) {
+                metric_command_data.regular_expression = parsed_option[1];
+              } else {
+                return "Cannot specify multiple regular expressions for one "
+                  "metric command.";
+              }
+            } else {
+              return "Metric command option not recognised.";
+            }
+          } else {
+            return "Cannot parse option for metric command (too many or too few "
+              "arguments were given).";
+          }
+        }
+
+        if (metric_command_data.metric_command.empty()) {
+          return "Metric command needs to be specified.";
+        }
+
+        if (metric_command_data.metric_name.empty()) {
+          return "Metric name needs to be specified.";
+        }
+
+        if (metric_command_data.frequency == 0) {
+          metric_command_data.frequency = 10;
+        }
+
+        metric_profilers_data.push_back(metric_command_data);
+        return "";
+      })
+      ->take_all();
 
     CLI11_PARSE(app, argc, argv);
 
@@ -271,6 +397,14 @@ namespace aperf {
                                                    event_name));
       }
 
+      for (SubcommandData metric_command_data : metric_profilers_data) {
+        profilers.push_back(std::make_unique<MetricReader>(metric_command_data.metric_command,
+                                                           metric_command_data.metric_name,
+                                                           metric_command_data.frequency,
+                                                           metric_command_data.regular_expression,
+                                                           server_buffer));
+      }
+
       pid_t current_pid = getpid();
       fs::path tmp_dir = fs::temp_directory_path() /
         ("adaptiveperf.pid." + std::to_string(current_pid));
@@ -283,7 +417,8 @@ namespace aperf {
       int to_return = 0;
 
       try {
-        int code = start_profiling_session(profilers, command, address, server_buffer, warmup, cpu_config,
+        int code = start_profiling_session(profilers, command, address,
+                                           server_buffer, warmup, cpu_config,
                                            tmp_dir, spawned_children);
 
         auto end_time =
@@ -292,18 +427,22 @@ namespace aperf {
         if (code == 0) {
           fs::remove_all(tmp_dir);
 
-          print("Done in " + std::to_string(end_time - start_time) + " ms in total! "
+          print("Done in " + std::to_string(end_time - start_time) +
+                " ms in total! "
                 "You can check the results directory now.", false, false);
         } else if (code != 1) {
-          print("For investigating what has gone wrong, you can check the files created in " +
+          print("For investigating what has gone wrong, you can check "
+                "the files created in " +
                 tmp_dir.string() + ".", false, true);
         }
 
         to_return = code;
       } catch (ConnectionException &e) {
-        print("I/O error has occurred in the communication with adaptiveperf-server! Exiting.",
+        print("I/O error has occurred in the communication with "
+              "adaptiveperf-server! Exiting.",
               false, true);
-        print("For investigating what has gone wrong, you can check the files created in " +
+        print("For investigating what has gone wrong, you can check "
+              "the files created in " +
               tmp_dir.string() + ".", false, true);
 
         to_return = 2;
@@ -311,7 +450,8 @@ namespace aperf {
         print("A fatal error has occurred! If the issue persits, "
               "please contact the AdaptivePerf developers, citing \"" +
               std::string(e.what()) + "\".", false, true);
-        print("For investigating what has gone wrong, you can check the files created in " +
+        print("For investigating what has gone wrong, you can check "
+              "the files created in " +
               tmp_dir.string() + ".", false, true);
 
         to_return = 2;

@@ -22,33 +22,46 @@ namespace aperf {
     }
 
     std::string make_option_desc(const CLI::Option *opt) const override {
-      std::vector<std::string> parts;
-      boost::split(parts, opt->get_description(), boost::is_any_of(" "));
-
-      int characters_printed_in_line = 0;
       std::string result = "";
 
-      bool finish_with_new_line = false;
+      std::vector<std::string> lines;
+      boost::split(lines, opt->get_description(), boost::is_any_of("\n"));
 
-      for (int i = 0; i < parts.size(); i++) {
-        std::string to_print = parts[i];
+      for (int i = 0; i < lines.size(); i++) {
+        bool finish_with_new_line = false;
 
-        if (i < parts.size() - 1) {
-          to_print += " ";
+        if (!lines[i].empty()) {
+          std::vector<std::string> parts;
+          boost::split(parts, lines[i], boost::is_any_of(" "));
+
+          int characters_printed_in_line = 0;
+
+          for (int j = 0; j < parts.size(); j++) {
+            std::string to_print = parts[j];
+
+            if (j < parts.size() - 1) {
+              to_print += " ";
+            }
+
+            if (characters_printed_in_line > 0 &&
+                characters_printed_in_line + to_print.length() >=
+                80 - COLUMN_WIDTH) {
+              result += "\n";
+              characters_printed_in_line = 0;
+              finish_with_new_line = true;
+            }
+
+            result += to_print;
+            characters_printed_in_line += to_print.length();
+          }
         }
 
-        if (characters_printed_in_line > 0 &&
-            characters_printed_in_line + to_print.length() >= 80 - COLUMN_WIDTH) {
+        if (i < lines.size() - 1 || finish_with_new_line) {
           result += "\n";
-          characters_printed_in_line = 0;
-          finish_with_new_line = true;
         }
-
-        result += to_print;
-        characters_printed_in_line += to_print.length();
       }
 
-      return result + (finish_with_new_line ? "\n" : "");
+      return result;
     }
   };
 };

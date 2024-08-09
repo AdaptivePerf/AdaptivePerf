@@ -160,13 +160,14 @@ namespace aperf {
         return handle_errors(ERROR_PARSING_CONNECTION_INSTRS, pid);
       }
 
-      while (command_status > 0) {
+      while (command_status == 0) {
         struct timespec start, end;
         clock_gettime(CLOCK_MONOTONIC, &start);
 
         int pipe_fd[2];
 
         if (pipe(pipe_fd) == -1) {
+          connection->write("<STOP>", true);
           return handle_errors(ERROR_PIPE_METRIC_EXEC, pid);
         }
 
@@ -217,6 +218,7 @@ namespace aperf {
             if (std::regex_search(data, match_pattern, regex_pattern)) {
               parsed_data = match_pattern.str();
             } else{
+              connection->write("<STOP>", true);
               return handle_errors(ERROR_USER_REGEX_MATCH, pid);
             }
           } else {
@@ -236,11 +238,12 @@ namespace aperf {
               break;
             }
 
-            std::string number_str = match.str(1);
+            std::string number_str = match.str(0);
             try {
               metric_val = std::stof(number_str);
             } catch (const std::exception&) {
               // Failed conversion, need to handle later
+              connection->write("<STOP>", true);
               return handle_errors(ERROR_CONVERSION_TO_FLOAT, pid);
             }
             temp_data = match.suffix().str();
@@ -248,11 +251,13 @@ namespace aperf {
 
           if (count == 0) {
             // No numbers found
+            connection->write("<STOP>", true);
             return handle_errors(ERROR_NO_NUMBER_REGEX, pid);
           }
 
           if (count > 1) {
             // Error, too many numbers
+            connection->write("<STOP>", true);
             return handle_errors(ERROR_TOO_MANY_NUMBERS_REGEX, pid);
           }
 
@@ -276,6 +281,7 @@ namespace aperf {
 
         int code_metric_exec = WEXITSTATUS(status_metric_exec);
         if (code_metric_exec != 0) {
+          connection->write("<STOP>", true);
           return handle_errors(code_metric_exec, pid); // Stop spawning metric_command
         }
 
@@ -293,6 +299,7 @@ namespace aperf {
         command_status = waitpid(pid, nullptr, WNOHANG);
       }
 
+      connection->write("<STOP>", true);
       return 0;
     });
   }

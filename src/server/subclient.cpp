@@ -291,6 +291,25 @@ namespace aperf {
                     true, event_type == "offcpu-time");
 
             res.total_period += period;
+          } else if (arr[0] == "<CUSTOM_METRIC>") {
+            std::string metric_command, metric_name;
+            long timestamp;
+            float metric_val;
+            try {
+              metric_command = arr[1];
+              metric_name = arr[2];
+              timestamp = arr[3];
+              metric_val = arr[4];
+
+              nlohmann::json metric = nlohmann::json::array({"<CUSTOM_METRIC>",
+                  metric_command, metric_name, timestamp, metric_val});
+
+              std::string s = metric.dump();
+              std::cout << s << std::endl;
+            } catch (...) {
+              std::cerr << "The recently received sample JSON is invalid, ignoring." << std::endl;
+              continue;
+            }
           }
         }
       }
