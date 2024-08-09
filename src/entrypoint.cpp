@@ -41,27 +41,30 @@ namespace aperf {
     }
   };
 
-
-  std::vector<std::string> tokenize(const std::string& input, char delim) {
+  std::vector<std::string> tokenize(const std::string& input, char delim,
+                                    bool keep_quotes) {
     std::vector<std::string> tokens;
     std::string current_token;
     bool inside_quotes = false;
 
     for (char c : input) {
-        if (c == '"' && (current_token.empty() || current_token.back() != '\\')) {
-            inside_quotes = !inside_quotes;
-        } else if (c == delim && !inside_quotes) {
-            tokens.push_back(current_token);
-            current_token.clear();
-        } else {
-            current_token += c;
+      if (c == '"' && (current_token.empty() || current_token.back() != '\\')) {
+        inside_quotes = !inside_quotes;
+
+        if (keep_quotes) {
+          current_token += c;
         }
+      } else if (c == delim && !inside_quotes) {
+        tokens.push_back(current_token);
+        current_token.clear();
+      } else {
+        current_token += c;
+      }
     }
 
     tokens.push_back(current_token);
     return tokens;
-}
-
+  }
 
   /**
      Entry point to the AdaptivePerf frontend when it is run from
@@ -210,13 +213,12 @@ namespace aperf {
     )
       ->option_text("CONFIG")
       ->check([&metric_profilers_data](const std::string &arg) {
-
-        std::vector<std::string> matches_metric = tokenize(arg, ',');
+        std::vector<std::string> matches_metric = tokenize(arg, ',', true);
 
         SubcommandData metric_command_data = {"", "", 0, ""};
 
         for (std::string &option : matches_metric) {
-          std::vector<std::string> parsed_option = tokenize(option, ':');
+          std::vector<std::string> parsed_option = tokenize(option, ':', false);
           if (parsed_option.size() == 2) {
             if (parsed_option[0] == "c")
               if (metric_command_data.metric_command.empty()) {
