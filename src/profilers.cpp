@@ -153,12 +153,15 @@ namespace aperf {
           instruction_match[2].str();
         Poco::Net::SocketAddress address(server_address);
         Poco::Net::StreamSocket socket(address);
-
-        connection = std::make_unique<TCPSocket>(socket, this->server_buffer);
       } else {
         // Instruction is not correct
         return handle_errors(ERROR_PARSING_CONNECTION_INSTRS, pid);
       }
+
+      nlohmann::json metric = nlohmann::json::array({"<CUSTOM_METRIC_COMMAND>",
+              this->metric_command, this->metric_name});
+      std::string custom_metric_command = metric.dump();
+      connection->write(custom_metric_command);
 
       while (command_status == 0) {
         struct timespec start, end;

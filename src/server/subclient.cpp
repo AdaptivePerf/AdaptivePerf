@@ -304,12 +304,34 @@ namespace aperf {
               nlohmann::json metric = nlohmann::json::array({"<CUSTOM_METRIC>",
                   metric_command, metric_name, timestamp, metric_val});
 
-              std::string s = metric.dump();
-              std::cout << s << std::endl;
+              this->json_result["<EXTERNAL_METRICS_DATA>"][0].push_back(metric_name);//metric
+              this->json_result["<EXTERNAL_METRICS_DATA>"][1].push_back(timestamp); //timestamp
+              this->json_result["<EXTERNAL_METRICS_DATA>"][2].push_back(metric_val); //value
             } catch (...) {
               std::cerr << "The recently received sample JSON is invalid, ignoring." << std::endl;
               continue;
             }
+          } else if(arr[0] == "<CUSTOM_METRIC_COMMAND>"){
+              std::string metric_command, metric_name;
+
+              try {
+                metric_command = arr[1];
+                metric_name = arr[2];
+
+                nlohmann::json metric = nlohmann::json::array({"<CUSTOM_METRIC_COMMAND>",
+                    metric_command, metric_name});
+
+                this->json_result["<EXTERNAL_METRICS>"] = nlohmann::json::object();
+                this->json_result["<EXTERNAL_METRICS>"][metric_name] = metric_command;
+                this->json_result["<EXTERNAL_METRICS_DATA>"] = nlohmann::json::array();
+                this->json_result["<EXTERNAL_METRICS_DATA>"].push_back(nlohmann::json::array()); //metric
+                this->json_result["<EXTERNAL_METRICS_DATA>"].push_back(nlohmann::json::array()); //timestamp
+                this->json_result["<EXTERNAL_METRICS_DATA>"].push_back(nlohmann::json::array()); //value
+
+              } catch (...) {
+                std::cerr << "The recently received sample JSON is invalid, ignoring." << std::endl;
+                continue;
+              }
           }
         }
       }
