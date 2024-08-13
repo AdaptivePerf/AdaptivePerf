@@ -153,6 +153,8 @@ namespace aperf {
           instruction_match[2].str();
         Poco::Net::SocketAddress address(server_address);
         Poco::Net::StreamSocket socket(address);
+
+        connection = std::make_unique<TCPSocket>(socket, this->server_buffer);
       } else {
         // Instruction is not correct
         return handle_errors(ERROR_PARSING_CONNECTION_INSTRS, pid);
