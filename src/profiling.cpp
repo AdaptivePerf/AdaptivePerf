@@ -625,7 +625,18 @@ namespace aperf {
     std::this_thread::sleep_for(warmup * 1s);
 
     print("Profiling...", false, false);
-    print("Executing the command...", true, false);
+
+    std::string command_list_str = "[";
+
+    for (auto command_element : command_elements) {
+      boost::algorithm::replace_all(command_element, "\"", "\\\"");
+      command_list_str += "\"" + command_element + "\", ";
+    }
+
+    command_list_str = command_list_str.substr(0, command_list_str.size() - 2) + "]";
+
+    print("Executing the following command (as passed to the exec syscall): " +
+          command_list_str, true, false);
 
     auto start_time =
       ch::duration_cast<ch::milliseconds>(ch::system_clock::now().time_since_epoch()).count();
