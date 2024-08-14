@@ -160,6 +160,11 @@ namespace aperf {
         return handle_errors(ERROR_PARSING_CONNECTION_INSTRS, pid);
       }
 
+      nlohmann::json metric = nlohmann::json::array({"<CUSTOM_METRIC_COMMAND>",
+          this->metric_command, this->metric_name});
+      std::string custom_metric_command = metric.dump();
+      connection->write(custom_metric_command);
+
       while (command_status == 0) {
         struct timespec start, end;
         clock_gettime(CLOCK_MONOTONIC, &start);

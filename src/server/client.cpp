@@ -90,6 +90,8 @@ namespace aperf {
       metadata["callchains"] = nlohmann::json::object();
       metadata["offcpu_regions"] = nlohmann::json::object();
       metadata["sampled_times"] = nlohmann::json::object();
+      metadata["external_metrics"] = nlohmann::json::object();
+      std::string external_metrics = "MetricName,Timestamp,Value\n";
 
       unsigned long long start_time = 0;
 
@@ -111,6 +113,16 @@ namespace aperf {
           } else if (elem.key() == "<SYSCALL>") {
             for (auto &elem2 : elem.value().items()) {
               metadata["callchains"][elem2.key()].swap(elem2.value());
+            }
+          } else if (elem.key() == "<EXTERNAL_METRICS>") {
+            for (auto &elem2 : elem.value().items()) {
+              metadata["external_metrics"][elem2.key()].swap(elem2.value());
+            }
+          } else if (elem.key() == "<EXTERNAL_METRICS_DATA>") {
+            for (int m = 0; m < elem.value()[0].size(); m++) {
+              external_metrics += elem.value()[0][m].get<std::string>() + "," +
+                std::to_string(static_cast<long>(elem.value()[1][m])) + "," +
+                std::to_string(static_cast<float>(elem.value()[2][m])) + "\n";
             }
           }
         }
@@ -166,12 +178,21 @@ namespace aperf {
         f.close();
       };
 
-      std::shared_future<void> futures[final_output.size() + 1];
+      auto save_string = [](std::string path, const std::string &output) {
+        std::ofstream f;
+        f.open(path);
+        f << output << std::endl;
+        f.close();
+      };
+
+      std::shared_future<void> futures[final_output.size() + 2];
 
       futures[0] = std::async(save, processed_path / "metadata.json",
                               &metadata);
+      futures[1] = std::async(save_string, processed_path / "external_metric_data.csv",
+                              external_metrics);
 
-      int future_index = 1;
+      int future_index = 2;
 
       for (auto &elem : final_output.items()) {
         futures[future_index++] = std::async(save,
@@ -179,7 +200,7 @@ namespace aperf {
                                              &elem.value());
       }
 
-      for (int i = 0; i < final_output.size() + 1; i++) {
+      for (int i = 0; i < final_output.size() + 2; i++) {
         futures[i].get();
       }
 
