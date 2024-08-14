@@ -167,7 +167,8 @@ namespace aperf {
 
   CPUConfig get_cpu_config(int post_processing_threads, bool external_server);
   int start_profiling_session(std::vector<std::unique_ptr<Profiler> > &profilers,
-                              std::string command, std::string server_address,
+                              std::vector<std::string> &command_elements,
+                              std::string server_address,
                               unsigned int buf_size, unsigned int warmup,
                               CPUConfig &cpu_config, fs::path tmp_dir,
                               std::vector<pid_t> &spawned_children);
