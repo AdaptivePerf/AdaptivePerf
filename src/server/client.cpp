@@ -178,7 +178,7 @@ namespace aperf {
         f.close();
       };
 
-      auto save_string = [](std::string path, std::string output) {
+      auto save_string = [](std::string path, const std::string &output) {
         std::ofstream f;
         f.open(path);
         f << output << std::endl;
@@ -192,12 +192,9 @@ namespace aperf {
       futures[0] = std::async(save, processed_path / "metadata.json",
                               &metadata);
 
-      int future_index = 1;
-
       futures[1] = std::async(save_string, processed_path / "external_metric_data.csv",
                               external_metrics);
-
-      future_index++;
+      int future_index = 2;
 
       for (auto &elem : final_output.items()) {
         futures[future_index++] = std::async(save,
@@ -205,7 +202,7 @@ namespace aperf {
                                              &elem.value());
       }
 
-      for (int i = 0; i < final_output.size() + 1; i++) {
+      for (int i = 0; i < final_output.size() + 2; i++) {
         futures[i].get();
       }
 
