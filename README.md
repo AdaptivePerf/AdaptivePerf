@@ -147,4 +147,4 @@ If this happens, please add ```<your installation prefix>/lib``` (it's ```/usr/l
 ### Profiler "..." (perf-record / perf-script) has returned non-zero exit code
 If you get an error message similar to the one in the title, please look at the logs in the temporary directory printed by AdaptivePerf.
 
-If the logs mention "can't access trace events", permission denied issues, or problems with eBPF, please try either running AdaptivePerf as root or increasing "perf" and eBPF privileges for your user account. If it doesn't work or the logs mention a different problem, feel free to file an issue on GitHub.
+If the logs mention "can't access trace events", permission denied issues, or problems with eBPF, please ensure that the requirements for running AdaptivePerf as non-root are met (see "How to use") or run AdaptivePerf as root. If it doesn't work or the logs specify a different problem (or don't say anything), feel free to file an issue on GitHub.
