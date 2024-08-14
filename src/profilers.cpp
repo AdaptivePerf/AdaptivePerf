@@ -161,7 +161,7 @@ namespace aperf {
       }
 
       nlohmann::json metric = nlohmann::json::array({"<CUSTOM_METRIC_COMMAND>",
-              this->metric_command, this->metric_name});
+          this->metric_command, this->metric_name});
       std::string custom_metric_command = metric.dump();
       connection->write(custom_metric_command);
 
