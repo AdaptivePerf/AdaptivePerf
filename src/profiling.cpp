@@ -268,7 +268,9 @@ namespace aperf {
      Starts a profiling session.
 
      @param profilers        A list of profilers used to profile the command.
-     @param command          A command to be profiled.
+     @param command_elements A command to be profiled, in form of a vector of string parts
+                             (e.g. "adaptiveperf -f 100 test" becomes ["adaptiveperf",
+                             "-f", "100", "test"]).
      @param server_address   The address and port of an external instance of adaptiveperf-server.
                              If the external instance usage is not planned, server_address
                              should be an empty string.
@@ -286,7 +288,8 @@ namespace aperf {
                              or terminates with an error.
   */
   int start_profiling_session(std::vector<std::unique_ptr<Profiler> > &profilers,
-                              std::string command, std::string server_address,
+                              std::vector<std::string> &command_elements,
+                              std::string server_address,
                               unsigned int buf_size, unsigned int warmup,
                               CPUConfig &cpu_config, fs::path tmp_dir,
                               std::vector<pid_t> &spawned_children) {
@@ -312,7 +315,6 @@ namespace aperf {
 
     print("Preparing for profiling...", false, false);
 
-    std::vector<std::string> command_elements = boost::program_options::split_unix(command);
     std::string profiled_filename = fs::path(command_elements[0]).filename();
 
     const time_t t = std::time(nullptr);
@@ -360,16 +362,14 @@ namespace aperf {
     const int ERROR_STDERR_DUP2 = 204;
     const int ERROR_AFFINITY = 205;
 
-    std::vector<std::string> parts = boost::program_options::split_unix(command);
+    const char *path = command_elements[0].c_str();
+    char *parts_c_str[command_elements.size() + 1];
 
-    const char *path = parts[0].c_str();
-    char *parts_c_str[parts.size() + 1];
-
-    for (int i = 0; i < parts.size(); i++) {
-      parts_c_str[i] = (char *)parts[i].c_str();
+    for (int i = 0; i < command_elements.size(); i++) {
+      parts_c_str[i] = (char *)command_elements[i].c_str();
     }
 
-    parts_c_str[parts.size()] = NULL;
+    parts_c_str[command_elements.size()] = NULL;
 
     pid_t forked = fork();
 

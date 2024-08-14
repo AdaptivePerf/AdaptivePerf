@@ -152,8 +152,8 @@ namespace aperf {
     app.add_flag("-q,--quiet", quiet, "Do not print anything (if set, check "
                  "exit code for any errors)");
 
-    std::string command = "";
-    app.add_option("COMMAND", command, "Command to be profiled (required)")
+    std::vector<std::string> command_parts;
+    app.add_option("COMMAND", command_parts, "Command to be profiled (required)")
       ->check([](const std::string &arg) {
         if (!arg.empty()) {
           std::vector<std::string> parts = boost::program_options::split_unix(arg);
@@ -165,17 +165,28 @@ namespace aperf {
 
         return "";
       })
-      ->option_text(" ");
+      ->option_text(" ")
+      ->take_all();
 
     CLI11_PARSE(app, argc, argv);
 
     if (print_version) {
       std::cout << version << std::endl;
       return 0;
-    } else if (command == "") {
+    } else if (command_parts.empty()) {
       std::cerr << "You need to provide the command to be profiled!" << std::endl;
       return 3;
     } else {
+      std::vector<std::string> command_elements;
+
+      for (auto &command_part : command_parts) {
+        std::vector<std::string> parts = boost::program_options::split_unix(command_part);
+
+        for (auto &part : parts) {
+          command_elements.push_back(part);
+        }
+      }
+
       auto start_time =
         ch::duration_cast<ch::milliseconds>(ch::system_clock::now().time_since_epoch()).count();
 
@@ -283,8 +294,8 @@ namespace aperf {
       int to_return = 0;
 
       try {
-        int code = start_profiling_session(profilers, command, address, server_buffer, warmup, cpu_config,
-                                           tmp_dir, spawned_children);
+        int code = start_profiling_session(profilers, command_elements, address, server_buffer,
+                                           warmup, cpu_config, tmp_dir, spawned_children);
 
         auto end_time =
           ch::duration_cast<ch::milliseconds>(ch::system_clock::now().time_since_epoch()).count();

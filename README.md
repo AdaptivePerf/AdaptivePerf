@@ -81,9 +81,17 @@ If your machine has NUMA (non-uniform memory access), you should note that NUMA 
 
 To profile your program, please run the following command:
 ```
+adaptiveperf <command to be profiled>
+```
+
+**IMPORTANT:** If your command has whitespaces, you must run AdaptivePerf in one of these ways:
+```
 adaptiveperf "<command to be profiled>"
 ```
-(quoting is important if your command has whitespaces)
+or
+```
+adaptiveperf -- <command to be profiled>
+```
 
 AdaptivePerf can be run as non-root as long as all of the requirements below are met:
 * The AdaptivePerf-patched "perf" executable has CAP_PERFMON and CAP_BPF capabilities set as permissive and effective (you can do it by running ```setcap cap_perfmon,cap_bpf+ep <path to "perf">```).
