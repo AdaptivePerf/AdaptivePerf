@@ -152,15 +152,35 @@ namespace aperf {
     app.add_flag("-q,--quiet", quiet, "Do not print anything (if set, check "
                  "exit code for any errors)");
 
+    bool call_split_unix = true;
+
+    for (int i = 0; i < argc; i++) {
+      if (strcmp(argv[i], "--") == 0) {
+        call_split_unix = false;
+        break;
+      }
+    }
+
     std::vector<std::string> command_parts;
+    std::vector<std::string> command_elements;
     app.add_option("COMMAND", command_parts, "Command to be profiled (required)")
-      ->check([](const std::string &arg) {
-        if (!arg.empty()) {
+      ->check([&call_split_unix, &command_elements](const std::string &arg) {
+        const char *not_valid = "The command you have provided is not a valid one!";
+
+        if (arg.empty()) {
+          return not_valid;
+        } else if (call_split_unix) {
           std::vector<std::string> parts = boost::program_options::split_unix(arg);
 
           if (parts.empty()) {
-            return "The command you have provided is not a valid one!";
+            return not_valid;
+          } else {
+            for (auto &part : parts) {
+              command_elements.push_back(part);
+            }
           }
+        } else {
+          command_elements.push_back(arg);
         }
 
         return "";
@@ -177,16 +197,6 @@ namespace aperf {
       std::cerr << "You need to provide the command to be profiled!" << std::endl;
       return 3;
     } else {
-      std::vector<std::string> command_elements;
-
-      for (auto &command_part : command_parts) {
-        std::vector<std::string> parts = boost::program_options::split_unix(command_part);
-
-        for (auto &part : parts) {
-          command_elements.push_back(part);
-        }
-      }
-
       auto start_time =
         ch::duration_cast<ch::milliseconds>(ch::system_clock::now().time_since_epoch()).count();
 
