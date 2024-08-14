@@ -79,11 +79,16 @@ You also need to set the maximum number of stack entries to be collected by runn
 
 If your machine has NUMA (non-uniform memory access), you should note that NUMA memory balancing in Linux limits the reliability of obtaining complete stacks across all CPUs / CPU cores. In this case, you must either disable NUMA balancing by running ```sysctl kernel.numa_balancing=0``` or run AdaptivePerf on a single NUMA node.
 
-To profile your program, please run the following command (you may need to do it as root):
+To profile your program, please run the following command:
 ```
 adaptiveperf "<command to be profiled>"
 ```
 (quoting is important if your command has whitespaces)
+
+AdaptivePerf can be run as non-root as long as all of the requirements below are met:
+* The AdaptivePerf-patched "perf" executable has CAP_PERFMON and CAP_BPF capabilities set as permissive and effective (you can do it by running ```setcap cap_perfmon,cap_bpf+ep <path to "perf">```).
+* ```/sys/kernel/tracing``` is mounted as tracefs (if not done yet, you can do it by running ```mount -t tracefs nodev /sys/kernel/tracing``` or updating your fstab file).
+* You are part of the ```tracing``` group and everything inside ```/sys/kernel/tracing``` is owned by the ```tracing``` group (you can do it by running ```chgrp -R tracing /sys/kernel/tracing```).
 
 If you want to see what extra options you can set (e.g. an on-CPU/off-CPU sampling frequency, the quiet mode), run ```adaptiveperf --help```.
 
