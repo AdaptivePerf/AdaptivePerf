@@ -187,7 +187,7 @@ namespace aperf {
 
 
 
-      std::shared_future<void> futures[final_output.size() + 1];
+      std::shared_future<void> futures[final_output.size() + 2];
 
       futures[0] = std::async(save, processed_path / "metadata.json",
                               &metadata);
