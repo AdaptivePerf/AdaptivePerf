@@ -155,7 +155,7 @@ namespace aperf {
                     metadata["sampled_times"][elem2.key()].swap(elem3.value());
                   } else if (elem3.key() == "offcpu_regions") {
                     metadata["offcpu_regions"][elem2.key()].swap(elem3.value());
-                  } else if (elem3.key() != "first_time") {
+                  } else {
                     final_output[elem2.key()][elem3.key()].swap(elem3.value());
                   }
                 }
