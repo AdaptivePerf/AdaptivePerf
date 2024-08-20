@@ -203,7 +203,7 @@ namespace aperf {
                  std::vector<std::string> &callchain_parts,
                  int callchain_index,
                  unsigned long long period,
-                 bool time_ordered, bool offcpu);
+                 bool time_ordered, bool offcpu, unsigned long long timestamp);
 
   public:
     /**
