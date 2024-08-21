@@ -141,18 +141,3 @@ If this happens, please add ```<your installation prefix>/lib``` (it's ```/usr/l
 If you get an error message similar to the one in the title, please look at the logs in the temporary directory printed by AdaptivePerf.
 
 If the logs mention "can't access trace events", permission denied issues, or problems with eBPF, please try either running AdaptivePerf as root or increasing "perf" and eBPF privileges for your user account. If it doesn't work or the logs mention a different problem, feel free to file an issue on GitHub.
-
-### AdaptivePerf-patched "perf" doesn't compile
-When you get errors during the compilation of the AdaptivePerf-patched "perf", please make sure that all paths specified as options in the ```./build.sh``` command do not finish with a slash.
-
-For example, this command **is WRONG**:
-```
-./build.sh -DAPERF_SCRIPT_PATH=/opt/adaptiveperf/  # WRONG, the path ends with a slash
-```
-
-On the other hand, this command **is CORRECT**:
-```
-./build.sh -DAPERF_SCRIPT_PATH=/opt/adaptiveperf  # CORRECT, the path doesn't end with a slash
-```
-
-If the solution above doesn't work, feel free to file an issue on GitHub.

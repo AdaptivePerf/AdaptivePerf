@@ -65,7 +65,11 @@ if [[ -f adaptiveperf ]]; then
             exit 2
         fi
 
-        aperf_perf_prefix="$aperf_prefix/perf"
+        if [[ $aperf_prefix == */ ]]; then
+            aperf_perf_prefix="${aperf_prefix}perf"
+        else
+            aperf_perf_prefix="$aperf_prefix/perf"
+        fi
 
         echo_sub "AdaptivePerf-patched \"perf\" will be installed in $aperf_perf_prefix."
         echo_sub "Press any key to continue or Ctrl-C to cancel."
