@@ -101,12 +101,13 @@ namespace aperf {
             start_time = elem.value()[0];
 
             for (auto &tid : elem.value()[1]) {
+              std::string tid_str = tid.template get<std::string>();
               metadata["thread_tree"].push_back(nlohmann::json::object());
               nlohmann::json &new_object = metadata["thread_tree"].back();
-              new_object.swap(elem.value()[2][tid]);
+              new_object.swap(elem.value()[2][tid_str]);
               new_object["identifier"] = tid;
 
-              tids.insert(tid);
+              tids.insert(tid_str);
             }
           } else if (elem.key() == "<SYSCALL>") {
             for (auto &elem2 : elem.value().items()) {

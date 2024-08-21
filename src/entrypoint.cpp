@@ -339,8 +339,7 @@ namespace aperf {
       }
 
       for (auto &pid : spawned_children) {
-        int status;
-        waitpid(pid, &status, WNOHANG);
+        int status = waitpid(pid, nullptr, WNOHANG);
 
         if (status == 0) {
           kill(pid, SIGTERM);

@@ -1,10 +1,13 @@
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.20)
 
 if(COMMAND cmake_policy)
   cmake_policy(SET CMP0003 NEW)
   cmake_policy(SET CMP0012 NEW)
   cmake_policy(SET CMP0115 NEW)
-  cmake_policy(SET CMP0135 NEW)
+
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
+    cmake_policy(SET CMP0135 NEW)
+  endif()
 endif()
 
 option(SERVER_ONLY "Compile only adaptiveperf-server (OS-portable)" OFF)
@@ -56,14 +59,17 @@ add_library(server_entrypoint.o OBJECT src/server/entrypoint.cpp)
 target_include_directories(server_entrypoint.o PRIVATE ${CMAKE_SOURCE_DIR}/src/cmd)
 
 add_library(aperfserv SHARED)
+target_include_directories(aperfserv PRIVATE ${nlohmann_json_INCLUDE_DIRS})
+target_include_directories(aperfserv PRIVATE ${Poco_INCLUDE_DIRS})
+target_link_libraries(aperfserv PRIVATE nlohmann_json::nlohmann_json)
+target_link_libraries(aperfserv PRIVATE Poco::Foundation Poco::Net)
 target_link_libraries(aperfserv PRIVATE server.o client.o subclient.o socket.o)
 
 add_executable(adaptiveperf-server
   src/main.cpp)
 
 target_compile_definitions(adaptiveperf-server PRIVATE SERVER_ONLY)
-
-target_link_libraries(adaptiveperf-server PRIVATE nlohmann_json::nlohmann_json)
+target_include_directories(adaptiveperf-server PRIVATE ${CLI11_INCLUDE_DIRS})
 target_link_libraries(adaptiveperf-server PRIVATE Poco::Foundation Poco::Net)
 target_link_libraries(adaptiveperf-server PRIVATE CLI11::CLI11)
 target_link_libraries(adaptiveperf-server PRIVATE aperfserv server_entrypoint.o version.o)
@@ -83,12 +89,17 @@ if(NOT SERVER_ONLY)
   target_compile_definitions(profilers.o PRIVATE APERF_SCRIPT_PATH="${APERF_SCRIPT_PATH}")
   target_compile_definitions(main_entrypoint.o PRIVATE APERF_CONFIG_FILE="${APERF_CONFIG_PATH}")
 
-  find_package(Boost REQUIRED headers filesystem program_options)
+  find_package(Boost REQUIRED program_options)
 
   target_link_libraries(adaptiveperf PRIVATE nlohmann_json::nlohmann_json)
   target_link_libraries(adaptiveperf PRIVATE Poco::Foundation Poco::Net)
   target_link_libraries(adaptiveperf PRIVATE CLI11::CLI11)
-  target_link_libraries(adaptiveperf PRIVATE Boost::headers Boost::program_options)
+  target_link_libraries(adaptiveperf PRIVATE Boost::program_options)
+
+  target_include_directories(adaptiveperf PRIVATE ${nlohmann_json_INCLUDE_DIRS})
+  target_include_directories(adaptiveperf PRIVATE ${Poco_INCLUDE_DIRS})
+  target_include_directories(adaptiveperf PRIVATE ${CLI11_INCLUDE_DIRS})
+  target_include_directories(adaptiveperf PRIVATE ${Boost_INCLUDE_DIRS})
 
   find_library(LIBNUMA
     NAMES numa
@@ -149,6 +160,11 @@ if (ENABLE_TESTS)
   target_include_directories(auto-test-client PRIVATE ${CMAKE_SOURCE_DIR}/src/server)
   target_include_directories(auto-test-subclient PRIVATE ${CMAKE_SOURCE_DIR}/src/server)
   target_include_directories(auto-test-socket PRIVATE ${CMAKE_SOURCE_DIR}/src/server)
+
+  target_include_directories(auto-test-server PRIVATE ${Poco_INCLUDE_DIRS})
+  target_include_directories(auto-test-client PRIVATE ${Poco_INCLUDE_DIRS})
+  target_include_directories(auto-test-subclient PRIVATE ${Poco_INCLUDE_DIRS})
+  target_include_directories(auto-test-socket PRIVATE ${Poco_INCLUDE_DIRS})
 
   target_link_libraries(auto-test-server PRIVATE GTest::gtest_main GTest::gmock_main Poco::Foundation Poco::Net server.o client.o)
   target_link_libraries(auto-test-client PRIVATE GTest::gtest_main GTest::gmock_main Poco::Foundation Poco::Net client.o)

@@ -65,7 +65,11 @@ if [[ -f adaptiveperf ]]; then
             exit 2
         fi
 
-        aperf_perf_prefix="$aperf_prefix/perf"
+        if [[ $aperf_prefix == */ ]]; then
+            aperf_perf_prefix="${aperf_prefix}perf"
+        else
+            aperf_perf_prefix="$aperf_prefix/perf"
+        fi
 
         echo_sub "AdaptivePerf-patched \"perf\" will be installed in $aperf_perf_prefix."
         echo_sub "Press any key to continue or Ctrl-C to cancel."
@@ -76,7 +80,7 @@ if [[ -f adaptiveperf ]]; then
 
         if [[ ! -d linux/tools/perf ]]; then
             echo_sub "linux submodule seems to be missing, pulling it..."
-            git submodule update --init
+            git submodule update --init --force --depth 1
         fi
 
         old_dir=$(pwd)
@@ -100,7 +104,17 @@ fi
 echo_main "Installing adaptiveperf-server..."
 cp adaptiveperf-server $prefix/bin
 cp libaperfserv.so $prefix/lib
-ldconfig
+
+if ! ldconfig; then
+    if [[ "$EUID" == "0" ]]; then
+        echo_sub "ldconfig has failed! You may get \"libaperfserv.so not found\" errors when you run AdaptivePerf or adaptiveperf-server." 1
+        exit 3
+    else
+        echo_sub "ldconfig has failed as you're not running the script as root."
+        echo_sub "If you use a non-system prefix, you can ignore this (don't forget to set LD_LIBRARY_PATH)."
+        echo_sub "Otherwise, run ldconfig as root."
+    fi
+fi
 
 if [[ -f adaptiveperf ]]; then
     echo_main "Done! You can use AdaptivePerf and adaptiveperf-server now."

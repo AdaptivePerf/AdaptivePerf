@@ -601,8 +601,7 @@ namespace aperf {
         notification_msg = connection->read(NOTIFY_TIMEOUT);
         break;
       } catch (TimeoutException &e) {
-        int status;
-        waitpid(forked, &status, WNOHANG);
+        int status = waitpid(forked, nullptr, WNOHANG);
 
         if (status != 0) {
           int code = profiler_and_wrapper_handler(status, -1, -1);

@@ -155,7 +155,7 @@ namespace aperf {
             continue;
           }
 
-          messages_received.insert(arr[0]);
+          messages_received.insert(arr[0].template get<std::string>());
 
           if (arr[0] == "<SYSCALL>") {
             std::string ret_value;
@@ -163,7 +163,7 @@ namespace aperf {
 
             try {
               ret_value = arr[1];
-              callchain = arr[2];
+              callchain = arr[2].template get<std::vector<std::string> >();
             } catch (...) {
               std::cerr << "The recently-received syscall JSON is invalid, ignoring." << std::endl;
               continue;
@@ -222,7 +222,7 @@ namespace aperf {
               tid = arr[3];
               timestamp = arr[4];
               period = arr[5];
-              callchain = arr[6];
+              callchain = arr[6].template get<std::vector<std::string> >();
             } catch (...) {
               std::cerr << "The recently received sample JSON is invalid, ignoring." << std::endl;
               continue;
