@@ -11,7 +11,8 @@ namespace aperf {
                              std::vector<std::string> &callchain_parts,
                              int callchain_index,
                              unsigned long long period,
-                             bool time_ordered, bool offcpu) {
+                             bool time_ordered, bool offcpu,
+                             unsigned long long timestamp) {
     std::string p = callchain_parts[callchain_index];
     nlohmann::json &arr = cur_elem["children"];
     nlohmann::json *elem;
@@ -82,7 +83,18 @@ namespace aperf {
 
     if (!last_block) {
       recurse(*elem, callchain_parts, callchain_index + 1, period,
-              time_ordered, offcpu);
+              time_ordered, offcpu, timestamp);
+    } else {
+      if (time_ordered) {
+        if (!elem->contains("samples")) {
+          (*elem)["samples"] = nlohmann::json::array();
+        }
+
+        (*elem)["samples"].push_back(nlohmann::json({
+              {"timestamp", timestamp},
+              {"period", period}
+            }));
+      }
     }
   }
 
@@ -286,10 +298,9 @@ namespace aperf {
             }
 
             recurse(res.output, callchain, 0, period, false,
-                    event_type == "offcpu-time");
+                    event_type == "offcpu-time", timestamp);
             recurse(res.output_time_ordered, callchain, 0, period,
-                    true, event_type == "offcpu-time");
-
+                    true, event_type == "offcpu-time", timestamp);
             res.total_period += period;
           } else if (arr[0] == "<CUSTOM_METRIC>") {
             std::string metric_command, metric_name;
