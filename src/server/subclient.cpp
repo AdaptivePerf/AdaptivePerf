@@ -84,12 +84,14 @@ namespace aperf {
       recurse(*elem, callchain_parts, callchain_index + 1, period,
               time_ordered, offcpu, timestamp);
     }else{
-      if (!elem->contains("samples")) {
-          (*elem)["samples"] = nlohmann::json::array();
+      if(time_ordered){
+        if (!elem->contains("samples")) {
+            (*elem)["samples"] = nlohmann::json::array();
+        }
+        (*elem)["samples"].push_back(nlohmann::json({
+        {"timestamp", timestamp},
+        {"period",period}}));
       }
-      (*elem)["samples"].push_back(nlohmann::json({
-      {"timestamp", timestamp},
-      {"period",period}}));
     }
   }
 
