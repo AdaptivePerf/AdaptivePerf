@@ -11,7 +11,8 @@ namespace aperf {
                              std::vector<std::string> &callchain_parts,
                              int callchain_index,
                              unsigned long long period,
-                             bool time_ordered, bool offcpu, unsigned long long timestamp) {
+                             bool time_ordered, bool offcpu,
+                             unsigned long long timestamp) {
     std::string p = callchain_parts[callchain_index];
     nlohmann::json &arr = cur_elem["children"];
     nlohmann::json *elem;
@@ -83,14 +84,16 @@ namespace aperf {
     if (!last_block) {
       recurse(*elem, callchain_parts, callchain_index + 1, period,
               time_ordered, offcpu, timestamp);
-    }else{
-      if(time_ordered){
+    } else {
+      if (time_ordered) {
         if (!elem->contains("samples")) {
-            (*elem)["samples"] = nlohmann::json::array();
+          (*elem)["samples"] = nlohmann::json::array();
         }
+
         (*elem)["samples"].push_back(nlohmann::json({
-        {"timestamp", timestamp},
-        {"period",period}}));
+              {"timestamp", timestamp},
+              {"period", period}
+            }));
       }
     }
   }
