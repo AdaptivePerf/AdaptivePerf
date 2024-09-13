@@ -675,6 +675,8 @@ namespace aperf {
     std::unordered_set<fs::path> perf_map_paths;
     std::vector<fs::path> to_remove;
 
+    bool perf_maps_expected = false;
+
     for (auto &elem : fs::directory_iterator(result_processed)) {
       if (!elem.is_regular_file()) {
         continue;
@@ -692,7 +694,16 @@ namespace aperf {
           boost::trim(line);
 
           if (!line.empty()) {
-            perf_map_paths.insert(fs::path(line));
+            fs::path perf_map_path(line);
+
+            if (fs::exists(perf_map_path)) {
+              perf_map_paths.insert(perf_map_path);
+            } else {
+              print("A symbol map is expected in " +
+                    fs::absolute(perf_map_path).string() +
+                    ", but it hasn't been found!", true, false);
+              perf_maps_expected = true;
+            }
           }
         }
 
@@ -702,6 +713,14 @@ namespace aperf {
 
     for (auto &path : to_remove) {
       fs::remove(path);
+    }
+
+    if (perf_maps_expected) {
+      print("One or more expected symbol maps haven't been found! "
+            "This is not an error, but some symbol names will be unresolved and "
+            "point to the name of an expected map file instead.", true, false);
+      print("If it's not desired, make sure that your profiled "
+            "program is configured to emit \"perf\" symbol maps.", true, false);
     }
 
     if (msg == "out_files") {
