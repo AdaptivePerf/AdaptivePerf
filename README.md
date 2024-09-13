@@ -41,13 +41,14 @@ Work is being done towards eliminating all of the limitations below step-by-step
 * Linux 5.8 or newer compiled with ```CONFIG_DEBUG_INFO_BTF=y``` (or equivalent, you can check this by seeing if ```/sys/kernel/btf``` exists in your system)
 * Python 3
 * CMake 3.20 or newer
+* clang (only for building the patched "perf")
 * libnuma (if a machine with your profiled application has NUMA)
 * [CLI11](https://github.com/CLIUtils/CLI11)
 * [nlohmann-json](https://github.com/nlohmann/json)
 * [PocoNet + PocoFoundation](https://pocoproject.org)
 * [Boost](https://www.boost.org)
 
-You should use the newest available version of libnuma, CLI11, nlohmann-json, the Poco libraries, and the Boost libraries. More information about the minimum tested version of each of these dependencies will be provided soon.
+You should use the newest available version of clang, libnuma, CLI11, nlohmann-json, the Poco libraries, and the Boost libraries. More information about the minimum tested version of each of these dependencies will be provided soon.
 
 If you want to enable tests (see the documentation for contributors), you don't have to install [the GoogleTest framework](https://github.com/google/googletest) beforehand, this is done automatically during the compilation.
 
@@ -154,3 +155,13 @@ If this happens, please add ```<your installation prefix>/lib``` (it's ```/usr/l
 If you get an error message similar to the one in the title, please look at the logs in the temporary directory printed by AdaptivePerf.
 
 If the logs mention "can't access trace events", permission denied issues, or problems with eBPF, please ensure that the requirements for running AdaptivePerf as non-root are met (see "How to use") or run AdaptivePerf as root. If it doesn't work or the logs specify a different problem (or don't say anything), feel free to file an issue on GitHub.
+
+### One or more expected symbol maps haven't been found
+If you get a warning message as in the title, you can check whether your profiled program can be configured to emit "perf" symbol maps as documented [here](https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/tools/perf/Documentation/jit-interface.txt).
+
+You should note that the lack of symbol maps **is not an error**, it will just make some symbol names unresolved and point to the name of an expected map file instead. This does not cause broken stack traces.
+
+### No off-CPU information produced at all
+If you don't see any off-CPU information in your profiling results despite expecting one, please make sure that clang is installed in your machine and reinstall AdaptivePerf. This will trigger recompiling the patched "perf", which needs clang for building the off-CPU profiling support.
+
+If this doesn't help, feel free to file an issue on GitHub.
