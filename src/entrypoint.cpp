@@ -280,16 +280,21 @@ namespace aperf {
       profilers.push_back(std::make_unique<Perf>(perf_path, main, cpu_config,
                                                  "On-CPU/Off-CPU profiler"));
 
+      std::unordered_map<std::string, std::string> event_dict;
+
       for (std::string &event_str : event_strs) {
         std::vector<std::string> parts;
         boost::split(parts, event_str, boost::is_any_of(","));
 
         std::string event_name = parts[0];
         int period = std::stoi(parts[1]);
+        std::string website_title = parts[2];
 
         PerfEvent event(event_name, period, buffer);
         profilers.push_back(std::make_unique<Perf>(perf_path, event, cpu_config,
                                                    event_name));
+
+        event_dict[event_name] = website_title;
       }
 
       pid_t current_pid = getpid();
@@ -305,7 +310,8 @@ namespace aperf {
 
       try {
         int code = start_profiling_session(profilers, command_elements, address, server_buffer,
-                                           warmup, cpu_config, tmp_dir, spawned_children);
+                                           warmup, cpu_config, tmp_dir, spawned_children,
+                                           event_dict);
 
         auto end_time =
           ch::duration_cast<ch::milliseconds>(ch::system_clock::now().time_since_epoch()).count();
