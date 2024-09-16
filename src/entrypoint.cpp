@@ -139,11 +139,11 @@ namespace aperf {
                    "more than once. Use quotes if you need to use spaces.")
       ->check([](const std::string &arg) {
         if (!std::regex_match(arg, std::regex("^.+,[0-9\\.]+,.+$"))) {
-          return "The value must be in form of EVENT,PERIOD,TITLE (PERIOD must "
-            "be a number).";
+          return "The value \"" + arg + "\" must be in form of EVENT,PERIOD,TITLE "
+            "(PERIOD must be a number).";
         }
 
-        return "";
+        return std::string();
       })
       ->option_text("EVENT,PERIOD,TITLE")
       ->take_all();
