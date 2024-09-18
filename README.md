@@ -165,3 +165,7 @@ You should note that the lack of symbol maps **is not an error**, it will just m
 If you don't see any off-CPU information in your profiling results despite expecting one, please make sure that Clang is installed in your machine and reinstall AdaptivePerf. This will trigger recompiling the patched "perf", which needs Clang for building the off-CPU profiling support.
 
 If this doesn't help, feel free to file an issue on GitHub.
+
+## Acknowledgements
+The AdaptivePerf development is possible thanks to the following funding sources:
+* The European Union HE research and innovation programme, grant agreement No 101092877 (SYCLOPS).
