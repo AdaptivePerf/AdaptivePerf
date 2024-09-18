@@ -55,14 +55,14 @@ namespace aperf {
 
     unsigned int freq = 10;
     app.add_option("-F,--freq", freq, "Sampling frequency per second for "
-                   "on-CPU time profiling")
+                   "on-CPU time profiling (default: 10)")
       ->check(OnlyMinRange(1))
       ->option_text("UINT>0");
 
     unsigned int buffer = 1;
     app.add_option("-B,--buffer", buffer, "Buffer up to this number of "
                    "events before sending data for post-processing "
-                   "(1 effectively disables buffering)")
+                   "(1 effectively disables buffering) (default: 1)")
       ->check(OnlyMinRange(1))
       ->option_text("UINT>0");
 
@@ -70,7 +70,7 @@ namespace aperf {
     app.add_option("-f,--off-cpu-freq", off_cpu_freq, "Sampling frequency "
                    "per second for off-CPU time profiling "
                    "(0 disables off-CPU profiling, -1 makes AdaptivePerf "
-                   "capture *all* off-CPU events)")
+                   "capture *all* off-CPU events) (default: 1000)")
       ->check(OnlyMinRange(-1))
       ->option_text("UINT or -1");
 
@@ -78,7 +78,8 @@ namespace aperf {
     app.add_option("-b,--off-cpu-buffer", off_cpu_buffer, "Buffer up to "
                    "this number of off-CPU events before sending data "
                    "for post-processing (0 leaves the default "
-                   "adaptive buffering, 1 effectively disables buffering)")
+                   "adaptive buffering, 1 effectively disables buffering) "
+                   "(default: 0)")
       ->check(OnlyMinRange(0))
       ->option_text("UINT");
 
@@ -94,7 +95,8 @@ namespace aperf {
                    "and post-processing (must not be greater than " +
                    std::to_string(max_allowed) + "). Use 0 to not "
                    "isolate profiler and post-processing threads "
-                   "from profiled command threads (NOT RECOMMENDED).")
+                   "from profiled command threads (NOT RECOMMENDED). "
+                   "(default: 1)")
       ->check(CLI::Range(0, max_allowed))
       ->option_text("UINT");
 
@@ -114,7 +116,7 @@ namespace aperf {
     unsigned int server_buffer = 1024;
     app.add_option("-s,--server-buffer", server_buffer, "Communication "
                    "buffer size in bytes for internal adaptiveperf-server. "
-                   "Not to be used with -a.")
+                   "Not to be used with -a. (default when no -a: 1024)")
       ->check(OnlyMinRange(1))
       ->option_text("UINT>0")
       ->excludes("-a");
@@ -125,7 +127,7 @@ namespace aperf {
                    "data and starting the profiled program. Increase this "
                    "value if you see missing information after profiling "
                    "(note that adaptiveperf-server is also used internally "
-                   "if no -a option is specified).")
+                   "if no -a option is specified). (default: 1)")
       ->check(OnlyMinRange(1))
       ->option_text("UINT>0");
 
