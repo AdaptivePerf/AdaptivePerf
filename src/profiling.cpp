@@ -286,13 +286,17 @@ namespace aperf {
                              This will be populated as the function executes and it's mostly
                              important in the context of cleaning up after the session finishes
                              or terminates with an error.
+     @param event_dict       A dictionary mapping custom "perf" event names to their website
+                             titles (e.g. "page-faults" -> "Page faults"). This dictionary will
+                             be saved to event_dict.data in the "processed" directory.
   */
   int start_profiling_session(std::vector<std::unique_ptr<Profiler> > &profilers,
                               std::vector<std::string> &command_elements,
                               std::string server_address,
                               unsigned int buf_size, unsigned int warmup,
                               CPUConfig &cpu_config, fs::path tmp_dir,
-                              std::vector<pid_t> &spawned_children) {
+                              std::vector<pid_t> &spawned_children,
+                              std::unordered_map<std::string, std::string> &event_dict) {
     print("Verifying profiler requirements...", false, false);
 
     bool requirements_fulfilled = true;
@@ -343,6 +347,21 @@ namespace aperf {
             result_out.string() + ", " +
             result_processed.string() + "! Exiting.", true, true);
       return 2;
+    }
+
+    {
+      std::ofstream event_dict_stream(result_processed / "event_dict.data");
+
+      if (!event_dict_stream) {
+        print("Could not open " +
+              fs::absolute(result_processed / "event_dict.data").string() +
+              " for writing!", true, true);
+        return 2;
+      }
+
+      for (auto &elem : event_dict) {
+        event_dict_stream << elem.first << " " << elem.second << std::endl;
+      }
     }
 
     print("Starting profiled program wrapper...", true, false);

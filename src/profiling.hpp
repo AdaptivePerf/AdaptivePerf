@@ -171,7 +171,8 @@ namespace aperf {
                               std::string server_address,
                               unsigned int buf_size, unsigned int warmup,
                               CPUConfig &cpu_config, fs::path tmp_dir,
-                              std::vector<pid_t> &spawned_children);
+                              std::vector<pid_t> &spawned_children,
+                              std::unordered_map<std::string, std::string> &event_dict);
 };
 
 #endif

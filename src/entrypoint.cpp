@@ -55,14 +55,14 @@ namespace aperf {
 
     unsigned int freq = 10;
     app.add_option("-F,--freq", freq, "Sampling frequency per second for "
-                   "on-CPU time profiling")
+                   "on-CPU time profiling (default: 10)")
       ->check(OnlyMinRange(1))
       ->option_text("UINT>0");
 
     unsigned int buffer = 1;
     app.add_option("-B,--buffer", buffer, "Buffer up to this number of "
                    "events before sending data for post-processing "
-                   "(1 effectively disables buffering)")
+                   "(1 effectively disables buffering) (default: 1)")
       ->check(OnlyMinRange(1))
       ->option_text("UINT>0");
 
@@ -70,7 +70,7 @@ namespace aperf {
     app.add_option("-f,--off-cpu-freq", off_cpu_freq, "Sampling frequency "
                    "per second for off-CPU time profiling "
                    "(0 disables off-CPU profiling, -1 makes AdaptivePerf "
-                   "capture *all* off-CPU events)")
+                   "capture *all* off-CPU events) (default: 1000)")
       ->check(OnlyMinRange(-1))
       ->option_text("UINT or -1");
 
@@ -78,7 +78,8 @@ namespace aperf {
     app.add_option("-b,--off-cpu-buffer", off_cpu_buffer, "Buffer up to "
                    "this number of off-CPU events before sending data "
                    "for post-processing (0 leaves the default "
-                   "adaptive buffering, 1 effectively disables buffering)")
+                   "adaptive buffering, 1 effectively disables buffering) "
+                   "(default: 0)")
       ->check(OnlyMinRange(0))
       ->option_text("UINT");
 
@@ -94,7 +95,8 @@ namespace aperf {
                    "and post-processing (must not be greater than " +
                    std::to_string(max_allowed) + "). Use 0 to not "
                    "isolate profiler and post-processing threads "
-                   "from profiled command threads (NOT RECOMMENDED).")
+                   "from profiled command threads (NOT RECOMMENDED). "
+                   "(default: 1)")
       ->check(CLI::Range(0, max_allowed))
       ->option_text("UINT");
 
@@ -114,7 +116,7 @@ namespace aperf {
     unsigned int server_buffer = 1024;
     app.add_option("-s,--server-buffer", server_buffer, "Communication "
                    "buffer size in bytes for internal adaptiveperf-server. "
-                   "Not to be used with -a.")
+                   "Not to be used with -a. (default when no -a: 1024)")
       ->check(OnlyMinRange(1))
       ->option_text("UINT>0")
       ->excludes("-a");
@@ -125,7 +127,7 @@ namespace aperf {
                    "data and starting the profiled program. Increase this "
                    "value if you see missing information after profiling "
                    "(note that adaptiveperf-server is also used internally "
-                   "if no -a option is specified).")
+                   "if no -a option is specified). (default: 1)")
       ->check(OnlyMinRange(1))
       ->option_text("UINT>0");
 
@@ -135,15 +137,15 @@ namespace aperf {
                    "every PERIOD occurrences of an event and display the "
                    "results under the title TITLE in a website). Run "
                    "\"perf list\" for the list of possible events. You "
-                   "can specify multiple events by specifying this flag "
+                   "can specify multiple events by specifying this option "
                    "more than once. Use quotes if you need to use spaces.")
       ->check([](const std::string &arg) {
         if (!std::regex_match(arg, std::regex("^.+,[0-9\\.]+,.+$"))) {
-          return "The value must be in form of EVENT,PERIOD,TITLE (PERIOD must "
-            "be a number).";
+          return "The value \"" + arg + "\" must be in form of EVENT,PERIOD,TITLE "
+            "(PERIOD must be a number).";
         }
 
-        return "";
+        return std::string();
       })
       ->option_text("EVENT,PERIOD,TITLE")
       ->take_all();
@@ -280,16 +282,21 @@ namespace aperf {
       profilers.push_back(std::make_unique<Perf>(perf_path, main, cpu_config,
                                                  "On-CPU/Off-CPU profiler"));
 
+      std::unordered_map<std::string, std::string> event_dict;
+
       for (std::string &event_str : event_strs) {
         std::vector<std::string> parts;
         boost::split(parts, event_str, boost::is_any_of(","));
 
         std::string event_name = parts[0];
         int period = std::stoi(parts[1]);
+        std::string website_title = parts[2];
 
         PerfEvent event(event_name, period, buffer);
         profilers.push_back(std::make_unique<Perf>(perf_path, event, cpu_config,
                                                    event_name));
+
+        event_dict[event_name] = website_title;
       }
 
       pid_t current_pid = getpid();
@@ -305,7 +312,8 @@ namespace aperf {
 
       try {
         int code = start_profiling_session(profilers, command_elements, address, server_buffer,
-                                           warmup, cpu_config, tmp_dir, spawned_children);
+                                           warmup, cpu_config, tmp_dir, spawned_children,
+                                           event_dict);
 
         auto end_time =
           ch::duration_cast<ch::milliseconds>(ch::system_clock::now().time_since_epoch()).count();
