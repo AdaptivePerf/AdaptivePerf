@@ -137,7 +137,7 @@ namespace aperf {
                    "every PERIOD occurrences of an event and display the "
                    "results under the title TITLE in a website). Run "
                    "\"perf list\" for the list of possible events. You "
-                   "can specify multiple events by specifying this flag "
+                   "can specify multiple events by specifying this option "
                    "more than once. Use quotes if you need to use spaces.")
       ->check([](const std::string &arg) {
         if (!std::regex_match(arg, std::regex("^.+,[0-9\\.]+,.+$"))) {
