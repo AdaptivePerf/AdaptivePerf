@@ -116,11 +116,11 @@ The structure of ```results``` is as follows:
   * **out**: the directory with output logs
     * **perf\_(record or script)\_(event)\_stdout.log, perf\_(record or script)\_(event)\_stderr.log**: stdout and stderr logs from perf-record/perf-script. (event) can be either "main" (on-CPU/off-CPU profiling), "syscall" (syscall profiling for tracing threads/processes), or a custom perf event specified by the user.
     * **stdout.log, stderr.log**: stdout and stderr logs from the profiled command.
-    * **event\_dict.data**: mappings between custom perf events and their website titles as specified by the user (it is not created when no custom events are provided).
   * **processed**: the directory with processed profiling information
     * **metadata.json**: metadata (such as the thread/process tree and thread/process spawning stack traces) stored in JSON.
     * **(event)\_callchains.json**: mappings between compressed callchain names and uncompressed ones stored in JSON. (event) can be either "walltime" (on-CPU/off-CPU profiling), "syscall" (syscall profiling for tracing threads/processes, applicable to metadata.json), or a custom perf event specified by the user.
     * **(PID)\_(TID).json**: all samples gathered by on-CPU/off-CPU profiling and custom perf event profiling (if any) stored in JSON, per thread/process.
+    * **event\_dict.data**: mappings between custom perf events and their website titles as specified by the user (it is not created when no custom events are provided).
 
 It is recommended to use [AdaptivePerfHTML](https://github.com/AdaptivePerf/adaptiveperfhtml) for creating an interactive HTML summary of your profiling sessions.
 
@@ -132,6 +132,10 @@ To do this, run ```adaptiveperf-server``` first on the machine where you want th
 Afterwards, run the following command on the machine with your program to be profiled:
 ```
 adaptiveperf -a <IP address>:<port> "<command to be profiled>"
+```
+or
+```
+adaptiveperf -a <IP address>:<port> -- <command to be profiled>
 ```
 (you are free to specify extra options as well)
 
