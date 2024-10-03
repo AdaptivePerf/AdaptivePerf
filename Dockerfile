@@ -1,5 +1,5 @@
 FROM gitlab-registry.cern.ch/adaptiveperf/gentoo-fp:latest
 RUN emerge --quiet-build=y dev-vcs/git dev-libs/libtraceevent dev-libs/elfutils && useradd -m gentoo-aperf && mkdir -p /root/adaptiveperf
 COPY . /root/adaptiveperf/
-RUN cd /root/adaptiveperf && ./build.sh && { echo | ./install.sh; } && cd .. && rm -rf adaptiveperf
+RUN cd /root/adaptiveperf && ./build.sh && { echo | PATH=$PATH:$(echo /usr/lib/llvm/*/bin) ./install.sh; } && cd .. && rm -rf adaptiveperf
 USER gentoo-aperf
