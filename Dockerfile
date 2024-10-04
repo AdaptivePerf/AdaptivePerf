@@ -1,5 +1,6 @@
 FROM gitlab-registry.cern.ch/adaptiveperf/gentoo-fp:latest
-RUN emerge --quiet-build=y dev-vcs/git dev-libs/libtraceevent dev-libs/elfutils && useradd -m gentoo-aperf && mkdir -p /root/adaptiveperf
+RUN mkdir -p /root/adaptiveperf
 COPY . /root/adaptiveperf/
-RUN cd /root/adaptiveperf && ./build.sh && { echo | PATH=$PATH:$(echo /usr/lib/llvm/*/bin) ./install.sh; } && cd .. && rm -rf adaptiveperf
+RUN MAKEOPTS="-j8" emerge --quiet-build=y sys-devel/clang && cd /root/adaptiveperf && ./build.sh && { echo | PATH=$PATH:$(echo /usr/lib/llvm/*/bin) ./install.sh; } && cd .. && rm -rf adaptiveperf && emerge --depclean sys-devel/clang
+RUN useradd -m gentoo-aperf
 USER gentoo-aperf
