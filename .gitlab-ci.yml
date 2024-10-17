@@ -4,6 +4,28 @@ stages:
   - test
   - vm-deploy
   - deploy
+  - docker-build
+
+# Based on https://gitlab.cern.ch/gitlabci-examples/build_docker_image/-/blob/master/.gitlab-ci.yml
+make-docker-image:
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  stage: docker-build
+  needs: []
+  script:
+    - |
+      if [[ $CI_COMMIT_BRANCH == "main" ]]; then
+        export IMAGE_DESTINATION=gitlab-registry.cern.ch/adaptiveperf/adaptiveperf:latest
+      else
+        export IMAGE_DESTINATION=gitlab-registry.cern.ch/adaptiveperf/adaptiveperf:$CI_COMMIT_BRANCH
+      fi
+    # Prepare Kaniko configuration file
+    - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_DEPLOY_USER\",\"password\":\"$CI_DEPLOY_PASSWORD\"}}}" > /kaniko/.docker/config.json
+    # Build and push the image from the Dockerfile at the root of the project.
+    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile --destination $IMAGE_DESTINATION --build-arg "JOBS=12"
+    # Print the full registry path of the pushed image
+    - echo "Image pushed successfully to ${IMAGE_DESTINATION}"
 
 start-vm:
   tags:
