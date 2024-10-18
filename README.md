@@ -38,21 +38,28 @@ Work is being done towards eliminating all of the limitations below step-by-step
 
 ## Installation
 ### Requirements
-* Linux 5.8 or newer compiled with ```CONFIG_DEBUG_INFO_BTF=y``` (or equivalent, you can check this by seeing if ```/sys/kernel/btf``` exists in your system)
+* Linux 5.8 or newer compiled with:
+  * ```CONFIG_DEBUG_INFO_BTF=y``` (or equivalent, you can check this by seeing if ```/sys/kernel/btf``` exists in your system)
+  * ```CONFIG_FTRACE_SYSCALLS=y``` (or equivalent, you can check this by seeing if ```/sys/kernel/tracing/events/syscalls``` exists in your system and is not empty, but you may need to mount ```/sys/kernel/tracing``` first)
+  * If you want complete kernel debug symbols, ```CONFIG_KALLSYMS=y``` and ```CONFIG_KALLSYMS_ALL=y``` (or equivalent) should also be set.
+  * **Kernel recompilation may NOT be needed! If you have ```/sys/kernel/btf``` and ```/sys/kernel/tracing/events/syscalls``` as explained above and you don't care about having kernel debug symbols, you're already good to go here!**
 * Python 3
 * CMake 3.20 or newer
-* Clang (only for building the patched "perf")
 * libnuma (if a machine with your profiled application has NUMA)
 * [CLI11](https://github.com/CLIUtils/CLI11)
 * [nlohmann-json](https://github.com/nlohmann/json)
 * [PocoNet + PocoFoundation](https://pocoproject.org)
 * [Boost](https://www.boost.org)
 
-You should use the newest available version of Clang, libnuma, CLI11, nlohmann-json, the Poco libraries, and the Boost libraries. More information about the minimum tested version of each of these dependencies will be provided soon.
+Additionally, for the patched "perf", you need:
+* Clang (only for building, can be removed afterwards)
+* libtraceevent
+
+You should use the newest available version of the dependencies if the version is not explicitly specified. More information about the minimum tested version of each of these required programs/libraries will be provided soon.
 
 If you want to enable tests (see the documentation for contributors), you don't have to install [the GoogleTest framework](https://github.com/google/googletest) beforehand, this is done automatically during the compilation.
 
-AdaptivePerf uses the patched "perf", temporarily available at https://gitlab.cern.ch/adaptiveperf/linux (inside ```tools/perf```). However, you don't have to download and install it manually, this is handled automatically by the installation scripts (see the "Manually" section below).
+AdaptivePerf uses the patched "perf", temporarily available at https://gitlab.cern.ch/adaptiveperf/linux (inside ```tools/perf```). However, you don't have to download and install it manually, this is handled automatically by the installation scripts (see the "Manually" section below). **If there are extra dependencies actually needed by the patched "perf" and not listed above, please file an issue on GitHub.**
 
 A profiled program along with dependencies should be compiled with frame pointers (i.e. in case of gcc, with the ```-fno-omit-frame-pointer``` flag along with ```-mno-omit-leaf-frame-pointer``` if available). If you can, it is recommended to have everything in the system compiled with frame pointers (this can be achieved e.g. in Gentoo and Fedora 38+).
 
@@ -75,7 +82,16 @@ If you want to install just adaptiveperf-server, please clone this repository an
 ### Gentoo-based virtual machine image with frame pointers
 Given the complexity of setting up a machine with a recent enough Linux kernel, frame pointers etc., we make available ready-to-use x86-64 Gentoo-based qcow2 images with AdaptivePerf set up. They're also configured for out-of-the-box reliable ```perf``` profiling, such as permanently-set profiling-related kernel parameters and ensuring that everything in the system is compiled with frame pointers.
 
-The images are denoted by commit tags and can be downloaded from https://cernbox.cern.ch/s/FalGlNqzsdj0K5P. They must be booted in the UEFI mode.
+The images are denoted by commit tags and can be downloaded from https://cernbox.cern.ch/s/FAzoFWvh2kzNtUx. They must be booted in the UEFI mode.
+
+### Container image
+To ease the deployment of AdaptivePerf, we also provide Docker and Apptainer/Singularity images based on Gentoo with all packages built with frame pointers. x86-64 only is available at the moment, with more architectures coming soon.
+
+#### Docker
+Please use ```gitlab-registry.cern.ch/adaptiveperf/adaptiveperf:latest```. The image will also become available in a non-CERN registry soon along with commit-based variants.
+
+#### Apptainer/Singularity
+The images are denoted by commit tags and can be downloaded from https://cernbox.cern.ch/s/XVwsHPOjvyb2YpU.
 
 ## How to use
 Before running AdaptivePerf for the first time, run ```sysctl kernel.perf_event_paranoid=-1```. Otherwise, the tool will refuse to run due to its inability to reliably obtain kernel stack traces. This is already done for the VM image.
@@ -101,9 +117,12 @@ adaptiveperf -- <command to be profiled>
 ```
 
 AdaptivePerf can be run as non-root as long as all of the requirements below are met:
-* The AdaptivePerf-patched "perf" executable has CAP_PERFMON and CAP_BPF capabilities set as permissive and effective (you can do it by running ```setcap cap_perfmon,cap_bpf+ep <path to "perf">```).
-* ```/sys/kernel/tracing``` is mounted as tracefs (if not done yet, you can do it by running ```mount -t tracefs nodev /sys/kernel/tracing``` or updating your fstab file).
-* You are part of the ```tracing``` group and everything inside ```/sys/kernel/tracing``` is owned by the ```tracing``` group (you can do it by running ```chgrp -R tracing /sys/kernel/tracing```).
+* The AdaptivePerf-patched "perf" executable has CAP_PERFMON and CAP_BPF capabilities set as permissive and effective (you can do it by running ```setcap cap_perfmon,cap_bpf+ep <path to "perf">```, the default path is ```/opt/adaptiveperf/perf/bin/perf```). **If you're in a container, the container itself must have these capabilities as well!**
+* You are part of the ```tracing``` group (if it doesn't exist, you must create it first).
+* ```/sys/kernel/tracing``` is mounted as tracefs **with permissions 750** or more lax **and as the ```tracing``` group**.
+  * Mount ```/sys/kernel/tracing``` in a standard way if not mounted yet (i.e. run ```mount -t tracefs nodev /sys/kernel/tracing```).
+  * Once ```/sys/kernel/tracing``` is mounted in a standard way, remount the directory by running ```mount -o remount,mode=0750,gid=<GID of the tracing group> /sys/kernel/tracing```.
+  * You can also opt for updating your fstab file instead.
 
 If you want to see what extra options you can set (e.g. an on-CPU/off-CPU sampling frequency, the quiet mode), run ```adaptiveperf --help```.
 
@@ -165,10 +184,10 @@ If you get a warning message as in the title, you can check whether your profile
 
 You should note that the lack of symbol maps **is not an error**, it will just make some symbol names unresolved and point to the name of an expected map file instead. This does not cause broken stack traces.
 
-### No off-CPU information produced at all
-If you don't see any off-CPU information in your profiling results despite expecting one, please make sure that Clang is installed in your machine and reinstall AdaptivePerf. This will trigger recompiling the patched "perf", which needs Clang for building the off-CPU profiling support.
+### "perf" compilation fails when installing AdaptivePerf
+Compiling "perf" is an integral part of installing AdaptivePerf. When you get errors at this stage, please try running ```make clean``` inside ```linux/tools/perf``` first. Afterwards, if the errors persist and they point to some dependency missing (e.g. Clang), please install it and try again. **If you get complaints about a program/library missing which is not listed in this README, please install it as well and file an issue on GitHub!**
 
-If this doesn't help, feel free to file an issue on GitHub.
+If the solutions above don't help, you can create a new issue on GitHub.
 
 ## Acknowledgements
 The AdaptivePerf development is possible thanks to the following funding sources:
