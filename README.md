@@ -88,7 +88,12 @@ The images are denoted by commit tags and can be downloaded from https://cernbox
 To ease the deployment of AdaptivePerf, we also provide Docker and Apptainer/Singularity images based on Gentoo with all packages built with frame pointers. x86-64 only is available at the moment, with more architectures coming soon.
 
 #### Docker
-Please use ```gitlab-registry.cern.ch/adaptiveperf/adaptiveperf:latest```. The image will also become available in a non-CERN registry soon along with commit-based variants.
+Please use:
+* **RECOMMENDED (until the first non-dev release):** ```gitlab-registry.cern.ch/adaptiveperf/adaptiveperf:latest``` for the latest commit in the ```main``` branch.
+* ```gitlab-registry.cern.ch/adaptiveperf/adaptiveperf:<branch name>``` for the latest commit in a branch of your choice.
+* ```gitlab-registry.cern.ch/adaptiveperf/adaptiveperf:<commit short SHA>``` for a commit of your choice (the short SHA must have exactly 8 characters).
+
+All images are public (no CERN login required), so no deployment to a non-CERN registry is planned.
 
 #### Apptainer/Singularity
 The images are denoted by commit tags and can be downloaded from https://cernbox.cern.ch/s/XVwsHPOjvyb2YpU.
