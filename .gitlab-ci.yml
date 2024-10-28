@@ -18,9 +18,9 @@ make-docker-image:
       if [[ $CI_COMMIT_BRANCH == "main" ]]; then
         export IMAGE_DESTINATION_NAMED=gitlab-registry.cern.ch/adaptiveperf/adaptiveperf:latest
       else
-        export IMAGE_DESTINATION_NAMED=gitlab-registry.cern.ch/adaptiveperf/adaptiveperf:$CI_COMMIT_BRANCH
+        export IMAGE_DESTINATION_NAMED=gitlab-registry.cern.ch/adaptiveperf/adaptiveperf:branch-$CI_COMMIT_BRANCH
       fi
-      export IMAGE_DESTINATION=gitlab-registry.cern.ch/adaptiveperf/adaptiveperf:$CI_COMMIT_SHORT_SHA
+      export IMAGE_DESTINATION=gitlab-registry.cern.ch/adaptiveperf/adaptiveperf:commit-$CI_COMMIT_SHORT_SHA
     # Prepare Kaniko configuration file
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_DEPLOY_USER\",\"password\":\"$CI_DEPLOY_PASSWORD\"}}}" > /kaniko/.docker/config.json
     # Build and push the image from the Dockerfile at the root of the project.

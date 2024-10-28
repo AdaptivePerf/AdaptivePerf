@@ -96,8 +96,8 @@ To ease the deployment of AdaptivePerf, we also provide Docker and Apptainer/Sin
 #### Docker
 Please use:
 * **RECOMMENDED (until the first non-dev release):** ```gitlab-registry.cern.ch/adaptiveperf/adaptiveperf:latest``` for the latest commit in the ```main``` branch.
-* ```gitlab-registry.cern.ch/adaptiveperf/adaptiveperf:<branch name>``` for the latest commit in a branch of your choice.
-* ```gitlab-registry.cern.ch/adaptiveperf/adaptiveperf:<commit short SHA>``` for a commit of your choice (the short SHA must have exactly 8 characters).
+* ```gitlab-registry.cern.ch/adaptiveperf/adaptiveperf:branch-<branch name>``` for the latest commit in a branch of your choice.
+* ```gitlab-registry.cern.ch/adaptiveperf/adaptiveperf:commit-<commit short SHA>``` for a **recent** (i.e. 30 days or newer) commit of your choice. The short SHA must have exactly 8 characters.
 
 All images are public (no CERN login required), so no deployment to a non-CERN registry is planned.
 
