@@ -38,22 +38,28 @@ Work is being done towards eliminating all of the limitations below step-by-step
 
 ## Installation
 ### Requirements
+By default, the full suite is installed, i.e. ```adaptiveperf``` and ```adaptiveperf-server```. For this, you need:
 * Linux 5.8 or newer compiled with:
   * ```CONFIG_DEBUG_INFO_BTF=y``` (or equivalent, you can check this by seeing if ```/sys/kernel/btf``` exists in your system)
   * ```CONFIG_FTRACE_SYSCALLS=y``` (or equivalent, you can check this by seeing if ```/sys/kernel/tracing/events/syscalls``` exists in your system and is not empty, but you may need to mount ```/sys/kernel/tracing``` first)
   * If you want complete kernel debug symbols, ```CONFIG_KALLSYMS=y``` and ```CONFIG_KALLSYMS_ALL=y``` (or equivalent) should also be set.
   * **Kernel recompilation may NOT be needed! If you have ```/sys/kernel/btf``` and ```/sys/kernel/tracing/events/syscalls``` as explained above and you don't care about having kernel debug symbols, you're already good to go here!**
 * Python 3
-* CMake 3.20 or newer
+* CMake 3.20 or newer (if building from source)
 * libnuma (if a machine with your profiled application has NUMA)
-* [CLI11](https://github.com/CLIUtils/CLI11)
-* [nlohmann-json](https://github.com/nlohmann/json)
+* [CLI11](https://github.com/CLIUtils/CLI11) (if building from source)
+* [nlohmann-json](https://github.com/nlohmann/json) (if building from source)
 * [PocoNet + PocoFoundation](https://pocoproject.org)
-* [Boost](https://www.boost.org)
+* [Boost](https://www.boost.org) (specifically, the ```program_options``` module)
+* The patched "perf" dependencies:
+  * Clang (if building from source, can be removed after installing AdaptivePerf)
+  * libtraceevent
 
-Additionally, for the patched "perf", you need:
-* Clang (only for building, can be removed afterwards)
-* libtraceevent
+If you install ```adaptiveperf-server``` alone, the requirements are different. You **only** need:
+* CMake 3.20 or newer (if building from source)
+* [CLI11](https://github.com/CLIUtils/CLI11) (if building from source)
+* [nlohmann-json](https://github.com/nlohmann/json) (if building from source)
+* [PocoNet + PocoFoundation](https://pocoproject.org)
 
 You should use the newest available version of the dependencies if the version is not explicitly specified. More information about the minimum tested version of each of these required programs/libraries will be provided soon.
 
