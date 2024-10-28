@@ -88,7 +88,7 @@ If you want to install just adaptiveperf-server, please clone this repository an
 ### Gentoo-based virtual machine image with frame pointers
 Given the complexity of setting up a machine with a recent enough Linux kernel, frame pointers etc., we make available ready-to-use x86-64 Gentoo-based qcow2 images with AdaptivePerf set up. They're also configured for out-of-the-box reliable ```perf``` profiling, such as permanently-set profiling-related kernel parameters and ensuring that everything in the system is compiled with frame pointers.
 
-The images are denoted by commit tags and can be downloaded from https://cernbox.cern.ch/s/FAzoFWvh2kzNtUx. They must be booted in the UEFI mode.
+The images are denoted either by "latest" (which corresponds to the latest commit in the ```main``` branch and **is recommended until the first non-dev release**) or by branch names and can be downloaded from https://cernbox.cern.ch/s/FAzoFWvh2kzNtUx. They must be booted in the UEFI mode.
 
 ### Container image
 To ease the deployment of AdaptivePerf, we also provide Docker and Apptainer/Singularity images based on Gentoo with all packages built with frame pointers. x86-64 only is available at the moment, with more architectures coming soon.

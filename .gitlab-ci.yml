@@ -85,8 +85,6 @@ make-vm-image:
   tags:
     - gentoo-vm-host
   stage: deploy
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
   needs: ["shutdown-vm"]
   before_script:
     - echo $KERBEROS_PASSWORD | kinit ${KERBEROS_USER}@CERN.CH
@@ -95,7 +93,12 @@ make-vm-image:
     - guestmount -a $CI_PROJECT_DIR/adaptiveperf.qcow2 -m /dev/sda2 /data/gitlab-runner/mnt
     - rm -rf /data/gitlab-runner/mnt/etc/gitlab-runner/config.toml /data/gitlab-runner/mnt/opt/gitlab-runner/* /data/gitlab-runner/mnt/home/profiling/.bash_history && echo "gentoo-adaptiveperf-vm" > /data/gitlab-runner/mnt/etc/hostname
     - guestunmount /data/gitlab-runner/mnt
-    - xrdcp $CI_PROJECT_DIR/adaptiveperf.qcow2 root://eosuser.cern.ch/$WEB_STORAGE/vm/adaptiveperf-$CI_COMMIT_SHORT_SHA.qcow2
+    - |
+      if [[ $CI_COMMIT_BRANCH == "main" ]]; then
+        xrdcp $CI_PROJECT_DIR/adaptiveperf.qcow2 root://eosuser.cern.ch/$WEB_STORAGE/vm/adaptiveperf-latest.qcow2
+      else
+        xrdcp $CI_PROJECT_DIR/adaptiveperf.qcow2 root://eosuser.cern.ch/$WEB_STORAGE/vm/adaptiveperf-$CI_COMMIT_BRANCH.qcow2
+      fi
 
 deploy-to-syclops-gentoo-profiling:
   tags:
