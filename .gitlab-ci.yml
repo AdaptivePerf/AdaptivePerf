@@ -16,16 +16,17 @@ make-docker-image:
   script:
     - |
       if [[ $CI_COMMIT_BRANCH == "main" ]]; then
-        export IMAGE_DESTINATION=gitlab-registry.cern.ch/adaptiveperf/adaptiveperf:latest
+        export IMAGE_DESTINATION_NAMED=gitlab-registry.cern.ch/adaptiveperf/adaptiveperf:latest
       else
-        export IMAGE_DESTINATION=gitlab-registry.cern.ch/adaptiveperf/adaptiveperf:$CI_COMMIT_BRANCH
+        export IMAGE_DESTINATION_NAMED=gitlab-registry.cern.ch/adaptiveperf/adaptiveperf:$CI_COMMIT_BRANCH
       fi
+      export IMAGE_DESTINATION=gitlab-registry.cern.ch/adaptiveperf/adaptiveperf:$CI_COMMIT_SHORT_SHA
     # Prepare Kaniko configuration file
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_DEPLOY_USER\",\"password\":\"$CI_DEPLOY_PASSWORD\"}}}" > /kaniko/.docker/config.json
     # Build and push the image from the Dockerfile at the root of the project.
-    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile --destination $IMAGE_DESTINATION --build-arg "JOBS=12"
+    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile --destination $IMAGE_DESTINATION --destination $IMAGE_DESTINATION_NAMED --build-arg "JOBS=12"
     # Print the full registry path of the pushed image
-    - echo "Image pushed successfully to ${IMAGE_DESTINATION}"
+    - echo "Image pushed successfully to ${IMAGE_DESTINATION} and ${IMAGE_DESTINATION_NAMED}"
 
 start-vm:
   tags:
