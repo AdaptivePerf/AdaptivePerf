@@ -1,0 +1,13 @@
+Bootstrap: docker
+From: gitlab-registry.cern.ch/adaptiveperf/gentoo-fp:latest
+
+%files
+    {{ project_dir }} adaptiveperf
+
+%post
+    cd adaptiveperf
+    ./build.sh
+    USE="-extra" emerge sys-devel/clang
+    echo | PATH=$PATH:$(dirname /usr/lib/llvm/*/bin/clang) ./install.sh
+    emerge --deselect sys-devel/clang sys-devel/llvm && emerge --depclean
+    cd .. && rm -rf adaptiveperf

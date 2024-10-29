@@ -4,14 +4,14 @@ stages:
   - test
   - vm-deploy
   - deploy
-  - docker-build
+  - container-image-build
 
 # Based on https://gitlab.cern.ch/gitlabci-examples/build_docker_image/-/blob/master/.gitlab-ci.yml
 make-docker-image:
   image:
     name: gcr.io/kaniko-project/executor:debug
     entrypoint: [""]
-  stage: docker-build
+  stage: container-image-build
   needs: []
   script:
     - |
@@ -27,6 +27,23 @@ make-docker-image:
     - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile --destination $IMAGE_DESTINATION --destination $IMAGE_DESTINATION_NAMED --build-arg "JOBS=12"
     # Print the full registry path of the pushed image
     - echo "Image pushed successfully to ${IMAGE_DESTINATION} and ${IMAGE_DESTINATION_NAMED}"
+
+make-apptainer-image:
+  tags:
+    - gentoo
+  stage: container-image-build
+  needs: []
+  before_script:
+    - echo $KERBEROS_PASSWORD | kinit ${KERBEROS_USER}@CERN.CH
+  script:
+    - sudo apptainer build --build-arg project_dir="$CI_PROJECT_DIR" adaptiveperf.sif $CI_PROJECT_DIR/apptainer.def
+    - |
+      if [[ $CI_COMMIT_BRANCH == "main" ]]; then
+        xrdcp -C auto --rm-bad-cksum -t 5 adaptiveperf.sif root://eosuser.cern.ch/$WEB_STORAGE/apptainer/adaptiveperf-latest.sif
+      else
+        xrdcp -C auto --rm-bad-cksum -t 5 adaptiveperf.sif root://eosuser.cern.ch/$WEB_STORAGE/apptainer/adaptiveperf-$CI_COMMIT_BRANCH.sif
+      fi
+    - rm adaptiveperf.sif
 
 start-vm:
   tags:
