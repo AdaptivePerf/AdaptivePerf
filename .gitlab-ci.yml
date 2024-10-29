@@ -95,9 +95,9 @@ make-vm-image:
     - guestunmount /data/gitlab-runner/mnt
     - |
       if [[ $CI_COMMIT_BRANCH == "main" ]]; then
-        xrdcp $CI_PROJECT_DIR/adaptiveperf.qcow2 root://eosuser.cern.ch/$WEB_STORAGE/vm/adaptiveperf-latest.qcow2
+        xrdcp -C auto --rm-bad-cksum -t 5 $CI_PROJECT_DIR/adaptiveperf.qcow2 root://eosuser.cern.ch/$WEB_STORAGE/vm/adaptiveperf-latest.qcow2
       else
-        xrdcp $CI_PROJECT_DIR/adaptiveperf.qcow2 root://eosuser.cern.ch/$WEB_STORAGE/vm/adaptiveperf-$CI_COMMIT_BRANCH.qcow2
+        xrdcp -C auto --rm-bad-cksum -t 5 $CI_PROJECT_DIR/adaptiveperf.qcow2 root://eosuser.cern.ch/$WEB_STORAGE/vm/adaptiveperf-$CI_COMMIT_BRANCH.qcow2
       fi
 
 deploy-to-syclops-gentoo-profiling:
