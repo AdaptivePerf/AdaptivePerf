@@ -35,7 +35,7 @@ make-apptainer-image:
   needs: []
   before_script:
     - echo $KERBEROS_PASSWORD | kinit ${KERBEROS_USER}@CERN.CH
-    - echo $CI_DEPLOY_PASSWORD | sudo apptainer registry login --username $CI_DEPLOY_USER --password-stdin gitlab-registry.cern.ch
+    - echo $CI_DEPLOY_PASSWORD | sudo apptainer registry login --username $CI_DEPLOY_USER --password-stdin docker://gitlab-registry.cern.ch
   script:
     - sudo apptainer build --build-arg project_dir="$CI_PROJECT_DIR" adaptiveperf.sif $CI_PROJECT_DIR/apptainer.def
     - |
