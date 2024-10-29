@@ -27,7 +27,7 @@ On-CPU profiling uses ```perf``` with the ```task-clock``` event. Off-CPU profil
 
 ![Off-CPU sampling](https://github.com/AdaptivePerf/AdaptivePerf/assets/24892582/cfe3d882-9ce1-40f8-8f57-e286f04057dd)
 
-Both single-threaded and multi-threaded programs are supported. All CPU architectures and vendors should also be supported (provided that the installation requirements are met, see below) since the main features of AdaptivePerf are based on kernel-based performance counters and portable stack traversal methods. However, if extra ```perf``` events are used for sampling, the list of available events should be checked beforehand by running ```perf list``` as this is architecture-dependent.
+Both single-threaded and multi-threaded programs are supported. All CPU architectures and vendors should also be supported (provided that the installation requirements are met, see below) since the main features of AdaptivePerf are based on kernel-based performance counters and portable stack traversal methods. **The tool has been successfully tested on x86-64, arm64, and RISC-V so far.** However, if extra ```perf``` events are used for sampling, the list of available events should be checked beforehand by running ```perf list``` as this is architecture-dependent.
 
 ## Current limitations / TODO
 Work is being done towards eliminating all of the limitations below step-by-step, stay tuned!
@@ -102,7 +102,7 @@ Please use:
 All images are public (no CERN login required), so no deployment to a non-CERN registry is planned.
 
 #### Apptainer/Singularity
-The images are denoted by commit tags and can be downloaded from https://cernbox.cern.ch/s/XVwsHPOjvyb2YpU.
+The images are denoted either by "latest" (which corresponds to the latest commit in the ```main``` branch and **is recommended until the first non-dev release**) or by branch names and can be downloaded from https://cernbox.cern.ch/s/XVwsHPOjvyb2YpU.
 
 ## How to use
 Before running AdaptivePerf for the first time, run ```sysctl kernel.perf_event_paranoid=-1```. Otherwise, the tool will refuse to run due to its inability to reliably obtain kernel stack traces. This is already done for the VM image.
