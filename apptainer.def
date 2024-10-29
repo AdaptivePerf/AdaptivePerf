@@ -1,5 +1,5 @@
 Bootstrap: docker
-From: gitlab-registry.cern.ch/adaptiveperf/gentoo-fp:latest
+From: {{ registry }}/adaptiveperf/gentoo-fp:latest
 
 %files
     {{ project_dir }} adaptiveperf

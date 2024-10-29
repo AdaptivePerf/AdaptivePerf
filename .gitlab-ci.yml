@@ -16,11 +16,11 @@ make-docker-image:
   script:
     - |
       if [[ $CI_COMMIT_BRANCH == "main" ]]; then
-        export IMAGE_DESTINATION_NAMED=gitlab-registry.cern.ch/adaptiveperf/adaptiveperf:latest
+        export IMAGE_DESTINATION_NAMED=$CI_REGISTRY/adaptiveperf/adaptiveperf:latest
       else
-        export IMAGE_DESTINATION_NAMED=gitlab-registry.cern.ch/adaptiveperf/adaptiveperf:branch-$CI_COMMIT_BRANCH
+        export IMAGE_DESTINATION_NAMED=$CI_REGISTRY/adaptiveperf/adaptiveperf:branch-$CI_COMMIT_BRANCH
       fi
-      export IMAGE_DESTINATION=gitlab-registry.cern.ch/adaptiveperf/adaptiveperf:commit-$CI_COMMIT_SHORT_SHA
+      export IMAGE_DESTINATION=$CI_REGISTRY/adaptiveperf/adaptiveperf:commit-$CI_COMMIT_SHORT_SHA
     # Prepare Kaniko configuration file
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_DEPLOY_USER\",\"password\":\"$CI_DEPLOY_PASSWORD\"}}}" > /kaniko/.docker/config.json
     # Build and push the image from the Dockerfile at the root of the project.
@@ -35,9 +35,9 @@ make-apptainer-image:
   needs: []
   before_script:
     - echo $KERBEROS_PASSWORD | kinit ${KERBEROS_USER}@CERN.CH
-    - echo $CI_DEPLOY_PASSWORD | sudo apptainer registry login --username $CI_DEPLOY_USER --password-stdin docker://gitlab-registry.cern.ch
+    - echo $CI_DEPLOY_PASSWORD | sudo apptainer registry login --username $CI_DEPLOY_USER --password-stdin docker://$CI_REGISTRY
   script:
-    - sudo apptainer build --build-arg project_dir="$CI_PROJECT_DIR" adaptiveperf.sif $CI_PROJECT_DIR/apptainer.def
+    - sudo apptainer build --build-arg project_dir="$CI_PROJECT_DIR" --build-arg registry="$CI_REGISTRY" adaptiveperf.sif $CI_PROJECT_DIR/apptainer.def
     - |
       if [[ $CI_COMMIT_BRANCH == "main" ]]; then
         xrdcp -C auto --rm-bad-cksum -t 5 adaptiveperf.sif root://eosuser.cern.ch/$WEB_STORAGE/apptainer/adaptiveperf-latest.sif
@@ -46,6 +46,8 @@ make-apptainer-image:
       fi
   after_script:
     - rm -f adaptiveperf.sif
+    - kdestroy -A
+    - sudo apptainer registry logout docker://$CI_REGISTRY
 
 start-vm:
   tags:
@@ -118,6 +120,8 @@ make-vm-image:
       else
         xrdcp -C auto --rm-bad-cksum -t 5 $CI_PROJECT_DIR/adaptiveperf.qcow2 root://eosuser.cern.ch/$WEB_STORAGE/vm/adaptiveperf-$CI_COMMIT_BRANCH.qcow2
       fi
+  after_script:
+    - kdestroy -A
 
 deploy-to-syclops-gentoo-profiling:
   tags:
