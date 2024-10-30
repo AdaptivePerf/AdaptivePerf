@@ -137,5 +137,6 @@ deploy-to-syclops-gentoo-profiling:
     - if: $CI_COMMIT_BRANCH == "main"
   script:
     - cd $CI_PROJECT_DIR
-    - ./build.sh
-    - echo -n "y" | sudo ./install.sh
+    - ./build.sh -G Ninja
+    - echo | sudo ./install.sh
+    - sudo setcap cap_perfmon,cap_bpf+ep /opt/adaptiveperf/perf/bin/perf
