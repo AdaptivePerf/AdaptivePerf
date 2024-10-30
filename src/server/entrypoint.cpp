@@ -4,7 +4,6 @@
 #include "entrypoint.hpp"
 #include "server.hpp"
 #include "cmd.hpp"
-#include <boost/algorithm/string.hpp>
 
 namespace aperf {
   /**

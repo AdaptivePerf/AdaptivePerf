@@ -27,7 +27,7 @@ On-CPU profiling uses ```perf``` with the ```task-clock``` event. Off-CPU profil
 
 ![Off-CPU sampling](https://github.com/AdaptivePerf/AdaptivePerf/assets/24892582/cfe3d882-9ce1-40f8-8f57-e286f04057dd)
 
-Both single-threaded and multi-threaded programs are supported. All CPU architectures and vendors should also be supported (provided that the installation requirements are met, see below) since the main features of AdaptivePerf are based on kernel-based performance counters and portable stack traversal methods. However, if extra ```perf``` events are used for sampling, the list of available events should be checked beforehand by running ```perf list``` as this is architecture-dependent.
+Both single-threaded and multi-threaded programs are supported. All CPU architectures and vendors should also be supported (provided that the installation requirements are met, see below) since the main features of AdaptivePerf are based on kernel-based performance counters and portable stack traversal methods. **The tool has been successfully tested on x86-64, arm64, and RISC-V so far.** However, if extra ```perf``` events are used for sampling, the list of available events should be checked beforehand by running ```perf list``` as this is architecture-dependent.
 
 ## Current limitations / TODO
 Work is being done towards eliminating all of the limitations below step-by-step, stay tuned!
@@ -38,22 +38,28 @@ Work is being done towards eliminating all of the limitations below step-by-step
 
 ## Installation
 ### Requirements
+By default, the full suite is installed, i.e. ```adaptiveperf``` and ```adaptiveperf-server```. For this, you need:
 * Linux 5.8 or newer compiled with:
   * ```CONFIG_DEBUG_INFO_BTF=y``` (or equivalent, you can check this by seeing if ```/sys/kernel/btf``` exists in your system)
   * ```CONFIG_FTRACE_SYSCALLS=y``` (or equivalent, you can check this by seeing if ```/sys/kernel/tracing/events/syscalls``` exists in your system and is not empty, but you may need to mount ```/sys/kernel/tracing``` first)
   * If you want complete kernel debug symbols, ```CONFIG_KALLSYMS=y``` and ```CONFIG_KALLSYMS_ALL=y``` (or equivalent) should also be set.
   * **Kernel recompilation may NOT be needed! If you have ```/sys/kernel/btf``` and ```/sys/kernel/tracing/events/syscalls``` as explained above and you don't care about having kernel debug symbols, you're already good to go here!**
 * Python 3
-* CMake 3.20 or newer
+* CMake 3.20 or newer (if building from source)
 * libnuma (if a machine with your profiled application has NUMA)
-* [CLI11](https://github.com/CLIUtils/CLI11)
-* [nlohmann-json](https://github.com/nlohmann/json)
+* [CLI11](https://github.com/CLIUtils/CLI11) (if building from source)
+* [nlohmann-json](https://github.com/nlohmann/json) (if building from source)
 * [PocoNet + PocoFoundation](https://pocoproject.org)
-* [Boost](https://www.boost.org)
+* [Boost](https://www.boost.org) (specifically, the ```program_options``` module)
+* The patched "perf" dependencies:
+  * Clang (if building from source, can be removed after installing AdaptivePerf)
+  * libtraceevent
 
-Additionally, for the patched "perf", you need:
-* Clang (only for building, can be removed afterwards)
-* libtraceevent
+If you install ```adaptiveperf-server``` alone, the requirements are different. You **only** need:
+* CMake 3.20 or newer (if building from source)
+* [CLI11](https://github.com/CLIUtils/CLI11) (if building from source)
+* [nlohmann-json](https://github.com/nlohmann/json) (if building from source)
+* [PocoNet + PocoFoundation](https://pocoproject.org)
 
 You should use the newest available version of the dependencies if the version is not explicitly specified. More information about the minimum tested version of each of these required programs/libraries will be provided soon.
 
@@ -82,16 +88,25 @@ If you want to install just adaptiveperf-server, please clone this repository an
 ### Gentoo-based virtual machine image with frame pointers
 Given the complexity of setting up a machine with a recent enough Linux kernel, frame pointers etc., we make available ready-to-use x86-64 Gentoo-based qcow2 images with AdaptivePerf set up. They're also configured for out-of-the-box reliable ```perf``` profiling, such as permanently-set profiling-related kernel parameters and ensuring that everything in the system is compiled with frame pointers.
 
-The images are denoted by commit tags and can be downloaded from https://cernbox.cern.ch/s/FAzoFWvh2kzNtUx. They must be booted in the UEFI mode.
+The images are denoted either by "latest" (which corresponds to the latest commit in the ```main``` branch and **is recommended until the first non-dev release**) or by branch names and can be downloaded from https://cernbox.cern.ch/s/FAzoFWvh2kzNtUx. They must be booted in the UEFI mode.
+
+If an image you are looking for is corrupted or missing, please use the version with the ```backup-``` prefix if available.
 
 ### Container image
 To ease the deployment of AdaptivePerf, we also provide Docker and Apptainer/Singularity images based on Gentoo with all packages built with frame pointers. x86-64 only is available at the moment, with more architectures coming soon.
 
 #### Docker
-Please use ```gitlab-registry.cern.ch/adaptiveperf/adaptiveperf:latest```. The image will also become available in a non-CERN registry soon along with commit-based variants.
+Please use:
+* **RECOMMENDED (until the first non-dev release):** ```gitlab-registry.cern.ch/adaptiveperf/adaptiveperf:latest``` for the latest commit in the ```main``` branch.
+* ```gitlab-registry.cern.ch/adaptiveperf/adaptiveperf:branch-<branch name>``` for the latest commit in a branch of your choice.
+* ```gitlab-registry.cern.ch/adaptiveperf/adaptiveperf:commit-<commit short SHA>``` for a **recent** (i.e. 30 days or newer) commit of your choice. The short SHA must have exactly 8 characters.
+
+All images are public (no CERN login required), so no deployment to a non-CERN registry is planned.
 
 #### Apptainer/Singularity
-The images are denoted by commit tags and can be downloaded from https://cernbox.cern.ch/s/XVwsHPOjvyb2YpU.
+The images are denoted either by "latest" (which corresponds to the latest commit in the ```main``` branch and **is recommended until the first non-dev release**) or by branch names and can be downloaded from https://cernbox.cern.ch/s/XVwsHPOjvyb2YpU.
+
+If an image you are looking for is corrupted or missing, please use the version with the ```backup-``` prefix if available.
 
 ## How to use
 Before running AdaptivePerf for the first time, run ```sysctl kernel.perf_event_paranoid=-1```. Otherwise, the tool will refuse to run due to its inability to reliably obtain kernel stack traces. This is already done for the VM image.

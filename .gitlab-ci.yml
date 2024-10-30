@@ -4,28 +4,52 @@ stages:
   - test
   - vm-deploy
   - deploy
-  - docker-build
+  - container-image-build
 
 # Based on https://gitlab.cern.ch/gitlabci-examples/build_docker_image/-/blob/master/.gitlab-ci.yml
 make-docker-image:
   image:
     name: gcr.io/kaniko-project/executor:debug
     entrypoint: [""]
-  stage: docker-build
+  stage: container-image-build
   needs: []
   script:
     - |
       if [[ $CI_COMMIT_BRANCH == "main" ]]; then
-        export IMAGE_DESTINATION=gitlab-registry.cern.ch/adaptiveperf/adaptiveperf:latest
+        export IMAGE_DESTINATION_NAMED=$CI_REGISTRY/adaptiveperf/adaptiveperf:latest
       else
-        export IMAGE_DESTINATION=gitlab-registry.cern.ch/adaptiveperf/adaptiveperf:$CI_COMMIT_BRANCH
+        export IMAGE_DESTINATION_NAMED=$CI_REGISTRY/adaptiveperf/adaptiveperf:branch-$CI_COMMIT_BRANCH
       fi
+      export IMAGE_DESTINATION=$CI_REGISTRY/adaptiveperf/adaptiveperf:commit-$CI_COMMIT_SHORT_SHA
     # Prepare Kaniko configuration file
     - echo "{\"auths\":{\"$CI_REGISTRY\":{\"username\":\"$CI_DEPLOY_USER\",\"password\":\"$CI_DEPLOY_PASSWORD\"}}}" > /kaniko/.docker/config.json
     # Build and push the image from the Dockerfile at the root of the project.
-    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile --destination $IMAGE_DESTINATION --build-arg "JOBS=12"
+    - /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile --destination $IMAGE_DESTINATION --destination $IMAGE_DESTINATION_NAMED --build-arg "JOBS=12"
     # Print the full registry path of the pushed image
-    - echo "Image pushed successfully to ${IMAGE_DESTINATION}"
+    - echo "Image pushed successfully to ${IMAGE_DESTINATION} and ${IMAGE_DESTINATION_NAMED}"
+
+make-apptainer-image:
+  tags:
+    - gentoo
+  stage: container-image-build
+  needs: []
+  before_script:
+    - echo $KERBEROS_PASSWORD | kinit ${KERBEROS_USER}@CERN.CH
+    - echo $CI_DEPLOY_PASSWORD | sudo apptainer registry login --username $CI_DEPLOY_USER --password-stdin docker://$CI_REGISTRY
+  script:
+    - sudo apptainer build --build-arg project_dir="$CI_PROJECT_DIR" --build-arg registry="$CI_REGISTRY" adaptiveperf.sif $CI_PROJECT_DIR/apptainer.def
+    - |
+      if [[ $CI_COMMIT_BRANCH == "main" ]]; then
+        xrdfs root://eosuser.cern.ch mv $WEB_STORAGE/apptainer/adaptiveperf-latest.sif $WEB_STORAGE/apptainer/backup-adaptiveperf-latest.sif || true
+        xrdcp -C auto --rm-bad-cksum -t 5 adaptiveperf.sif root://eosuser.cern.ch/$WEB_STORAGE/apptainer/adaptiveperf-latest.sif
+      else
+        xrdfs root://eosuser.cern.ch mv $WEB_STORAGE/apptainer/adaptiveperf-$CI_COMMIT_BRANCH.sif $WEB_STORAGE/apptainer/backup-adaptiveperf-$CI_COMMIT_BRANCH.sif || true
+        xrdcp -C auto --rm-bad-cksum -t 5 adaptiveperf.sif root://eosuser.cern.ch/$WEB_STORAGE/apptainer/adaptiveperf-$CI_COMMIT_BRANCH.sif
+      fi
+  after_script:
+    - rm -f adaptiveperf.sif
+    - kdestroy -A
+    - sudo apptainer registry logout docker://$CI_REGISTRY
 
 start-vm:
   tags:
@@ -84,8 +108,6 @@ make-vm-image:
   tags:
     - gentoo-vm-host
   stage: deploy
-  rules:
-    - if: $CI_COMMIT_BRANCH == "main"
   needs: ["shutdown-vm"]
   before_script:
     - echo $KERBEROS_PASSWORD | kinit ${KERBEROS_USER}@CERN.CH
@@ -94,7 +116,16 @@ make-vm-image:
     - guestmount -a $CI_PROJECT_DIR/adaptiveperf.qcow2 -m /dev/sda2 /data/gitlab-runner/mnt
     - rm -rf /data/gitlab-runner/mnt/etc/gitlab-runner/config.toml /data/gitlab-runner/mnt/opt/gitlab-runner/* /data/gitlab-runner/mnt/home/profiling/.bash_history && echo "gentoo-adaptiveperf-vm" > /data/gitlab-runner/mnt/etc/hostname
     - guestunmount /data/gitlab-runner/mnt
-    - xrdcp $CI_PROJECT_DIR/adaptiveperf.qcow2 root://eosuser.cern.ch/$WEB_STORAGE/adaptiveperf-$CI_COMMIT_SHORT_SHA.qcow2
+    - |
+      if [[ $CI_COMMIT_BRANCH == "main" ]]; then
+        xrdfs root://eosuser.cern.ch mv $WEB_STORAGE/vm/adaptiveperf-latest.qcow2 $WEB_STORAGE/vm/backup-adaptiveperf-latest.qcow2 || true
+        xrdcp -C auto --rm-bad-cksum -t 5 $CI_PROJECT_DIR/adaptiveperf.qcow2 root://eosuser.cern.ch/$WEB_STORAGE/vm/adaptiveperf-latest.qcow2
+      else
+        xrdfs root://eosuser.cern.ch mv $WEB_STORAGE/vm/adaptiveperf-$CI_COMMIT_BRANCH.qcow2 $WEB_STORAGE/vm/backup-adaptiveperf-$CI_COMMIT_BRANCH.qcow2 || true
+        xrdcp -C auto --rm-bad-cksum -t 5 $CI_PROJECT_DIR/adaptiveperf.qcow2 root://eosuser.cern.ch/$WEB_STORAGE/vm/adaptiveperf-$CI_COMMIT_BRANCH.qcow2
+      fi
+  after_script:
+    - kdestroy -A
 
 deploy-to-syclops-gentoo-profiling:
   tags:
