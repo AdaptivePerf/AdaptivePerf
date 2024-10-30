@@ -90,6 +90,8 @@ Given the complexity of setting up a machine with a recent enough Linux kernel, 
 
 The images are denoted either by "latest" (which corresponds to the latest commit in the ```main``` branch and **is recommended until the first non-dev release**) or by branch names and can be downloaded from https://cernbox.cern.ch/s/FAzoFWvh2kzNtUx. They must be booted in the UEFI mode.
 
+If an image you are looking for is corrupted or missing, please use the version with the ```backup-``` prefix if available.
+
 ### Container image
 To ease the deployment of AdaptivePerf, we also provide Docker and Apptainer/Singularity images based on Gentoo with all packages built with frame pointers. x86-64 only is available at the moment, with more architectures coming soon.
 
@@ -103,6 +105,8 @@ All images are public (no CERN login required), so no deployment to a non-CERN r
 
 #### Apptainer/Singularity
 The images are denoted either by "latest" (which corresponds to the latest commit in the ```main``` branch and **is recommended until the first non-dev release**) or by branch names and can be downloaded from https://cernbox.cern.ch/s/XVwsHPOjvyb2YpU.
+
+If an image you are looking for is corrupted or missing, please use the version with the ```backup-``` prefix if available.
 
 ## How to use
 Before running AdaptivePerf for the first time, run ```sysctl kernel.perf_event_paranoid=-1```. Otherwise, the tool will refuse to run due to its inability to reliably obtain kernel stack traces. This is already done for the VM image.
