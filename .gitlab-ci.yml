@@ -42,10 +42,10 @@ make-apptainer-image:
     - |
       if [[ $CI_COMMIT_BRANCH == "main" ]]; then
         xrdfs root://eosuser.cern.ch mv $WEB_STORAGE/apptainer/adaptiveperf-latest.sif $WEB_STORAGE/apptainer/backup-adaptiveperf-latest.sif || true
-        xrdcp -C auto --rm-bad-cksum -t 5 adaptiveperf.sif root://eosuser.cern.ch/$WEB_STORAGE/apptainer/adaptiveperf-latest.sif
+        xrdcp -C auto:source --rm-bad-cksum -t 5 adaptiveperf.sif root://eosuser.cern.ch/$WEB_STORAGE/apptainer/adaptiveperf-latest.sif
       else
         xrdfs root://eosuser.cern.ch mv $WEB_STORAGE/apptainer/adaptiveperf-$CI_COMMIT_BRANCH.sif $WEB_STORAGE/apptainer/backup-adaptiveperf-$CI_COMMIT_BRANCH.sif || true
-        xrdcp -C auto --rm-bad-cksum -t 5 adaptiveperf.sif root://eosuser.cern.ch/$WEB_STORAGE/apptainer/adaptiveperf-$CI_COMMIT_BRANCH.sif
+        xrdcp -C auto:source --rm-bad-cksum -t 5 adaptiveperf.sif root://eosuser.cern.ch/$WEB_STORAGE/apptainer/adaptiveperf-$CI_COMMIT_BRANCH.sif
       fi
   after_script:
     - rm -f adaptiveperf.sif
@@ -121,10 +121,10 @@ make-vm-image:
     - |
       if [[ $CI_COMMIT_BRANCH == "main" ]]; then
         xrdfs root://eosuser.cern.ch mv $WEB_STORAGE/vm/adaptiveperf-latest.qcow2 $WEB_STORAGE/vm/backup-adaptiveperf-latest.qcow2 || true
-        xrdcp -C auto --rm-bad-cksum -t 5 $CI_PROJECT_DIR/adaptiveperf.qcow2 root://eosuser.cern.ch/$WEB_STORAGE/vm/adaptiveperf-latest.qcow2
+        xrdcp -C auto:source --rm-bad-cksum -t 5 $CI_PROJECT_DIR/adaptiveperf.qcow2 root://eosuser.cern.ch/$WEB_STORAGE/vm/adaptiveperf-latest.qcow2
       else
         xrdfs root://eosuser.cern.ch mv $WEB_STORAGE/vm/adaptiveperf-$CI_COMMIT_BRANCH.qcow2 $WEB_STORAGE/vm/backup-adaptiveperf-$CI_COMMIT_BRANCH.qcow2 || true
-        xrdcp -C auto --rm-bad-cksum -t 5 $CI_PROJECT_DIR/adaptiveperf.qcow2 root://eosuser.cern.ch/$WEB_STORAGE/vm/adaptiveperf-$CI_COMMIT_BRANCH.qcow2
+        xrdcp -C auto:source --rm-bad-cksum -t 5 $CI_PROJECT_DIR/adaptiveperf.qcow2 root://eosuser.cern.ch/$WEB_STORAGE/vm/adaptiveperf-$CI_COMMIT_BRANCH.qcow2
       fi
   after_script:
     - kdestroy -A
