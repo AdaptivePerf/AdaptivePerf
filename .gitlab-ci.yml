@@ -130,12 +130,13 @@ make-vm-image:
 deploy-to-syclops-gentoo-profiling:
   tags:
     - gentoo-profiling
-  variables:
-    GIT_SUBMODULE_STRATEGY: recursive
   stage: deploy
   rules:
     - if: $CI_COMMIT_BRANCH == "main"
   script:
     - cd $CI_PROJECT_DIR
     - ./build.sh
-    - echo -n "y" | sudo ./install.sh
+    - echo | sudo ./install.sh
+    - sudo setcap cap_perfmon,cap_bpf+ep /opt/adaptiveperf/perf/bin/perf
+  after_script:
+    - sudo rm -rf $CI_PROJECT_DIR/linux

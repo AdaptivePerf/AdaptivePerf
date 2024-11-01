@@ -742,6 +742,35 @@ namespace aperf {
             "program is configured to emit \"perf\" symbol maps.", true, false);
     }
 
+    auto read_and_demangle_symbol_map =
+      [](std::ifstream &stream, std::vector<std::string> &result) {
+        while (stream) {
+          std::string line;
+          std::getline(stream, line);
+
+          if (line.empty()) {
+            continue;
+          }
+
+          std::vector<std::string> parts;
+          boost::split(parts, line, boost::is_any_of(" "));
+
+          if (parts.size() == 0) {
+            continue;
+          }
+
+          std::string new_line = "";
+
+          for (int i = 0; i < parts.size() - 1; i++) {
+            new_line += parts[i] + " ";
+          }
+
+          new_line += boost::core::demangle(parts[parts.size() - 1].c_str());
+
+          result.push_back(new_line);
+        }
+      };
+
     if (msg == "out_files") {
       bool transfer_error = false;
 
@@ -817,21 +846,11 @@ namespace aperf {
         // automatically after the transfer is finished.
         {
           std::unique_ptr<Connection> file_connection = get_file_connection();
+          std::vector<std::string> result;
 
-          while (stream) {
-            std::string line;
-            std::getline(stream, line);
+          read_and_demangle_symbol_map(stream, result);
 
-            std::vector<std::string> parts;
-            boost::split(parts, line, boost::is_any_of(" "));
-
-            std::string new_line = "";
-
-            for (int i = 0; i < parts.size(); i++) {
-              new_line += boost::core::demangle(parts[i].c_str()) +
-                (i < parts.size() - 1 ? " " : "");
-            }
-
+          for (std::string &new_line : result) {
             file_connection->write(new_line);
           }
         }
@@ -891,7 +910,15 @@ namespace aperf {
       }
     } else {
       for (const fs::path &path : perf_map_paths) {
-        fs::copy(path, result_processed);
+        std::ifstream stream(path);
+        std::ofstream ostream(result_processed / path.filename());
+        std::vector<std::string> result;
+
+        read_and_demangle_symbol_map(stream, result);
+
+        for (std::string &new_line : result) {
+          ostream << new_line << std::endl;
+        }
       }
     }
 
