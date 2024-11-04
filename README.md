@@ -50,7 +50,7 @@ By default, the full suite is installed, i.e. ```adaptiveperf``` and ```adaptive
 * [CLI11](https://github.com/CLIUtils/CLI11) (if building from source)
 * [nlohmann-json](https://github.com/nlohmann/json) (if building from source)
 * [PocoNet + PocoFoundation](https://pocoproject.org)
-* [Boost](https://www.boost.org) (specifically, the ```program_options``` module)
+* [Boost](https://www.boost.org) (header-only libraries and the ```program_options``` module)
 * The patched "perf" dependencies:
   * Clang (if building from source, can be removed after installing AdaptivePerf)
   * libtraceevent
