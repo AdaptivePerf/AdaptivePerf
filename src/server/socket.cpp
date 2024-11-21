@@ -240,7 +240,23 @@ namespace aperf {
     }
   }
 
-#ifndef SERVER_ONLY
+  void TCPSocket::write(unsigned int len, char *buf) {
+    try {
+      int bytes_written = this->socket.sendBytes(buf, len);
+      if (bytes_written != len) {
+        std::runtime_error err("Wrote " +
+                               std::to_string(bytes_written) +
+                               " bytes instead of " +
+                               std::to_string(len) +
+                               " to " +
+                               this->socket.address().toString());
+        throw ConnectionException(err);
+      }
+    } catch (net::NetException &e) {
+      throw ConnectionException(e);
+    }
+  }
+
   /**
      Constructs a FileDescriptor object.
 
@@ -416,6 +432,20 @@ namespace aperf {
     }
   }
 
+  void FileDescriptor::write(unsigned int len, char *buf) {
+    int bytes_written = ::write(this->write_fd[1], buf, len);
+
+    if (bytes_written != len) {
+      std::runtime_error err("Wrote " +
+                             std::to_string(bytes_written) +
+                             " bytes instead of " +
+                             std::to_string(len) +
+                             " to fd " +
+                             std::to_string(this->write_fd[1]));
+      throw ConnectionException(err);
+    }
+  }
+
   unsigned int FileDescriptor::get_buf_size() {
     return this->buf_size;
   }
@@ -482,5 +512,4 @@ namespace aperf {
   std::string PipeAcceptor::get_type() {
     return "pipe";
   }
-#endif
 }
