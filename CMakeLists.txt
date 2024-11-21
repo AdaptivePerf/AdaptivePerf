@@ -8,6 +8,10 @@ if(COMMAND cmake_policy)
   if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
     cmake_policy(SET CMP0135 NEW)
   endif()
+
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.30")
+    cmake_policy(SET CMP0167 NEW)
+  endif()
 endif()
 
 option(SERVER_ONLY "Compile only adaptiveperf-server (OS-portable)" OFF)
@@ -90,6 +94,10 @@ if(NOT SERVER_ONLY)
   target_compile_definitions(main_entrypoint.o PRIVATE APERF_CONFIG_FILE="${APERF_CONFIG_PATH}")
 
   find_package(Boost REQUIRED program_options)
+
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.30")
+    message(STATUS "Found Boost: headers inside ${Boost_INCLUDE_DIRS}, version ${Boost_VERSION_STRING}")
+  endif()
 
   target_link_libraries(adaptiveperf PRIVATE nlohmann_json::nlohmann_json)
   target_link_libraries(adaptiveperf PRIVATE Poco::Foundation Poco::Net)
