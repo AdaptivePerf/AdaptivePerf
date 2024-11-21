@@ -161,6 +161,12 @@ namespace aperf {
 
     env_script = {"APERF_SERV_CONNECT=" + instrs};
 
+    if (this->acceptor.get() != nullptr) {
+      std::string instrs = this->acceptor->get_type() + " " +
+        this->acceptor->get_connection_instructions();
+      env_script.push_back("APERF_CONNECT=" + instrs);
+    }
+
     int pipe_fd[2];
 
     if (pipe(pipe_fd) == -1) {
@@ -392,6 +398,10 @@ namespace aperf {
 
       return code;
     });
+
+    if (this->acceptor.get() != nullptr) {
+      this->connection = this->acceptor->accept(this->buf_size);
+    }
   }
 
   unsigned int Perf::get_thread_count() {
