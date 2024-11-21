@@ -280,7 +280,7 @@ namespace aperf {
     close(pipe_fd[0]);
     close(pipe_fd[1]);
 
-    this->process = std::async([=]() {
+    this->process = std::async([=, this]() {
       int status_record;
       int result = waitpid(forked_record, &status_record, 0);
 
