@@ -141,9 +141,8 @@ namespace aperf {
                      "--buffer-events", this->perf_event.options[2],
                      "--buffer-off-cpu-events", this->perf_event.options[3],
                      "--pid=" + std::to_string(pid)};
-      argv_script = {"perf", "script","-s", APERF_SCRIPT_PATH "/adaptiveperf-process.py",
-                     "-F", "comm,tid,pid,time,event,ip,sym,dso,period",
-                     "--ns", "--demangle", "--demangle-kernel",
+      argv_script = {"perf", "script", "-s", APERF_SCRIPT_PATH "/adaptiveperf-process.py",
+                     "--demangle", "--demangle-kernel",
                      "--max-stack=" + std::to_string(this->max_stack)};
     } else {
       stdout = result_out / ("perf_script_" + this->perf_event.name + "_stdout.log");
@@ -156,8 +155,7 @@ namespace aperf {
                      "--buffer-events", this->perf_event.options[1],
                      "--pid=" + std::to_string(pid)};
       argv_script = {"perf", "script", "-s", APERF_SCRIPT_PATH "/adaptiveperf-process.py",
-                     "-F", "comm,tid,pid,time,event,ip,sym,dso,period",
-                     "--ns", "--demangle", "--demangle-kernel",
+                     "--demangle", "--demangle-kernel",
                      "--max-stack=" + std::to_string(this->max_stack)};
     }
 
