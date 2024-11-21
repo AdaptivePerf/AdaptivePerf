@@ -224,7 +224,17 @@ namespace aperf {
 
       const char *buf = msg.c_str();
 
-      this->socket.sendBytes(buf, msg.size());
+      int bytes_written = this->socket.sendBytes(buf, msg.size());
+
+      if (bytes_written != msg.size()) {
+        std::runtime_error err("Wrote " +
+                               std::to_string(bytes_written) +
+                               " bytes instead of " +
+                               std::to_string(msg.size()) +
+                               " to " +
+                               this->socket.address().toString());
+        throw ConnectionException(err);
+      }
     } catch (net::NetException &e) {
       throw ConnectionException(e);
     }
