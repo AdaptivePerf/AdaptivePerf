@@ -6,6 +6,7 @@
 #include "profiling.hpp"
 #include "print.hpp"
 #include "server/server.hpp"
+#include "archive.hpp"
 #include <unistd.h>
 #include <filesystem>
 #include <iomanip>
@@ -22,6 +23,7 @@
 #include <boost/core/demangle.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/program_options/parsers.hpp>
+#include <nlohmann/json.hpp>
 
 #define NOTIFY_TIMEOUT 5
 #define FILE_TIMEOUT 30
@@ -692,46 +694,135 @@ namespace aperf {
     print("Processing results...", false, false);
 
     std::unordered_set<fs::path> perf_map_paths;
-    std::vector<fs::path> to_remove;
-
+    std::unordered_set<fs::path> src_paths;
     bool perf_maps_expected = false;
 
-    for (auto &elem : fs::directory_iterator(result_processed)) {
-      if (!elem.is_regular_file()) {
+    for (int i = 0; i < profilers.size(); i++) {
+      std::unique_ptr<Connection> &generic_connection = profilers[i]->get_connection();
+
+      if (generic_connection.get() == nullptr) {
         continue;
       }
 
-      fs::path path = elem.path();
+      std::string line;
 
-      if (std::regex_match(path.filename().string(),
-                           std::regex("^perf_map_paths_.*\\.data$"))) {
-        std::ifstream stream(path);
-
-        while (stream) {
-          std::string line;
-          std::getline(stream, line);
-          boost::trim(line);
-
-          if (!line.empty()) {
-            fs::path perf_map_path(line);
-
-            if (fs::exists(perf_map_path)) {
-              perf_map_paths.insert(perf_map_path);
-            } else {
-              print("A symbol map is expected in " +
-                    fs::absolute(perf_map_path).string() +
-                    ", but it hasn't been found!", true, false);
-              perf_maps_expected = true;
-            }
-          }
+      while ((line = generic_connection->read()) != "<STOP>") {
+        if (line.empty()) {
+          continue;
         }
 
-        to_remove.push_back(path);
-      }
-    }
+        try {
+          nlohmann::json parsed = nlohmann::json::parse(line);
 
-    for (auto &path : to_remove) {
-      fs::remove(path);
+          if (!parsed.is_object()) {
+            print("Message received from profiler \"" +
+                  profilers[i]->get_name() + "\" "
+                  "is not a JSON object, ignoring.", true, false);
+            continue;
+          }
+
+          if (parsed.size() != 2 || !parsed.contains("type") ||
+              !parsed.contains("data")) {
+            print("Message received from profiler \"" +
+                  profilers[i]->get_name() + "\" "
+                  "is not a JSON object with exactly 2 elements (\"type\" and "
+                  "\"data\"), ignoring.", true, false);
+          }
+
+          if (parsed["type"] == "symbol_maps") {
+            if (!parsed["data"].is_array()) {
+              print("Message received from profiler \"" +
+                    profilers[i]->get_name() + "\" "
+                    "is a JSON object of type \"symbol_maps\", but its \"data\" "
+                    "element is not a JSON array, ignoring.", true, false);
+              continue;
+            }
+
+            int index = -1;
+            for (auto &elem : parsed["data"]) {
+              index++;
+
+              if (!elem.is_string()) {
+                print("Element " + std::to_string(index) +
+                      " in the array in the message "
+                      "of type \"symbol_maps\" received from profiler \"" +
+                      profilers[i]->get_name() +
+                      "\" is not a string, ignoring this element.", true, false);
+                continue;
+              }
+
+              fs::path perf_map_path(elem.get<std::string>());
+
+              if (fs::exists(perf_map_path)) {
+                perf_map_paths.insert(perf_map_path);
+              } else {
+                print("A symbol map is expected in " +
+                      fs::absolute(perf_map_path).string() +
+                      ", but it hasn't been found!",
+                      true, false);
+                perf_maps_expected = true;
+              }
+            }
+          // } else if (parsed["type"] == "dso_files") {
+          //   if (!parsed["data"].is_array()) {
+          //     print("Message received from profiler \"" +
+          //           profilers[i]->get_name() + "\" "
+          //           "is a JSON object of type \"dso_files\", but its \"data\" "
+          //           "element is not a JSON array, ignoring.", true, false);
+          //     continue;
+          //   }
+
+          //   int index = -1;
+          //   for (auto &elem : parsed["data"]) {
+          //     index++;
+
+          //     if (!elem.is_string()) {
+          //       print("Element " + std::to_string(index) +
+          //             " in the array in the message "
+          //             "of type \"dso_files\" received from profiler \"" +
+          //             profilers[i]->get_name() +
+          //             "\" is not a string, ignoring this element.", true, false);
+          //       continue;
+          //     }
+          //   }
+          } else if (parsed["type"] == "src_files") {
+            if (!parsed["data"].is_array()) {
+              print("Message received from profiler \"" +
+                    profilers[i]->get_name() + "\" "
+                    "is a JSON object of type \"dso_files\", but its \"data\" "
+                    "element is not a JSON array, ignoring.", true, false);
+              continue;
+            }
+
+            int index = -1;
+            for (auto &elem : parsed["data"]) {
+              index++;
+
+              if (!elem.is_string()) {
+                print("Element " + std::to_string(index) +
+                      " in the array in the message "
+                      "of type \"dso_files\" received from profiler \"" +
+                      profilers[i]->get_name() +
+                      "\" is not a string, ignoring this element.", true, false);
+                continue;
+              }
+
+              fs::path path(elem.get<std::string>());
+
+              if (fs::exists(path)) {
+                src_paths.insert(path);
+              } else {
+                print("File " + path.string() + " does not exist, ignoring.",
+                      true, false);
+              }
+            }
+          }
+        } catch (nlohmann::json::exception) {
+          print("Message received from profiler \"" +
+                profilers[i]->get_name() + "\" "
+                "is not valid JSON, ignoring.", true, false);
+        }
+      }
     }
 
     if (perf_maps_expected) {
@@ -821,19 +912,19 @@ namespace aperf {
         return 2;
       }
 
-      auto check_file_transfer = [&](const fs::path &path) {
+      auto check_data_transfer = [&](std::string title) {
         std::string status = connection->read();
 
         if (status == "error_out_file") {
-          print("Could not send " + path.filename().string() + "!", true, true);
+          print("Could not send " + title + "!", true, true);
           transfer_error = true;
         } else if (status == "error_out_file_timeout") {
-          print("Could not send " + path.filename().string() + " due to timeout!",
+          print("Could not send " + title + " due to timeout!",
                 true, true);
           transfer_error = true;
         } else if (status != "out_file_ok") {
           print("Could not obtain confirmation of correct transfer of " +
-                path.filename().string() + "!", true, true);
+                title + "!", true, true);
           transfer_error = true;
         }
       };
@@ -855,7 +946,38 @@ namespace aperf {
           }
         }
 
-        check_file_transfer(path);
+        check_data_transfer(path.filename().string());
+      }
+
+      if (!src_paths.empty()) {
+        connection->write("p src.zip", true);
+        nlohmann::json src_mapping = nlohmann::json::object();
+
+        try {
+          std::unique_ptr<Connection> file_connection = get_file_connection();
+          Archive archive(file_connection, false, buf_size);
+
+          for (const fs::path &path : src_paths) {
+            std::string filename = std::to_string(src_mapping.size()) + path.extension().string();
+            src_mapping[path.string()] = filename;
+            archive.add_file(filename, path);
+          }
+
+          std::string src_mapping_str = nlohmann::to_string(src_mapping) + '\n';
+          std::stringstream s;
+          s << src_mapping_str;
+          archive.add_file_stream("index.json", s, src_mapping_str.length());
+
+          archive.close();
+        } catch (nlohmann::json::exception &e) {
+          print("A JSON error related to creating the source code archive has occurred! "
+                "Details: " + std::string(e.what()), true, true);
+        } catch (Archive::Exception &e) {
+          print("A source code archive creation error has occurred! "
+                "Details: " + std::string(e.what()), true, true);
+        }
+
+        check_data_transfer("the source code archive");
       }
 
       for (auto &elem : fs::directory_iterator(result_processed)) {
@@ -877,7 +999,7 @@ namespace aperf {
           file_connection->write(path);
         }
 
-        check_file_transfer(path);
+        check_data_transfer(path.filename().string());
       }
 
       for (auto &elem : fs::directory_iterator(result_out)) {
@@ -899,7 +1021,7 @@ namespace aperf {
           file_connection->write(path);
         }
 
-        check_file_transfer(path);
+        check_data_transfer(path.filename().string());
       }
 
       connection->write("<STOP>", true);
@@ -918,6 +1040,32 @@ namespace aperf {
 
         for (std::string &new_line : result) {
           ostream << new_line << std::endl;
+        }
+      }
+
+      if (!src_paths.empty()) {
+        try {
+          Archive archive(result_processed / "src.zip");
+          nlohmann::json src_mapping = nlohmann::json::object();
+
+          for (const fs::path &path : src_paths) {
+            std::string filename = std::to_string(src_mapping.size()) + path.extension().string();
+            src_mapping[path.string()] = filename;
+            archive.add_file(filename, path);
+          }
+
+          std::string src_mapping_str = nlohmann::to_string(src_mapping) + '\n';
+          std::stringstream s;
+          s << src_mapping_str;
+          archive.add_file_stream("index.json", s, src_mapping_str.length());
+
+          archive.close();
+        } catch (nlohmann::json::exception &e) {
+          print("A JSON error related to creating the source code archive has occurred! "
+                "Details: " + std::string(e.what()), true, true);
+        } catch (Archive::Exception &e) {
+          print("A source code archive creation error has occurred! "
+                "Details: " + std::string(e.what()), true, true);
         }
       }
     }

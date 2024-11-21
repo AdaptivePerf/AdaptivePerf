@@ -19,10 +19,9 @@ sys.path.append(os.environ['PERF_EXEC_PATH'] +
 from perf_trace_context import *
 from Core import *
 
-cur_code = [32]  # In ASCII
+cur_code_sym = [32]  # In ASCII
 
-def next_code():
-    global cur_code
+def next_code(cur_code):
     res = ''.join(map(chr, cur_code))
 
     for i in range(len(cur_code)):
@@ -41,7 +40,10 @@ def next_code():
 
 event_streams = []
 next_index = 0
-callchain_dict = defaultdict(next_code)
+symbol_dict = defaultdict(lambda: next_code(cur_code_sym))
+dso_dict = defaultdict(lambda: defaultdict(dict))
+src_files = set()
+# dso_files = set()
 overall_event_type = None
 perf_map_paths = set()
 
@@ -54,18 +56,23 @@ def get_next_event_stream():
 
 
 event_stream_dict = defaultdict(lambda: defaultdict(get_next_event_stream))
+frontend_stream = None
 
 
 def write(stream, msg):
     if isinstance(stream, socket.socket):
         stream.sendall((msg + '\n').encode('utf-8'))
     else:
-        stream.write((msg + '\n').encode('utf-8'))
+        if 'b' in stream.mode:
+            stream.write((msg + '\n').encode('utf-8'))
+        else:
+            stream.write(msg + '\n')
+
         stream.flush()
 
 
 def trace_begin():
-    global event_streams
+    global event_streams, frontend_stream
 
     serv_connect = os.environ['APERF_SERV_CONNECT'].split(' ')
     instrs = serv_connect[1:]
@@ -81,6 +88,16 @@ def trace_begin():
             stream.write('connect'.encode('ascii'))
             stream.flush()
             event_streams.append(stream)
+
+    frontend_connect = os.environ['APERF_CONNECT'].split(' ')
+    instrs = frontend_connect[1:]
+    parts = instrs[0].split('_')
+
+    if frontend_connect[0] == 'pipe':
+        stream = os.fdopen(int(parts[1]), 'w')
+        stream.write('connect')
+        stream.flush()
+        frontend_stream = stream
 
 
 def process_event(param_dict):
@@ -102,8 +119,6 @@ def process_event(param_dict):
         else:
             overall_event_type = parsed_event_type
 
-    callchain = []
-
     # Callchain symbol names are attempted to be obtained here. In case of
     # failure, an instruction address is put instead, along with
     # the name of an executable/library if available.
@@ -117,26 +132,54 @@ def process_event(param_dict):
     # map (i.e. the name of an executable/library is in form of
     # perf-<number>.map), the path to the map is saved so that AdaptivePerf
     # can copy it to the profiling results directory later.
-    for elem in raw_callchain:
-        if 'dso' in elem and \
-           re.search(r'^perf\-\d+\.map$', Path(elem['dso']).name) is not None:
-            p = Path(elem['dso'])
-            perf_map_paths.add(str(p))
-            callchain.append(f'({elem["ip"]:#x};{p.name})')
-        elif 'sym' in elem and 'name' in elem['sym']:
-            callchain.append(callchain_dict[elem['sym']['name']])
+    def process_callchain_elem(elem):
+        sym_result = [f'[{elem["ip"]:#x}]', '']
+        off_result = hex(elem['ip'])
+
+        if 'sym' in elem and 'name' in elem['sym']:
+            sym_result[0] = elem['sym']['name']
+
+            if 'dso' in elem:
+                # dso_files.add(elem['dso'])
+                sym_result[1] = elem['dso']
+                off_result = hex(elem['dso_off'])
         elif 'dso' in elem:
             p = Path(elem['dso'])
-            callchain.append(f'({elem["ip"]:#x};{p.name})')
-        else:
-            callchain.append(f'({elem["ip"]:#x})')
+            if re.search(r'^perf\-\d+\.map$', p.name) is not None:
+                perf_map_paths.add(str(p))
+                sym_result[1] = p.name
+            else:
+                # dso_files.add(elem['dso'])
+                sym_result[0] = f'[{elem["dso"]}]'
+                sym_result[1] = elem['dso']
+                off_result = hex(elem['dso_off'])
 
-    callchain.append(f'{comm}-{pid}/{tid}')
+        if 'sym_srcfile' in elem:
+            src_files.add(elem['sym_srcfile'])
 
-    write(event_stream_dict[pid][tid], json.dumps(
-        ['<SAMPLE>', parsed_event_type,
-         str(pid), str(tid),
-         timestamp, period, callchain[::-1]]))
+            src_info = {'file': elem['sym_srcfile']}
+
+            if 'sym_srcline_num' in elem:
+                src_info['line'] = elem['sym_srcline_num']
+
+            if 'dso' in elem:
+                dso_dict[elem['dso']][hex(elem['dso_off'])] = src_info
+            else:
+                dso_dict[hex(elem['ip'])] = src_info
+
+        return symbol_dict[tuple(sym_result)], off_result
+
+    callchain = list(map(process_callchain_elem, raw_callchain))[::-1]
+
+    write(event_stream_dict[pid][tid], json.dumps({
+        'type': 'sample',
+        'event_type': parsed_event_type,
+        'pid': str(pid),
+        'tid': str(tid),
+        'time': timestamp,
+        'period': period,
+        'callchain': callchain
+    }))
 
 
 def trace_end():
@@ -147,10 +190,28 @@ def trace_end():
         stream.close()
 
     if overall_event_type is not None:
-        reverse_callchain_dict = {v: k for k, v in callchain_dict.items()}
+        reverse_symbol_dict = {v: k for k, v in symbol_dict.items()}
 
         with open(f'{overall_event_type}_callchains.json', mode='w') as f:
-            f.write(json.dumps(reverse_callchain_dict) + '\n')
+            f.write(json.dumps(reverse_symbol_dict) + '\n')
 
-        with open(f'perf_map_paths_{overall_event_type}.data', mode='w') as f:
-            f.write('\n'.join(perf_map_paths) + '\n')
+        with open(f'{overall_event_type}_sources.json', mode='w') as f:
+            f.write(json.dumps(dso_dict) + '\n')
+
+        # write(frontend_stream, json.dumps({
+        #     'type': 'dso_files',
+        #     'data': list(filter(lambda x: Path(x).exists(), dso_files))
+        # }))
+
+        write(frontend_stream, json.dumps({
+            'type': 'src_files',
+            'data': list(filter(lambda x: Path(x).exists(), src_files))
+        }))
+
+        write(frontend_stream, json.dumps({
+            'type': 'symbol_maps',
+            'data': list(perf_map_paths)
+        }))
+
+    write(frontend_stream, '<STOP>')
+    frontend_stream.close()

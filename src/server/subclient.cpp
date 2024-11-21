@@ -8,11 +8,11 @@
 
 namespace aperf {
   void StdSubclient::recurse(nlohmann::json &cur_elem,
-                             std::vector<std::string> &callchain_parts,
+                             std::vector<std::pair<std::string, std::string> > &callchain_parts,
                              int callchain_index,
                              unsigned long long period,
                              bool time_ordered, bool offcpu) {
-    std::string p = callchain_parts[callchain_index];
+    std::pair<std::string, std::string> p = callchain_parts[callchain_index];
     nlohmann::json &arr = cur_elem["children"];
     nlohmann::json *elem;
 
@@ -23,7 +23,7 @@ namespace aperf {
     }
 
     if (time_ordered) {
-      if (arr.empty() || arr.back()["name"] != p ||
+      if (arr.empty() || arr.back()["name"] != p.first ||
           (last_block &&
            arr.back()["cold"] != offcpu) ||
           (last_block &&
@@ -31,7 +31,8 @@ namespace aperf {
           (!last_block &&
            arr.back()["children"].empty())) {
         nlohmann::json new_elem;
-        new_elem["name"] = p;
+        new_elem["name"] = p.first;
+        new_elem["offsets"] = nlohmann::json::object();
         new_elem["value"] = 0;
         new_elem["children"] = nlohmann::json::array();
         new_elem["cold"] = offcpu;
@@ -45,7 +46,8 @@ namespace aperf {
       int hot_index = -1;
 
       for (int i = 0; i < arr.size(); i++) {
-        if (arr[i]["name"] == p && (!last_block || arr[i]["cold"] == offcpu)) {
+        if (arr[i]["name"] == p.first &&
+            (!last_block || arr[i]["cold"] == offcpu)) {
           found = true;
 
           if (arr[i]["cold"]) {
@@ -68,7 +70,8 @@ namespace aperf {
         }
       } else {
         nlohmann::json new_elem;
-        new_elem["name"] = p;
+        new_elem["name"] = p.first;
+        new_elem["offsets"] = nlohmann::json::object();
         new_elem["value"] = 0;
         new_elem["children"] = nlohmann::json::array();
         new_elem["cold"] = offcpu;
@@ -79,6 +82,14 @@ namespace aperf {
     }
 
     (*elem)["value"] = (unsigned long long)(*elem)["value"] + period;
+
+    unsigned long long old_value = 0;
+
+    if ((*elem)["offsets"].contains(p.second)) {
+      old_value = (unsigned long long)(*elem)["offsets"][p.second];
+    }
+
+    (*elem)["offsets"][p.second] = old_value + period;
 
     if (!last_block) {
       recurse(*elem, callchain_parts, callchain_index + 1, period,
@@ -112,7 +123,7 @@ namespace aperf {
 
     try {
       std::unordered_set<std::string> messages_received;
-      std::unordered_map<std::string, std::vector<std::string> > tid_dict;
+      std::unordered_map<std::string, std::vector<std::pair<std::string, std::string> > > tid_dict;
       std::unordered_map<
         std::string,
         std::unordered_map<
@@ -141,46 +152,50 @@ namespace aperf {
             break;
           }
 
-          nlohmann::json arr;
+          nlohmann::json obj;
 
           try {
-            arr = nlohmann::json::parse(line);
+            obj = nlohmann::json::parse(line);
           } catch (...) {
             std::cerr << "Could not parse the recently-received line to JSON, ignoring." << std::endl;
             continue;
           }
 
-          if (!arr.is_array() || arr.empty()) {
-            std::cerr << "The recently-received JSON is not a non-empty array, ignoring." << std::endl;
+          if (!obj.is_object() || !obj.contains("type")) {
+            std::cerr << "The recently-received JSON is not an object of type "
+                         "{\"type\": ..., ...}, ignoring."
+                      << std::endl;
             continue;
           }
 
-          messages_received.insert(arr[0].template get<std::string>());
+          std::string type = obj["type"].template get<std::string>();
+          messages_received.insert(type);
 
-          if (arr[0] == "<SYSCALL>") {
+          if (type == "syscall") {
             std::string ret_value;
-            std::vector<std::string> callchain;
+            std::vector<std::pair<std::string, std::string> > callchain;
 
             try {
-              ret_value = arr[1];
-              callchain = arr[2].template get<std::vector<std::string> >();
+              ret_value = obj["ret_value"];
+              callchain = obj["callchain"].template get<
+                std::vector<std::pair<std::string, std::string> > >();
             } catch (...) {
               std::cerr << "The recently-received syscall JSON is invalid, ignoring." << std::endl;
               continue;
             }
 
             tid_dict[ret_value] = callchain;
-          } else if (arr[0] == "<SYSCALL_TREE>") {
+          } else if (type == "syscall_meta") {
             std::string syscall_type, comm_name, pid, tid, ret_value;
             unsigned long long time;
 
             try {
-              syscall_type = arr[1];
-              comm_name = arr[2];
-              pid = arr[3];
-              tid = arr[4];
-              time = arr[5];
-              ret_value = arr[6];
+              syscall_type = obj["subtype"];
+              comm_name = obj["comm"];
+              pid = obj["pid"];
+              tid = obj["tid"];
+              time = obj["time"];
+              ret_value = obj["ret_value"];
             } catch (...) {
               std::cerr << "The recently-received syscall tree JSON is invalid, ignoring." << std::endl;
               continue;
@@ -212,17 +227,18 @@ namespace aperf {
             } else if (syscall_type == "exit") {
               exit_time_dict[tid] = time;
             }
-          } else if (arr[0] == "<SAMPLE>") {
+          } else if (type == "sample") {
             std::string event_type, pid, tid;
             unsigned long long timestamp, period;
-            std::vector<std::string> callchain;
+            std::vector<std::pair<std::string, std::string> > callchain;
             try {
-              event_type = arr[1];
-              pid = arr[2];
-              tid = arr[3];
-              timestamp = arr[4];
-              period = arr[5];
-              callchain = arr[6].template get<std::vector<std::string> >();
+              event_type = obj["event_type"];
+              pid = obj["pid"];
+              tid = obj["tid"];
+              timestamp = obj["time"];
+              period = obj["period"];
+              callchain = obj["callchain"].template get<
+                std::vector<std::pair<std::string, std::string> > >();
             } catch (...) {
               std::cerr << "The recently received sample JSON is invalid, ignoring." << std::endl;
               continue;
@@ -276,7 +292,7 @@ namespace aperf {
 
             if (event_type == "offcpu-time") {
               if (callchain.size() <= 1) {
-                callchain.push_back("(just thread/process)");
+                callchain.push_back(std::make_pair("(just thread/process)", ""));
               }
 
               struct offcpu_region reg;
@@ -300,15 +316,15 @@ namespace aperf {
 
       for (auto &msg : messages_received) {
         std::string msg_key;
-        if (msg == "<SAMPLE>" && extra_event_name != "") {
-          msg_key = "<SAMPLE> " + extra_event_name;
+        if (msg == "sample" && extra_event_name != "") {
+          msg_key = "sample " + extra_event_name;
         } else {
           msg_key = msg;
         }
 
-        if (msg == "<SYSCALL>") {
+        if (msg == "syscall") {
           this->json_result[msg_key] = tid_dict;
-        } else if (msg == "<SYSCALL_TREE>") {
+        } else if (msg == "syscall_meta") {
           unsigned long long start_time = 0;
           this->json_result[msg_key] = nlohmann::json::array();
           this->json_result[msg_key].push_back(start_time);
@@ -407,7 +423,7 @@ namespace aperf {
               elem["tag"][2] = (unsigned long long)elem["tag"][2] - start_time;
             }
           }
-        } else if (msg == "<SAMPLE>") {
+        } else if (msg == "sample") {
           for (auto &elem : subprocesses) {
             for (auto &elem2 : elem.second) {
               struct sample_result &res = elem2.second;

@@ -200,7 +200,7 @@ namespace aperf {
                  std::string profiled_filename,
                  unsigned int buf_size);
     void recurse(nlohmann::json &cur_elem,
-                 std::vector<std::string> &callchain_parts,
+                 std::vector<std::pair<std::string, std::string> > &callchain_parts,
                  int callchain_index,
                  unsigned long long period,
                  bool time_ordered, bool offcpu);
