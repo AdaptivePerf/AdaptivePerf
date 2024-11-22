@@ -90,6 +90,7 @@ if(NOT SERVER_ONLY)
   add_library(profiling.o OBJECT src/profiling.cpp)
   add_library(requirements.o OBJECT src/requirements.cpp)
   add_library(archive.o OBJECT src/archive.cpp)
+  add_library(process.o OBJECT src/process.cpp)
 
   target_compile_definitions(profilers.o PRIVATE APERF_SCRIPT_PATH="${APERF_SCRIPT_PATH}")
   target_compile_definitions(main_entrypoint.o PRIVATE APERF_CONFIG_FILE="${APERF_CONFIG_PATH}")
@@ -147,7 +148,7 @@ if(NOT SERVER_ONLY)
 
   target_link_libraries(adaptiveperf PRIVATE aperfserv)
   target_link_libraries(adaptiveperf PRIVATE
-    profiling.o requirements.o profilers.o print.o archive.o main_entrypoint.o version.o)
+    profiling.o requirements.o profilers.o print.o archive.o main_entrypoint.o process.o version.o)
 endif()
 
 if (ENABLE_TESTS)
