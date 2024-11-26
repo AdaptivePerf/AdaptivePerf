@@ -24,6 +24,7 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/program_options/parsers.hpp>
 #include <nlohmann/json.hpp>
+#include <boost/asio.hpp>
 
 #define NOTIFY_TIMEOUT 5
 #define FILE_TIMEOUT 30
@@ -610,7 +611,7 @@ namespace aperf {
     print("Processing results...", false, false);
 
     std::unordered_set<fs::path> perf_map_paths;
-    std::unordered_set<fs::path> src_paths;
+    std::unordered_map<std::string, std::unordered_set<std::string> > dso_offsets;
     bool perf_maps_expected = false;
 
     for (int i = 0; i < profilers.size(); i++) {
@@ -679,57 +680,35 @@ namespace aperf {
                 perf_maps_expected = true;
               }
             }
-          // } else if (parsed["type"] == "dso_files") {
-          //   if (!parsed["data"].is_array()) {
-          //     print("Message received from profiler \"" +
-          //           profilers[i]->get_name() + "\" "
-          //           "is a JSON object of type \"dso_files\", but its \"data\" "
-          //           "element is not a JSON array, ignoring.", true, false);
-          //     continue;
-          //   }
-
-          //   int index = -1;
-          //   for (auto &elem : parsed["data"]) {
-          //     index++;
-
-          //     if (!elem.is_string()) {
-          //       print("Element " + std::to_string(index) +
-          //             " in the array in the message "
-          //             "of type \"dso_files\" received from profiler \"" +
-          //             profilers[i]->get_name() +
-          //             "\" is not a string, ignoring this element.", true, false);
-          //       continue;
-          //     }
-          //   }
-          } else if (parsed["type"] == "src_files") {
-            if (!parsed["data"].is_array()) {
+          } else if (parsed["type"] == "sources") {
+            if (!parsed["data"].is_object()) {
               print("Message received from profiler \"" +
                     profilers[i]->get_name() + "\" "
-                    "is a JSON object of type \"dso_files\", but its \"data\" "
-                    "element is not a JSON array, ignoring.", true, false);
+                    "is a JSON object of type \"sources\", but its \"data\" "
+                    "element is not a JSON object, ignoring.", true, false);
               continue;
             }
 
             int index = -1;
-            for (auto &elem : parsed["data"]) {
+            for (auto &elem : parsed["data"].items()) {
               index++;
 
-              if (!elem.is_string()) {
-                print("Element " + std::to_string(index) +
-                      " in the array in the message "
-                      "of type \"dso_files\" received from profiler \"" +
-                      profilers[i]->get_name() +
-                      "\" is not a string, ignoring this element.", true, false);
+              if (!elem.value().is_array()) {
+                print("Element \"" + elem.key() + "\" in the data object of "
+                      "type \"sources\" received from profiler \"" +
+                      profilers[i]->get_name() + "\" is not a JSON array, "
+                      "ignoring this element.", true, false);
                 continue;
               }
 
-              fs::path path(elem.get<std::string>());
+              if (fs::exists(elem.key())) {
+                if (dso_offsets.find(elem.key()) == dso_offsets.end()) {
+                  dso_offsets[elem.key()] = std::unordered_set<std::string>();
+                }
 
-              if (fs::exists(path)) {
-                src_paths.insert(path);
-              } else {
-                print("File " + path.string() + " does not exist, ignoring.",
-                      true, false);
+                for (auto &offset : elem.value()) {
+                  dso_offsets[elem.key()].insert(offset);
+                }
               }
             }
           }
@@ -737,6 +716,60 @@ namespace aperf {
           print("Message received from profiler \"" +
                 profilers[i]->get_name() + "\" "
                 "is not valid JSON, ignoring.", true, false);
+        }
+      }
+    }
+
+    nlohmann::json sources_json = nlohmann::json::object();
+    boost::asio::thread_pool pool(cpu_config.get_profiler_thread_count());
+    std::pair<std::string, nlohmann::json> sources[dso_offsets.size()];
+    std::unordered_set<fs::path> source_files[dso_offsets.size()];
+
+    int index = 0;
+
+    for (auto &elem : dso_offsets) {
+      auto process = [index, elem, &sources, &source_files, &cpu_config]() {
+        std::vector<std::string> cmd = {"addr2line", "-e", elem.first};
+        Process process(cmd);
+        process.start(false, cpu_config, true);
+
+        nlohmann::json result;
+        std::unordered_set<fs::path> files;
+
+        for (auto &offset : elem.second) {
+          std::string to_write = offset + '\n';
+          process.write_stdin((char *)to_write.c_str(), to_write.size());
+          std::vector<std::string> parts;
+          boost::split(parts, process.read_line(), boost::is_any_of(":"));
+
+          if (parts.size() == 2) {
+            try {
+              result[offset] = nlohmann::json::object();
+              result[offset]["file"] = parts[0];
+              result[offset]["line"] = std::stoi(parts[1]);
+              files.insert(parts[0]);
+            } catch (...) { }
+          }
+        }
+
+        sources[index] = std::make_pair(elem.first, result);
+        source_files[index] = files;
+      };
+
+      boost::asio::post(pool, process);
+      index++;
+    }
+
+    pool.join();
+
+    std::unordered_set<fs::path> src_paths;
+
+    for (int i = 0; i < dso_offsets.size(); i++) {
+      sources_json[sources[i].first].swap(sources[i].second);
+
+      for (auto &elem : source_files[i]) {
+        if (fs::exists(elem)) {
+          src_paths.insert(elem);
         }
       }
     }
@@ -896,6 +929,17 @@ namespace aperf {
         check_data_transfer("the source code archive");
       }
 
+      if (!sources_json.empty()) {
+        connection->write("p sources.json", true);
+
+        {
+          std::unique_ptr<Connection> file_connection = get_file_connection();
+          file_connection->write(nlohmann::to_string(sources_json));
+        }
+
+        check_data_transfer("the source code detail index");
+      }
+
       for (auto &elem : fs::directory_iterator(result_processed)) {
         fs::path path = elem.path();
 
@@ -983,6 +1027,11 @@ namespace aperf {
           print("A source code archive creation error has occurred! "
                 "Details: " + std::string(e.what()), true, true);
         }
+      }
+
+      if (!sources_json.empty()) {
+        std::ofstream ostream(result_processed / "sources.json");
+        ostream << sources_json << std::endl;
       }
     }
 

@@ -41,9 +41,7 @@ def next_code(cur_code):
 event_streams = []
 next_index = 0
 symbol_dict = defaultdict(lambda: next_code(cur_code_sym))
-dso_dict = defaultdict(lambda: defaultdict(dict))
-src_files = set()
-# dso_files = set()
+dso_dict = defaultdict(set)
 overall_event_type = None
 perf_map_paths = set()
 
@@ -140,7 +138,7 @@ def process_event(param_dict):
             sym_result[0] = elem['sym']['name']
 
             if 'dso' in elem:
-                # dso_files.add(elem['dso'])
+                dso_dict[elem['dso']].add(hex(elem['dso_off']))
                 sym_result[1] = elem['dso']
                 off_result = hex(elem['dso_off'])
         elif 'dso' in elem:
@@ -149,23 +147,10 @@ def process_event(param_dict):
                 perf_map_paths.add(str(p))
                 sym_result[1] = p.name
             else:
-                # dso_files.add(elem['dso'])
+                dso_dict[elem['dso']].add(hex(elem['dso_off']))
                 sym_result[0] = f'[{elem["dso"]}]'
                 sym_result[1] = elem['dso']
                 off_result = hex(elem['dso_off'])
-
-        if 'sym_srcfile' in elem:
-            src_files.add(elem['sym_srcfile'])
-
-            src_info = {'file': elem['sym_srcfile']}
-
-            if 'sym_srcline_num' in elem:
-                src_info['line'] = elem['sym_srcline_num']
-
-            if 'dso' in elem:
-                dso_dict[elem['dso']][hex(elem['dso_off'])] = src_info
-            else:
-                dso_dict[hex(elem['ip'])] = src_info
 
         return symbol_dict[tuple(sym_result)], off_result
 
@@ -195,17 +180,9 @@ def trace_end():
         with open(f'{overall_event_type}_callchains.json', mode='w') as f:
             f.write(json.dumps(reverse_symbol_dict) + '\n')
 
-        with open(f'{overall_event_type}_sources.json', mode='w') as f:
-            f.write(json.dumps(dso_dict) + '\n')
-
-        # write(frontend_stream, json.dumps({
-        #     'type': 'dso_files',
-        #     'data': list(filter(lambda x: Path(x).exists(), dso_files))
-        # }))
-
         write(frontend_stream, json.dumps({
-            'type': 'src_files',
-            'data': list(filter(lambda x: Path(x).exists(), src_files))
+            'type': 'sources',
+            'data': {k: list(v) for k, v in dso_dict.items()}
         }))
 
         write(frontend_stream, json.dumps({
