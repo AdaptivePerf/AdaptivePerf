@@ -73,6 +73,12 @@ namespace aperf {
     }
 
     std::vector<std::string> env_entries;
+    char **cur_existing_env_entry = environ;
+
+    while (*cur_existing_env_entry != nullptr) {
+      env_entries.push_back(std::string(*cur_existing_env_entry));
+      cur_existing_env_entry++;
+    }
 
     for (int i = 0; i < this->env.size(); i++) {
       env_entries.push_back(this->env[i].first + "=" + this->env[i].second);
