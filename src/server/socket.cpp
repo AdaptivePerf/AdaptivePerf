@@ -271,9 +271,11 @@ namespace aperf {
      Constructs a FileDescriptor object.
 
      @param read_fd  The pair of file descriptors for read()
-                     as returned by the pipe system call.
+                     as returned by the pipe system call. Can
+                     be nullptr.
      @param write_fd The pair of file descriptors for write()
-                     as returned by the pipe system call.
+                     as returned by the pipe system call. Can
+                     be nullptr.
      @param buf_size The buffer size for communication, in bytes.
   */
   FileDescriptor::FileDescriptor(int read_fd[2], int write_fd[2],
@@ -281,10 +283,22 @@ namespace aperf {
     this->buf.reset(new char[buf_size]);
     this->buf_size = buf_size;
     this->start_pos = 0;
-    this->read_fd[0] = read_fd[0];
-    this->read_fd[1] = read_fd[1];
-    this->write_fd[0] = write_fd[0];
-    this->write_fd[1] = write_fd[1];
+
+    if (read_fd != nullptr) {
+      this->read_fd[0] = read_fd[0];
+      this->read_fd[1] = read_fd[1];
+    } else {
+      this->read_fd[0] = -1;
+      this->read_fd[1] = -1;
+    }
+
+    if (write_fd != nullptr) {
+      this->write_fd[0] = write_fd[0];
+      this->write_fd[1] = write_fd[1];
+    } else {
+      this->write_fd[0] = -1;
+      this->write_fd[1] = -1;
+    }
   }
 
   FileDescriptor::~FileDescriptor() {
@@ -292,8 +306,13 @@ namespace aperf {
   }
 
   void FileDescriptor::close() {
-    ::close(this->read_fd[0]);
-    ::close(this->write_fd[1]);
+    if (this->read_fd[0] != -1) {
+      ::close(this->read_fd[0]);
+    }
+
+    if (this->write_fd[1] != -1) {
+      ::close(this->write_fd[1]);
+    }
   }
 
   int FileDescriptor::read(char *buf, unsigned int len, long timeout_seconds) {
