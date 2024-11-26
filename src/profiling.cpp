@@ -7,7 +7,7 @@
 #include "print.hpp"
 #include "server/server.hpp"
 #include "archive.hpp"
-#include <unistd.h>
+#include "process.hpp"
 #include <filesystem>
 #include <iomanip>
 #include <queue>
@@ -368,83 +368,13 @@ namespace aperf {
 
     print("Starting profiled program wrapper...", true, false);
 
-    int parent_to_wrapper_pipe[2];
+    Process wrapper(command_elements);
 
-    if (pipe(parent_to_wrapper_pipe) == -1) {
-      print("Could not create communication pipe for the profiled command wrapper! Exiting.",
-            true, true);
-      return 2;
-    }
+    wrapper.set_redirect_stdout(result_out / "stdout.log");
+    wrapper.set_redirect_stderr(result_out / "stderr.log");
 
-    const int ERROR_START_PROFILE = 200;
-    const int ERROR_STDOUT = 201;
-    const int ERROR_STDERR = 202;
-    const int ERROR_STDOUT_DUP2 = 203;
-    const int ERROR_STDERR_DUP2 = 204;
-    const int ERROR_AFFINITY = 205;
-
-    const char *path = command_elements[0].c_str();
-    char *parts_c_str[command_elements.size() + 1];
-
-    for (int i = 0; i < command_elements.size(); i++) {
-      parts_c_str[i] = (char *)command_elements[i].c_str();
-    }
-
-    parts_c_str[command_elements.size()] = NULL;
-
-    pid_t forked = fork();
-
-    if (forked == 0) {
-      // This executes in a separate process with everything effectively copied (NOT shared!)
-      close(parent_to_wrapper_pipe[1]);
-      char buf;
-      int bytes_read = 0;
-      int received = ::read(parent_to_wrapper_pipe[0], &buf, 1);
-      close(parent_to_wrapper_pipe[0]);
-
-      if (received <= 0 || buf != 0x03) {
-        std::exit(ERROR_START_PROFILE);
-      }
-
-      int stdout_fd = creat((result_out / "stdout.log").c_str(),
-                            S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-
-      if (stdout_fd == -1) {
-        std::exit(ERROR_STDOUT);
-      }
-
-      int stderr_fd = creat((result_out / "stderr.log").c_str(),
-                            S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-
-      if (stderr_fd == -1) {
-        std::exit(ERROR_STDERR);
-      }
-
-      if (dup2(stdout_fd, STDOUT_FILENO) == -1) {
-        std::exit(ERROR_STDOUT_DUP2);
-      }
-
-      if (dup2(stderr_fd, STDERR_FILENO) == -1) {
-        std::exit(ERROR_STDERR_DUP2);
-      }
-
-      close(stdout_fd);
-      close(stderr_fd);
-
-      cpu_set_t &cpu_set = cpu_config.get_cpu_command_set();
-
-      if (sched_setaffinity(0, sizeof(cpu_set), &cpu_set) == -1) {
-        std::exit(ERROR_AFFINITY);
-      }
-
-      execvp(path, parts_c_str);
-
-      // This is reached only if execvp fails
-      std::exit(errno);
-    }
-
-    close(parent_to_wrapper_pipe[0]);
-    spawned_children.push_back(forked);
+    int wrapper_id = wrapper.start(true, cpu_config, false);
+    spawned_children.push_back(wrapper_id);
 
     if (server_address == "") {
       print("Starting adaptiveperf-server and profilers...", true, false);
@@ -525,7 +455,7 @@ namespace aperf {
     ServerConnInstrs connection_instrs(all_connection_instrs);
 
     for (int i = 0; i < profilers.size(); i++) {
-      profilers[i]->start(forked, connection_instrs, result_out,
+      profilers[i]->start(wrapper_id, connection_instrs, result_out,
                           result_processed, true);
     }
 
@@ -534,7 +464,7 @@ namespace aperf {
           tmp_dir.string() + ".", true, false);
 
     auto profiler_and_wrapper_handler =
-      [&](int status, long start_time, long end_time) {
+      [&](int code, long start_time, long end_time) {
         bool error = false;
         for (int i = 0; i < profilers.size(); i++) {
           int code = profilers[i]->wait();
@@ -549,18 +479,16 @@ namespace aperf {
           print("One or more profilers have encountered an error.", true, true);
         }
 
-        int code = WEXITSTATUS(status);
-
         if (code == 0) {
           if (start_time != -1 && end_time != -1) {
             print("Command execution completed in ~" +
                       std::to_string(end_time - start_time) + " ms!",
                   true, false);
           }
-        } else if (code == ENOENT) {
+        } else if (code == Process::ERROR_NOT_FOUND) {
           print("Provided command does not exist!", true, true);
           error = true;
-        } else if (code == EACCES) {
+        } else if (code == Process::ERROR_NO_ACCESS) {
           print("Cannot access the provided command!", true, true);
           print("Hint: You may want to mark your file as executable by running \"chmod +x <file>\".", true, true);
           error = true;
@@ -569,35 +497,35 @@ namespace aperf {
                 std::to_string(code) + ".", true, true);
 
           switch (code) {
-          case ERROR_START_PROFILE:
+          case Process::ERROR_START_PROFILE:
             print("Hint: Code " + std::to_string(code) + " suggests something "
                   "bad happened when instructing the wrapper to execute the "
                   "profiled command.", true, true);
             break;
 
-          case ERROR_STDOUT:
+          case Process::ERROR_STDOUT:
             print("Hint: Code " + std::to_string(code) + " suggests something "
                   "bad happened when opening the stdout log file for writing.", true, true);
             break;
 
-          case ERROR_STDERR:
+          case Process::ERROR_STDERR:
             print("Hint: Code " + std::to_string(code) + " suggests something "
                   "bad happened when opening the stderr log file for writing.", true, true);
             break;
 
-          case ERROR_STDOUT_DUP2:
+          case Process::ERROR_STDOUT_DUP2:
             print("Hint: Code " + std::to_string(code) + " suggests something "
                   "bad happened when redirecting stdout of the profiled command "
                   "wrapper to the stdout log file.", true, true);
             break;
 
-          case ERROR_STDERR_DUP2:
+          case Process::ERROR_STDERR_DUP2:
             print("Hint: Code " + std::to_string(code) + " suggests something "
                   "bad happened when redirecting stderr of the profiled command "
                   "wrapper to the stderr log file.", true, true);
             break;
 
-          case ERROR_AFFINITY:
+          case Process::ERROR_AFFINITY:
             print("Hint: Code " + std::to_string(code) + " suggests something "
                   "bad happened when isolating the profiled command wrapper "
                   "CPU-wise from the profilers.", true, true);
@@ -622,11 +550,8 @@ namespace aperf {
         notification_msg = connection->read(NOTIFY_TIMEOUT);
         break;
       } catch (TimeoutException &e) {
-        int status = waitpid(forked, nullptr, WNOHANG);
-
-        if (status != 0) {
-          int code = profiler_and_wrapper_handler(status, -1, -1);
-
+        if (!wrapper.is_running()) {
+          int code = profiler_and_wrapper_handler(wrapper.join(), -1, -1);
           if (code != 0) {
             return code;
           }
@@ -661,23 +586,14 @@ namespace aperf {
     auto start_time =
       ch::duration_cast<ch::milliseconds>(ch::system_clock::now().time_since_epoch()).count();
 
-    char to_send = 0x03;
-    ::write(parent_to_wrapper_pipe[1], &to_send, 1);
-
-    int status;
-
-    pid_t result = waitpid(forked, &status, 0);
-
-    if (result != forked) {
-      print("Could not properly wait for the profiled program or its wrapper to finish! Exiting.",
-            true, true);
-      return 2;
-    }
+    wrapper.notify();
+    wrapper.close_stdin();
+    int exit_code = wrapper.join();
 
     auto end_time =
       ch::duration_cast<ch::milliseconds>(ch::system_clock::now().time_since_epoch()).count();
 
-    int code = profiler_and_wrapper_handler(status, start_time, end_time);
+    int code = profiler_and_wrapper_handler(exit_code, start_time, end_time);
 
     if (code != 0) {
       return code;
