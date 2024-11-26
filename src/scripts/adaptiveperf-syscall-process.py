@@ -79,14 +79,7 @@ def syscall_callback(stack, ret_value):
         sym_result = [f'[{elem["ip"]:#x}]', '']
         off_result = hex(elem['ip'])
 
-        if 'sym' in elem and 'name' in elem['sym']:
-            sym_result[0] = elem['sym']['name']
-
-            if 'dso' in elem:
-                dso_dict[elem['dso']].add(hex(elem['dso_off']))
-                sym_result[1] = elem['dso']
-                off_result = hex(elem['dso_off'])
-        elif 'dso' in elem:
+        if 'dso' in elem:
             p = Path(elem['dso'])
             if re.search(r'^perf\-\d+\.map$', p.name) is not None:
                 perf_map_paths.add(str(p))
@@ -96,6 +89,9 @@ def syscall_callback(stack, ret_value):
                 sym_result[0] = f'[{elem["dso"]}]'
                 sym_result[1] = elem['dso']
                 off_result = hex(elem['dso_off'])
+
+        if 'sym' in elem and 'name' in elem['sym']:
+            sym_result[0] = elem['sym']['name']
 
         return symbol_dict[tuple(sym_result)], off_result
 
