@@ -9,7 +9,8 @@
 #endif
 
 namespace aperf {
-  Process::Process(std::vector<std::string> &command) {
+  Process::Process(std::vector<std::string> &command,
+                   unsigned int buf_size) {
     if (command.empty()) {
       throw Process::EmptyCommandException();
     }
@@ -20,17 +21,22 @@ namespace aperf {
     this->notifiable = false;
     this->started = false;
     this->writable = true;
+    this->buf_size = buf_size;
 
 #ifdef BOOST_OS_UNIX
-    this->stdout_fd = -1;
+    this->stdout_fd = nullptr;
+    this->notify_pipe[0] = -1;
+    this->notify_pipe[1] = -1;
+    this->stdin_pipe[0] = -1;
+    this->stdin_pipe[1] = -1;
 #endif
   }
 
-  void Process::add_env(std::string &key, std::string &value) {
+  void Process::add_env(std::string key, std::string value) {
     this->env.push_back(std::make_pair(key, value));
   }
 
-  void Process::set_redirect_stdout(fs::path &path) {
+  void Process::set_redirect_stdout(fs::path path) {
     this->stdout_redirect = true;
     this->stdout_path = path;
   }
@@ -39,7 +45,7 @@ namespace aperf {
     this->stdout_redirect = true;
 
 #ifdef BOOST_OS_UNIX
-    this->stdout_fd = process.stdin_pipe[1];
+    this->stdout_fd = &process.stdin_pipe[1];
     process.writable = false;
 #else
     this->stdout_redirect = false;
@@ -47,29 +53,49 @@ namespace aperf {
 #endif
   }
 
-  void Process::set_redirect_stderr(fs::path &path) {
+  void Process::set_redirect_stderr(fs::path path) {
     this->stderr_redirect = true;
     this->stderr_path = path;
   }
 
   int Process::start(bool wait_for_notify,
                      CPUConfig &cpu_config,
+                     bool is_profiler,
                      fs::path working_path) {
     if (wait_for_notify) {
       this->notifiable = true;
     }
 
 #ifdef BOOST_OS_UNIX
+    if (this->stdout_redirect && this->stdout_fd != nullptr &&
+        *(this->stdout_fd) == -1) {
+      throw Process::StartException();
+    }
+
     std::vector<std::string> env_entries;
 
     for (int i = 0; i < this->env.size(); i++) {
-      env_entries.push_back(this->env[i].first + "=\"" +
-                            boost::replace_all_copy(this->env[i].second,
-                                                    "\"", "\\\""));
+      env_entries.push_back(this->env[i].first + "=" + this->env[i].second);
     }
 
     if (this->notifiable && pipe(this->notify_pipe) == -1) {
       throw Process::StartException();
+    }
+
+    if (!this->stdout_redirect) {
+      if (pipe(this->stdout_pipe) == -1) {
+        if (this->notifiable) {
+        close(this->notify_pipe[0]);
+        close(this->notify_pipe[1]);
+        this->notifiable = false;
+      }
+
+        throw Process::StartException();
+      }
+
+      this->stdout_reader = std::make_unique<FileDescriptor>(this->stdout_pipe,
+                                                             nullptr,
+                                                             this->buf_size);
     }
 
     if (pipe(this->stdin_pipe) == -1) {
@@ -77,6 +103,11 @@ namespace aperf {
         close(this->notify_pipe[0]);
         close(this->notify_pipe[1]);
         this->notifiable = false;
+      }
+
+      if (!this->stdout_redirect) {
+        close(this->stdout_pipe[0]);
+        close(this->stdout_pipe[1]);
       }
 
       throw Process::StartException();
@@ -123,7 +154,7 @@ namespace aperf {
       if (this->stdout_redirect) {
         int stdout_fd;
 
-        if (this->stdout_fd == -1) {
+        if (this->stdout_fd == nullptr) {
           stdout_fd = creat(this->stdout_path.c_str(),
                                 S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
 
@@ -131,7 +162,7 @@ namespace aperf {
             std::exit(Process::ERROR_STDOUT);
           }
         } else {
-          stdout_fd = this->stdout_fd;
+          stdout_fd = *(this->stdout_fd);
         }
 
         if (dup2(stdout_fd, STDOUT_FILENO) == -1) {
@@ -139,11 +170,19 @@ namespace aperf {
         }
 
         close(stdout_fd);
+      } else {
+        if (dup2(this->stdout_pipe[1], STDOUT_FILENO) == -1) {
+          std::exit(Process::ERROR_STDOUT_DUP2);
+        }
+
+        close(this->stdout_pipe[1]);
       }
 
       if (dup2(this->stdin_pipe[0], STDIN_FILENO) == -1) {
         std::exit(Process::ERROR_STDIN_DUP2);
       }
+
+      close(this->stdin_pipe[0]);
 
       char *argv[this->command.size() + 1];
 
@@ -161,7 +200,8 @@ namespace aperf {
 
       env[env_entries.size()] = nullptr;
 
-      cpu_set_t &cpu_set = cpu_config.get_cpu_command_set();
+      cpu_set_t cpu_set = is_profiler ? cpu_config.get_cpu_profiler_set() :
+        cpu_config.get_cpu_command_set();
 
       if (sched_setaffinity(0, sizeof(cpu_set), &cpu_set) == -1) {
         std::exit(Process::ERROR_AFFINITY);
@@ -170,11 +210,28 @@ namespace aperf {
       execvpe(this->command[0].c_str(), argv, env);
 
       // This is reached only if execvpe fails
-      std::exit(errno);
+      switch (errno) {
+      case ENOENT:
+        std::exit(Process::ERROR_NOT_FOUND);
+
+      case EACCES:
+        std::exit(Process::ERROR_NO_ACCESS);
+
+      default:
+        std::exit(errno);
+      }
     }
 
     if (this->notifiable) {
       close(this->notify_pipe[0]);
+    }
+
+    close(this->stdin_pipe[0]);
+
+    if (this->stdout_redirect && this->stdout_fd != nullptr) {
+      close(*(this->stdout_fd));
+    } else if (!this->stdout_redirect) {
+      close(this->stdout_pipe[1]);
     }
 
     if (forked == -1) {
@@ -228,6 +285,18 @@ namespace aperf {
     } else {
       throw Process::NotStartedException();
     }
+  }
+
+  std::string Process::read_line() {
+    if (this->stdout_redirect) {
+      throw Process::NotReadableException();
+    }
+
+#ifdef BOOST_OS_UNIX
+    return this->stdout_reader->read();
+#else
+    throw Process::NotImplementedException();
+#endif
   }
 
   void Process::write_stdin(char *buf, unsigned int size) {
@@ -287,5 +356,29 @@ namespace aperf {
     } else {
       throw Process::NotStartedException();
     }
+  }
+
+  bool Process::is_running() {
+    if (!this->started) {
+      return false;
+    }
+
+#ifdef BOOST_OS_UNIX
+    return waitpid(this->id, nullptr, WNOHANG) == 0;
+#else
+    throw Process::NotImplementedException();
+#endif
+  }
+
+  void Process::close_stdin() {
+    if (!this->writable) {
+      throw Process::NotWritableException();
+    }
+
+#ifdef BOOST_OS_UNIX
+    close(this->stdin_pipe[1]);
+#else
+    throw Process:NotImplementedException();
+#endif
   }
 };
