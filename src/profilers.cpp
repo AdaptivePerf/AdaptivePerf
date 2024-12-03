@@ -178,6 +178,10 @@ namespace aperf {
     this->script_proc->start(false, this->cpu_config, true, result_processed);
     this->record_proc->start(false, this->cpu_config, true, result_processed);
 
+    if (this->acceptor.get() != nullptr) {
+      this->connection = this->acceptor->accept(this->buf_size);
+    }
+
     this->process = std::async([&, this]() {
       this->record_proc->close_stdin();
       int code = this->record_proc->join();
@@ -269,10 +273,6 @@ namespace aperf {
 
       return code;
     });
-
-    if (this->acceptor.get() != nullptr) {
-      this->connection = this->acceptor->accept(this->buf_size);
-    }
   }
 
   unsigned int Perf::get_thread_count() {
