@@ -350,9 +350,6 @@ namespace aperf {
     std::unique_ptr<char> buf;
     int start_pos;
 
-  protected:
-    void close();
-
   public:
     FileDescriptor(int read_fd[2],
                    int write_fd[2],
@@ -364,6 +361,7 @@ namespace aperf {
     void write(fs::path file);
     void write(unsigned int len, char *buf);
     unsigned int get_buf_size();
+    void close();
   };
 
   /**
