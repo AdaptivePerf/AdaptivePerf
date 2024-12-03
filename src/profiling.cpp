@@ -728,7 +728,7 @@ namespace aperf {
     int index = 0;
 
     for (auto &elem : dso_offsets) {
-      auto process = [index, elem, &sources, &source_files, &cpu_config]() {
+      auto process_func = [index, elem, cpu_config, &sources, &source_files]() {
         std::vector<std::string> cmd = {"addr2line", "-e", elem.first};
         Process process(cmd);
         process.start(false, cpu_config, true);
@@ -756,7 +756,7 @@ namespace aperf {
         source_files[index] = files;
       };
 
-      boost::asio::post(pool, process);
+      boost::asio::post(pool, process_func);
       index++;
     }
 
