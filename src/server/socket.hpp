@@ -109,6 +109,16 @@ namespace aperf {
     virtual void write(fs::path file) = 0;
 
     /**
+       Writes data to the connection.
+
+       @param len The number of bytes to be sent.
+       @param buf A buffer storing data to be written. Its size
+                  must be equal to or greater than the number of
+                  bytes to be sent.
+    */
+    virtual void write(unsigned int len, char *buf) = 0;
+
+    /**
        Gets the buffer size for communication, in bytes.
     */
     virtual unsigned int get_buf_size() = 0;
@@ -139,6 +149,7 @@ namespace aperf {
     virtual std::string read(long timeout_seconds = NO_TIMEOUT) = 0;
     virtual void write(std::string msg, bool new_line = true) = 0;
     virtual void write(fs::path file) = 0;
+    virtual void write(unsigned int len, char *buf) = 0;
   };
 
   /**
@@ -263,6 +274,7 @@ namespace aperf {
     std::string read(long timeout_seconds = NO_TIMEOUT);
     void write(std::string msg, bool new_line);
     void write(fs::path file);
+    void write(unsigned int len, char *buf);
   };
 
   /**
@@ -326,7 +338,6 @@ namespace aperf {
     std::string get_type();
   };
 
-#ifndef SERVER_ONLY
   /**
      A class describing a file-descriptor-based connection.
   */
@@ -339,9 +350,6 @@ namespace aperf {
     std::unique_ptr<char> buf;
     int start_pos;
 
-  protected:
-    void close();
-
   public:
     FileDescriptor(int read_fd[2],
                    int write_fd[2],
@@ -351,7 +359,9 @@ namespace aperf {
     std::string read(long timeout_seconds = NO_TIMEOUT);
     void write(std::string msg, bool new_line);
     void write(fs::path file);
+    void write(unsigned int len, char *buf);
     unsigned int get_buf_size();
+    void close();
   };
 
   /**
@@ -397,7 +407,6 @@ namespace aperf {
     std::string get_connection_instructions();
     std::string get_type();
   };
-#endif
 }
 
 #endif

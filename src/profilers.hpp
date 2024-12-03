@@ -5,6 +5,7 @@
 #define PROFILERS_HPP_
 
 #include "profiling.hpp"
+#include "process.hpp"
 #include "requirements.hpp"
 #include "print.hpp"
 #include "server/server.hpp"
@@ -57,6 +58,8 @@ namespace aperf {
     std::string name;
     std::vector<std::unique_ptr<Requirement> > requirements;
     int max_stack;
+    std::unique_ptr<Process> record_proc;
+    std::unique_ptr<Process> script_proc;
 
   public:
     Perf(fs::path perf_path,

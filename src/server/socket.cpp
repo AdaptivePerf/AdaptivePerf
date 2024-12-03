@@ -224,7 +224,17 @@ namespace aperf {
 
       const char *buf = msg.c_str();
 
-      this->socket.sendBytes(buf, msg.size());
+      int bytes_written = this->socket.sendBytes(buf, msg.size());
+
+      if (bytes_written != msg.size()) {
+        std::runtime_error err("Wrote " +
+                               std::to_string(bytes_written) +
+                               " bytes instead of " +
+                               std::to_string(msg.size()) +
+                               " to " +
+                               this->socket.address().toString());
+        throw ConnectionException(err);
+      }
     } catch (net::NetException &e) {
       throw ConnectionException(e);
     }
@@ -240,14 +250,32 @@ namespace aperf {
     }
   }
 
-#ifndef SERVER_ONLY
+  void TCPSocket::write(unsigned int len, char *buf) {
+    try {
+      int bytes_written = this->socket.sendBytes(buf, len);
+      if (bytes_written != len) {
+        std::runtime_error err("Wrote " +
+                               std::to_string(bytes_written) +
+                               " bytes instead of " +
+                               std::to_string(len) +
+                               " to " +
+                               this->socket.address().toString());
+        throw ConnectionException(err);
+      }
+    } catch (net::NetException &e) {
+      throw ConnectionException(e);
+    }
+  }
+
   /**
      Constructs a FileDescriptor object.
 
      @param read_fd  The pair of file descriptors for read()
-                     as returned by the pipe system call.
+                     as returned by the pipe system call. Can
+                     be nullptr.
      @param write_fd The pair of file descriptors for write()
-                     as returned by the pipe system call.
+                     as returned by the pipe system call. Can
+                     be nullptr.
      @param buf_size The buffer size for communication, in bytes.
   */
   FileDescriptor::FileDescriptor(int read_fd[2], int write_fd[2],
@@ -255,10 +283,22 @@ namespace aperf {
     this->buf.reset(new char[buf_size]);
     this->buf_size = buf_size;
     this->start_pos = 0;
-    this->read_fd[0] = read_fd[0];
-    this->read_fd[1] = read_fd[1];
-    this->write_fd[0] = write_fd[0];
-    this->write_fd[1] = write_fd[1];
+
+    if (read_fd != nullptr) {
+      this->read_fd[0] = read_fd[0];
+      this->read_fd[1] = read_fd[1];
+    } else {
+      this->read_fd[0] = -1;
+      this->read_fd[1] = -1;
+    }
+
+    if (write_fd != nullptr) {
+      this->write_fd[0] = write_fd[0];
+      this->write_fd[1] = write_fd[1];
+    } else {
+      this->write_fd[0] = -1;
+      this->write_fd[1] = -1;
+    }
   }
 
   FileDescriptor::~FileDescriptor() {
@@ -266,8 +306,15 @@ namespace aperf {
   }
 
   void FileDescriptor::close() {
-    ::close(this->read_fd[0]);
-    ::close(this->write_fd[1]);
+    if (this->read_fd[0] != -1) {
+      ::close(this->read_fd[0]);
+      this->read_fd[0] = -1;
+    }
+
+    if (this->write_fd[1] != -1) {
+      ::close(this->write_fd[1]);
+      this->write_fd[1] = -1;
+    }
   }
 
   int FileDescriptor::read(char *buf, unsigned int len, long timeout_seconds) {
@@ -416,6 +463,20 @@ namespace aperf {
     }
   }
 
+  void FileDescriptor::write(unsigned int len, char *buf) {
+    int bytes_written = ::write(this->write_fd[1], buf, len);
+
+    if (bytes_written != len) {
+      std::runtime_error err("Wrote " +
+                             std::to_string(bytes_written) +
+                             " bytes instead of " +
+                             std::to_string(len) +
+                             " to fd " +
+                             std::to_string(this->write_fd[1]));
+      throw ConnectionException(err);
+    }
+  }
+
   unsigned int FileDescriptor::get_buf_size() {
     return this->buf_size;
   }
@@ -482,5 +543,4 @@ namespace aperf {
   std::string PipeAcceptor::get_type() {
     return "pipe";
   }
-#endif
 }

@@ -8,6 +8,10 @@ if(COMMAND cmake_policy)
   if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.24")
     cmake_policy(SET CMP0135 NEW)
   endif()
+
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.30")
+    cmake_policy(SET CMP0167 NEW)
+  endif()
 endif()
 
 option(SERVER_ONLY "Compile only adaptiveperf-server (OS-portable)" OFF)
@@ -25,7 +29,7 @@ else()
     LANGUAGES CXX)
 endif()
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -85,21 +89,31 @@ if(NOT SERVER_ONLY)
   add_library(profilers.o OBJECT src/profilers.cpp)
   add_library(profiling.o OBJECT src/profiling.cpp)
   add_library(requirements.o OBJECT src/requirements.cpp)
+  add_library(archive.o OBJECT src/archive.cpp)
+  add_library(process.o OBJECT src/process.cpp)
 
   target_compile_definitions(profilers.o PRIVATE APERF_SCRIPT_PATH="${APERF_SCRIPT_PATH}")
   target_compile_definitions(main_entrypoint.o PRIVATE APERF_CONFIG_FILE="${APERF_CONFIG_PATH}")
 
   find_package(Boost REQUIRED program_options)
 
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.30")
+    message(STATUS "Found Boost: headers inside ${Boost_INCLUDE_DIRS}, version ${Boost_VERSION_STRING}")
+  endif()
+
+  find_package(LibArchive REQUIRED)
+
   target_link_libraries(adaptiveperf PRIVATE nlohmann_json::nlohmann_json)
   target_link_libraries(adaptiveperf PRIVATE Poco::Foundation Poco::Net)
   target_link_libraries(adaptiveperf PRIVATE CLI11::CLI11)
   target_link_libraries(adaptiveperf PRIVATE Boost::program_options)
+  target_link_libraries(adaptiveperf PRIVATE LibArchive::LibArchive)
 
   target_include_directories(adaptiveperf PRIVATE ${nlohmann_json_INCLUDE_DIRS})
   target_include_directories(adaptiveperf PRIVATE ${Poco_INCLUDE_DIRS})
   target_include_directories(adaptiveperf PRIVATE ${CLI11_INCLUDE_DIRS})
   target_include_directories(adaptiveperf PRIVATE ${Boost_INCLUDE_DIRS})
+  target_include_directories(adaptiveperf PRIVATE ${LibArchive_INCLUDE_DIRS})
 
   find_library(LIBNUMA
     NAMES numa
@@ -134,7 +148,7 @@ if(NOT SERVER_ONLY)
 
   target_link_libraries(adaptiveperf PRIVATE aperfserv)
   target_link_libraries(adaptiveperf PRIVATE
-    profiling.o requirements.o profilers.o print.o main_entrypoint.o version.o)
+    profiling.o requirements.o profilers.o print.o archive.o main_entrypoint.o process.o version.o)
 endif()
 
 if (ENABLE_TESTS)

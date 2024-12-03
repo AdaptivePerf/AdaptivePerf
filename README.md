@@ -34,7 +34,7 @@ Work is being done towards eliminating all of the limitations below step-by-step
 * No support for non-CPU devices such as GPUs
 * No support for partial profiling
 * No API for profiling result analysis (only flame graphs can be produced right now)
-* No profiling with line number / compiler IR / assembly details
+* No profiling with ~~line number /~~ compiler IR / assembly details (profiling with user-source-code-level information is supported now)
 
 ## Installation
 ### Requirements
@@ -45,6 +45,7 @@ By default, the full suite is installed, i.e. ```adaptiveperf``` and ```adaptive
   * If you want complete kernel debug symbols, ```CONFIG_KALLSYMS=y``` and ```CONFIG_KALLSYMS_ALL=y``` (or equivalent) should also be set.
   * **Kernel recompilation may NOT be needed! If you have ```/sys/kernel/btf``` and ```/sys/kernel/tracing/events/syscalls``` as explained above and you don't care about having kernel debug symbols, you're already good to go here!**
 * Python 3
+* addr2line (part of binutils)
 * CMake 3.20 or newer (if building from source)
 * libnuma (if a machine with your profiled application has NUMA)
 * [CLI11](https://github.com/CLIUtils/CLI11) (if building from source)
@@ -86,6 +87,8 @@ If you want to install just adaptiveperf-server, please clone this repository an
 ```./install.sh``` supports a custom installation prefix, see the "Manually" section above. adaptiveperf-server does not require the patched "perf" and should be compilable for various operating systems (the scripts are only tested on Linux though).
 
 ### Gentoo-based virtual machine image with frame pointers
+**WARNING: There is an issue with the CI/CD pipeline causing the VM images to be corrupted, so this installation option is not available now. Please use Docker/Apptainer/Singularity container images instead. This note will disappear when the problem is fixed. Sorry for the inconvenience!**
+
 Given the complexity of setting up a machine with a recent enough Linux kernel, frame pointers etc., we make available ready-to-use x86-64 Gentoo-based qcow2 images with AdaptivePerf set up. They're also configured for out-of-the-box reliable ```perf``` profiling, such as permanently-set profiling-related kernel parameters and ensuring that everything in the system is compiled with frame pointers.
 
 The images are denoted either by "latest" (which corresponds to the latest commit in the ```main``` branch and **is recommended until the first non-dev release**) or by branch names and can be downloaded from https://cernbox.cern.ch/s/FAzoFWvh2kzNtUx. They must be booted in the UEFI mode.

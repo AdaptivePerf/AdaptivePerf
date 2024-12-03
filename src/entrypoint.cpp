@@ -269,7 +269,7 @@ namespace aperf {
         return 1;
       }
 
-      cpu_set_t &cpu_set = cpu_config.get_cpu_profiler_set();
+      cpu_set_t cpu_set = cpu_config.get_cpu_profiler_set();
       sched_setaffinity(0, sizeof(cpu_set), &cpu_set);
 
       std::vector<std::unique_ptr<Profiler> > profilers;
@@ -281,6 +281,14 @@ namespace aperf {
                                                  "Thread tree profiler"));
       profilers.push_back(std::make_unique<Perf>(perf_path, main, cpu_config,
                                                  "On-CPU/Off-CPU profiler"));
+
+      PipeAcceptor::Factory generic_acceptor_factory;
+
+      for (int i = 0; i < profilers.size(); i++) {
+        std::unique_ptr<Acceptor> acceptor =
+          generic_acceptor_factory.make_acceptor(1);
+        profilers[i]->set_acceptor(acceptor, server_buffer);
+      }
 
       std::unordered_map<std::string, std::string> event_dict;
 

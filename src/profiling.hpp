@@ -14,6 +14,7 @@
 #include <queue>
 #include <sched.h>
 #include <thread>
+#include "server/socket.hpp"
 
 namespace aperf {
   namespace fs = std::filesystem;
@@ -77,10 +78,10 @@ namespace aperf {
 
   public:
     CPUConfig(std::string mask);
-    bool is_valid();
-    int get_profiler_thread_count();
-    cpu_set_t &get_cpu_profiler_set();
-    cpu_set_t &get_cpu_command_set();
+    bool is_valid() const;
+    int get_profiler_thread_count() const;
+    cpu_set_t get_cpu_profiler_set() const;
+    cpu_set_t get_cpu_command_set() const;
   };
 
   /**
@@ -102,6 +103,11 @@ namespace aperf {
      A class describing a profiler.
   */
   class Profiler {
+  protected:
+    std::unique_ptr<Acceptor> acceptor;
+    std::unique_ptr<Connection> connection;
+    unsigned int buf_size;
+
   public:
     virtual ~Profiler() { }
 
@@ -111,7 +117,8 @@ namespace aperf {
     virtual std::string get_name() = 0;
 
     /**
-       Starts the profiler.
+       Starts the profiler (and establishes the generic message connection
+       if the acceptor is set via set_acceptor()).
 
        @param pid                 The PID of a process the profiler should
                                   be attached to. This may be left unused by
@@ -163,6 +170,31 @@ namespace aperf {
        to run.
     */
     virtual std::vector<std::unique_ptr<Requirement> > &get_requirements() = 0;
+
+    /**
+       Sets the acceptor used for establishing a connection for
+       exchanging generic messages with the profiler.
+
+       @param acceptor The acceptor to use.
+       @param buf_size The buffer size for a connection that the
+                       acceptor will accept.
+    */
+    void set_acceptor(std::unique_ptr<Acceptor> &acceptor,
+                      unsigned int buf_size) {
+      this->acceptor = std::move(acceptor);
+      this->buf_size = buf_size;
+    }
+
+    /**
+       Gets the connection used for exchanging generic messages with
+       the profiler.
+
+       WARNING: A null pointer will be returned if start() hasn't been
+       called before or the acceptor is not set via set_acceptor().
+    */
+    std::unique_ptr<Connection> &get_connection() {
+      return this->connection;
+    }
   };
 
   CPUConfig get_cpu_config(int post_processing_threads, bool external_server);

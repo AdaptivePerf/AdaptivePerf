@@ -6,7 +6,8 @@
 #include "profiling.hpp"
 #include "print.hpp"
 #include "server/server.hpp"
-#include <unistd.h>
+#include "archive.hpp"
+#include "process.hpp"
 #include <filesystem>
 #include <iomanip>
 #include <queue>
@@ -22,6 +23,8 @@
 #include <boost/core/demangle.hpp>
 #include <boost/algorithm/string.hpp>
 #include <boost/program_options/parsers.hpp>
+#include <nlohmann/json.hpp>
+#include <boost/asio.hpp>
 
 #define NOTIFY_TIMEOUT 5
 #define FILE_TIMEOUT 30
@@ -78,7 +81,7 @@ namespace aperf {
      A CPUConfig object can be invalid only if the string mask used
      for its construction is invalid.
   */
-  bool CPUConfig::is_valid() {
+  bool CPUConfig::is_valid() const {
     return this->valid;
   }
 
@@ -86,7 +89,7 @@ namespace aperf {
      Returns the number of profiler threads that can be spawned
      based on how many cores are allowed for doing the profiling.
   */
-  int CPUConfig::get_profiler_thread_count() {
+  int CPUConfig::get_profiler_thread_count() const {
     return this->profiler_thread_count;
   }
 
@@ -94,7 +97,7 @@ namespace aperf {
      Returns the sched_setaffinity-compatible CPU set for doing
      the profiling.
   */
-  cpu_set_t & CPUConfig::get_cpu_profiler_set() {
+  cpu_set_t CPUConfig::get_cpu_profiler_set() const {
     return this->cpu_profiler_set;
   }
 
@@ -102,7 +105,7 @@ namespace aperf {
      Returns the sched_setaffinity-compatible CPU set for running
      the profiled command.
   */
-  cpu_set_t & CPUConfig::get_cpu_command_set() {
+  cpu_set_t CPUConfig::get_cpu_command_set() const {
     return this->cpu_command_set;
   }
 
@@ -366,83 +369,13 @@ namespace aperf {
 
     print("Starting profiled program wrapper...", true, false);
 
-    int parent_to_wrapper_pipe[2];
+    Process wrapper(command_elements);
 
-    if (pipe(parent_to_wrapper_pipe) == -1) {
-      print("Could not create communication pipe for the profiled command wrapper! Exiting.",
-            true, true);
-      return 2;
-    }
+    wrapper.set_redirect_stdout(result_out / "stdout.log");
+    wrapper.set_redirect_stderr(result_out / "stderr.log");
 
-    const int ERROR_START_PROFILE = 200;
-    const int ERROR_STDOUT = 201;
-    const int ERROR_STDERR = 202;
-    const int ERROR_STDOUT_DUP2 = 203;
-    const int ERROR_STDERR_DUP2 = 204;
-    const int ERROR_AFFINITY = 205;
-
-    const char *path = command_elements[0].c_str();
-    char *parts_c_str[command_elements.size() + 1];
-
-    for (int i = 0; i < command_elements.size(); i++) {
-      parts_c_str[i] = (char *)command_elements[i].c_str();
-    }
-
-    parts_c_str[command_elements.size()] = NULL;
-
-    pid_t forked = fork();
-
-    if (forked == 0) {
-      // This executes in a separate process with everything effectively copied (NOT shared!)
-      close(parent_to_wrapper_pipe[1]);
-      char buf;
-      int bytes_read = 0;
-      int received = ::read(parent_to_wrapper_pipe[0], &buf, 1);
-      close(parent_to_wrapper_pipe[0]);
-
-      if (received <= 0 || buf != 0x03) {
-        std::exit(ERROR_START_PROFILE);
-      }
-
-      int stdout_fd = creat((result_out / "stdout.log").c_str(),
-                            S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-
-      if (stdout_fd == -1) {
-        std::exit(ERROR_STDOUT);
-      }
-
-      int stderr_fd = creat((result_out / "stderr.log").c_str(),
-                            S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-
-      if (stderr_fd == -1) {
-        std::exit(ERROR_STDERR);
-      }
-
-      if (dup2(stdout_fd, STDOUT_FILENO) == -1) {
-        std::exit(ERROR_STDOUT_DUP2);
-      }
-
-      if (dup2(stderr_fd, STDERR_FILENO) == -1) {
-        std::exit(ERROR_STDERR_DUP2);
-      }
-
-      close(stdout_fd);
-      close(stderr_fd);
-
-      cpu_set_t &cpu_set = cpu_config.get_cpu_command_set();
-
-      if (sched_setaffinity(0, sizeof(cpu_set), &cpu_set) == -1) {
-        std::exit(ERROR_AFFINITY);
-      }
-
-      execvp(path, parts_c_str);
-
-      // This is reached only if execvp fails
-      std::exit(errno);
-    }
-
-    close(parent_to_wrapper_pipe[0]);
-    spawned_children.push_back(forked);
+    int wrapper_id = wrapper.start(true, cpu_config, false);
+    spawned_children.push_back(wrapper_id);
 
     if (server_address == "") {
       print("Starting adaptiveperf-server and profilers...", true, false);
@@ -523,7 +456,7 @@ namespace aperf {
     ServerConnInstrs connection_instrs(all_connection_instrs);
 
     for (int i = 0; i < profilers.size(); i++) {
-      profilers[i]->start(forked, connection_instrs, result_out,
+      profilers[i]->start(wrapper_id, connection_instrs, result_out,
                           result_processed, true);
     }
 
@@ -532,7 +465,7 @@ namespace aperf {
           tmp_dir.string() + ".", true, false);
 
     auto profiler_and_wrapper_handler =
-      [&](int status, long start_time, long end_time) {
+      [&](int code, long start_time, long end_time) {
         bool error = false;
         for (int i = 0; i < profilers.size(); i++) {
           int code = profilers[i]->wait();
@@ -547,18 +480,16 @@ namespace aperf {
           print("One or more profilers have encountered an error.", true, true);
         }
 
-        int code = WEXITSTATUS(status);
-
         if (code == 0) {
           if (start_time != -1 && end_time != -1) {
             print("Command execution completed in ~" +
                       std::to_string(end_time - start_time) + " ms!",
                   true, false);
           }
-        } else if (code == ENOENT) {
+        } else if (code == Process::ERROR_NOT_FOUND) {
           print("Provided command does not exist!", true, true);
           error = true;
-        } else if (code == EACCES) {
+        } else if (code == Process::ERROR_NO_ACCESS) {
           print("Cannot access the provided command!", true, true);
           print("Hint: You may want to mark your file as executable by running \"chmod +x <file>\".", true, true);
           error = true;
@@ -567,35 +498,35 @@ namespace aperf {
                 std::to_string(code) + ".", true, true);
 
           switch (code) {
-          case ERROR_START_PROFILE:
+          case Process::ERROR_START_PROFILE:
             print("Hint: Code " + std::to_string(code) + " suggests something "
                   "bad happened when instructing the wrapper to execute the "
                   "profiled command.", true, true);
             break;
 
-          case ERROR_STDOUT:
+          case Process::ERROR_STDOUT:
             print("Hint: Code " + std::to_string(code) + " suggests something "
                   "bad happened when opening the stdout log file for writing.", true, true);
             break;
 
-          case ERROR_STDERR:
+          case Process::ERROR_STDERR:
             print("Hint: Code " + std::to_string(code) + " suggests something "
                   "bad happened when opening the stderr log file for writing.", true, true);
             break;
 
-          case ERROR_STDOUT_DUP2:
+          case Process::ERROR_STDOUT_DUP2:
             print("Hint: Code " + std::to_string(code) + " suggests something "
                   "bad happened when redirecting stdout of the profiled command "
                   "wrapper to the stdout log file.", true, true);
             break;
 
-          case ERROR_STDERR_DUP2:
+          case Process::ERROR_STDERR_DUP2:
             print("Hint: Code " + std::to_string(code) + " suggests something "
                   "bad happened when redirecting stderr of the profiled command "
                   "wrapper to the stderr log file.", true, true);
             break;
 
-          case ERROR_AFFINITY:
+          case Process::ERROR_AFFINITY:
             print("Hint: Code " + std::to_string(code) + " suggests something "
                   "bad happened when isolating the profiled command wrapper "
                   "CPU-wise from the profilers.", true, true);
@@ -620,11 +551,8 @@ namespace aperf {
         notification_msg = connection->read(NOTIFY_TIMEOUT);
         break;
       } catch (TimeoutException &e) {
-        int status = waitpid(forked, nullptr, WNOHANG);
-
-        if (status != 0) {
-          int code = profiler_and_wrapper_handler(status, -1, -1);
-
+        if (!wrapper.is_running()) {
+          int code = profiler_and_wrapper_handler(wrapper.join(), -1, -1);
           if (code != 0) {
             return code;
           }
@@ -659,23 +587,14 @@ namespace aperf {
     auto start_time =
       ch::duration_cast<ch::milliseconds>(ch::system_clock::now().time_since_epoch()).count();
 
-    char to_send = 0x03;
-    ::write(parent_to_wrapper_pipe[1], &to_send, 1);
-
-    int status;
-
-    pid_t result = waitpid(forked, &status, 0);
-
-    if (result != forked) {
-      print("Could not properly wait for the profiled program or its wrapper to finish! Exiting.",
-            true, true);
-      return 2;
-    }
+    wrapper.notify();
+    wrapper.close_stdin();
+    int exit_code = wrapper.join();
 
     auto end_time =
       ch::duration_cast<ch::milliseconds>(ch::system_clock::now().time_since_epoch()).count();
 
-    int code = profiler_and_wrapper_handler(status, start_time, end_time);
+    int code = profiler_and_wrapper_handler(exit_code, start_time, end_time);
 
     if (code != 0) {
       return code;
@@ -692,46 +611,174 @@ namespace aperf {
     print("Processing results...", false, false);
 
     std::unordered_set<fs::path> perf_map_paths;
-    std::vector<fs::path> to_remove;
-
+    std::unordered_map<std::string, std::unordered_set<std::string> > dso_offsets;
     bool perf_maps_expected = false;
 
-    for (auto &elem : fs::directory_iterator(result_processed)) {
-      if (!elem.is_regular_file()) {
+    for (int i = 0; i < profilers.size(); i++) {
+      std::unique_ptr<Connection> &generic_connection = profilers[i]->get_connection();
+
+      if (generic_connection.get() == nullptr) {
         continue;
       }
 
-      fs::path path = elem.path();
+      std::string line;
 
-      if (std::regex_match(path.filename().string(),
-                           std::regex("^perf_map_paths_.*\\.data$"))) {
-        std::ifstream stream(path);
-
-        while (stream) {
-          std::string line;
-          std::getline(stream, line);
-          boost::trim(line);
-
-          if (!line.empty()) {
-            fs::path perf_map_path(line);
-
-            if (fs::exists(perf_map_path)) {
-              perf_map_paths.insert(perf_map_path);
-            } else {
-              print("A symbol map is expected in " +
-                    fs::absolute(perf_map_path).string() +
-                    ", but it hasn't been found!", true, false);
-              perf_maps_expected = true;
-            }
-          }
+      while ((line = generic_connection->read()) != "<STOP>") {
+        if (line.empty()) {
+          continue;
         }
 
-        to_remove.push_back(path);
+        try {
+          nlohmann::json parsed = nlohmann::json::parse(line);
+
+          if (!parsed.is_object()) {
+            print("Message received from profiler \"" +
+                  profilers[i]->get_name() + "\" "
+                  "is not a JSON object, ignoring.", true, false);
+            continue;
+          }
+
+          if (parsed.size() != 2 || !parsed.contains("type") ||
+              !parsed.contains("data")) {
+            print("Message received from profiler \"" +
+                  profilers[i]->get_name() + "\" "
+                  "is not a JSON object with exactly 2 elements (\"type\" and "
+                  "\"data\"), ignoring.", true, false);
+          }
+
+          if (parsed["type"] == "symbol_maps") {
+            if (!parsed["data"].is_array()) {
+              print("Message received from profiler \"" +
+                    profilers[i]->get_name() + "\" "
+                    "is a JSON object of type \"symbol_maps\", but its \"data\" "
+                    "element is not a JSON array, ignoring.", true, false);
+              continue;
+            }
+
+            int index = -1;
+            for (auto &elem : parsed["data"]) {
+              index++;
+
+              if (!elem.is_string()) {
+                print("Element " + std::to_string(index) +
+                      " in the array in the message "
+                      "of type \"symbol_maps\" received from profiler \"" +
+                      profilers[i]->get_name() +
+                      "\" is not a string, ignoring this element.", true, false);
+                continue;
+              }
+
+              fs::path perf_map_path(elem.get<std::string>());
+
+              if (fs::exists(perf_map_path)) {
+                perf_map_paths.insert(perf_map_path);
+              } else {
+                print("A symbol map is expected in " +
+                      fs::absolute(perf_map_path).string() +
+                      ", but it hasn't been found!",
+                      true, false);
+                perf_maps_expected = true;
+              }
+            }
+          } else if (parsed["type"] == "sources") {
+            if (!parsed["data"].is_object()) {
+              print("Message received from profiler \"" +
+                    profilers[i]->get_name() + "\" "
+                    "is a JSON object of type \"sources\", but its \"data\" "
+                    "element is not a JSON object, ignoring.", true, false);
+              continue;
+            }
+
+            int index = -1;
+            for (auto &elem : parsed["data"].items()) {
+              index++;
+
+              if (!elem.value().is_array()) {
+                print("Element \"" + elem.key() + "\" in the data object of "
+                      "type \"sources\" received from profiler \"" +
+                      profilers[i]->get_name() + "\" is not a JSON array, "
+                      "ignoring this element.", true, false);
+                continue;
+              }
+
+              if (fs::exists(elem.key())) {
+                if (dso_offsets.find(elem.key()) == dso_offsets.end()) {
+                  dso_offsets[elem.key()] = std::unordered_set<std::string>();
+                }
+
+                for (auto &offset : elem.value()) {
+                  dso_offsets[elem.key()].insert(offset);
+                }
+              }
+            }
+          }
+        } catch (nlohmann::json::exception) {
+          print("Message received from profiler \"" +
+                profilers[i]->get_name() + "\" "
+                "is not valid JSON, ignoring.", true, false);
+        }
       }
     }
 
-    for (auto &path : to_remove) {
-      fs::remove(path);
+    nlohmann::json sources_json = nlohmann::json::object();
+
+    // The number of threads needs to stay at 1 here because of a bug
+    // (a race condition?) causing randomly addr2line not to terminate after
+    // the stdin pipe is closed.
+    //
+    // TODO: fix this
+    boost::asio::thread_pool pool(1);
+
+    std::pair<std::string, nlohmann::json> sources[dso_offsets.size()];
+    std::unordered_set<fs::path> source_files[dso_offsets.size()];
+
+    int index = 0;
+
+    for (auto &elem : dso_offsets) {
+      auto process_func = [index, elem, cpu_config, &sources, &source_files]() {
+        std::vector<std::string> cmd = {"addr2line", "-e", elem.first};
+        Process process(cmd);
+        process.start(false, cpu_config, true);
+
+        nlohmann::json result;
+        std::unordered_set<fs::path> files;
+
+        for (auto &offset : elem.second) {
+          std::string to_write = offset + '\n';
+          process.write_stdin((char *)to_write.c_str(), to_write.size());
+          std::vector<std::string> parts;
+          boost::split(parts, process.read_line(), boost::is_any_of(":"));
+
+          if (parts.size() == 2) {
+            try {
+              result[offset] = nlohmann::json::object();
+              result[offset]["file"] = parts[0];
+              result[offset]["line"] = std::stoi(parts[1]);
+              files.insert(parts[0]);
+            } catch (...) { }
+          }
+        }
+
+        sources[index] = std::make_pair(elem.first, result);
+        source_files[index] = files;
+      };
+
+      boost::asio::post(pool, process_func);
+      index++;
+    }
+
+    pool.join();
+
+    std::unordered_set<fs::path> src_paths;
+
+    for (int i = 0; i < dso_offsets.size(); i++) {
+      sources_json[sources[i].first].swap(sources[i].second);
+
+      for (auto &elem : source_files[i]) {
+        if (fs::exists(elem)) {
+          src_paths.insert(elem);
+        }
+      }
     }
 
     if (perf_maps_expected) {
@@ -821,19 +868,19 @@ namespace aperf {
         return 2;
       }
 
-      auto check_file_transfer = [&](const fs::path &path) {
+      auto check_data_transfer = [&](std::string title) {
         std::string status = connection->read();
 
         if (status == "error_out_file") {
-          print("Could not send " + path.filename().string() + "!", true, true);
+          print("Could not send " + title + "!", true, true);
           transfer_error = true;
         } else if (status == "error_out_file_timeout") {
-          print("Could not send " + path.filename().string() + " due to timeout!",
+          print("Could not send " + title + " due to timeout!",
                 true, true);
           transfer_error = true;
         } else if (status != "out_file_ok") {
           print("Could not obtain confirmation of correct transfer of " +
-                path.filename().string() + "!", true, true);
+                title + "!", true, true);
           transfer_error = true;
         }
       };
@@ -855,7 +902,49 @@ namespace aperf {
           }
         }
 
-        check_file_transfer(path);
+        check_data_transfer(path.filename().string());
+      }
+
+      if (!src_paths.empty()) {
+        connection->write("p src.zip", true);
+        nlohmann::json src_mapping = nlohmann::json::object();
+
+        try {
+          std::unique_ptr<Connection> file_connection = get_file_connection();
+          Archive archive(file_connection, false, buf_size);
+
+          for (const fs::path &path : src_paths) {
+            std::string filename = std::to_string(src_mapping.size()) + path.extension().string();
+            src_mapping[path.string()] = filename;
+            archive.add_file(filename, path);
+          }
+
+          std::string src_mapping_str = nlohmann::to_string(src_mapping) + '\n';
+          std::stringstream s;
+          s << src_mapping_str;
+          archive.add_file_stream("index.json", s, src_mapping_str.length());
+
+          archive.close();
+        } catch (nlohmann::json::exception &e) {
+          print("A JSON error related to creating the source code archive has occurred! "
+                "Details: " + std::string(e.what()), true, true);
+        } catch (Archive::Exception &e) {
+          print("A source code archive creation error has occurred! "
+                "Details: " + std::string(e.what()), true, true);
+        }
+
+        check_data_transfer("the source code archive");
+      }
+
+      if (!sources_json.empty()) {
+        connection->write("p sources.json", true);
+
+        {
+          std::unique_ptr<Connection> file_connection = get_file_connection();
+          file_connection->write(nlohmann::to_string(sources_json));
+        }
+
+        check_data_transfer("the source code detail index");
       }
 
       for (auto &elem : fs::directory_iterator(result_processed)) {
@@ -877,7 +966,7 @@ namespace aperf {
           file_connection->write(path);
         }
 
-        check_file_transfer(path);
+        check_data_transfer(path.filename().string());
       }
 
       for (auto &elem : fs::directory_iterator(result_out)) {
@@ -899,7 +988,7 @@ namespace aperf {
           file_connection->write(path);
         }
 
-        check_file_transfer(path);
+        check_data_transfer(path.filename().string());
       }
 
       connection->write("<STOP>", true);
@@ -919,6 +1008,37 @@ namespace aperf {
         for (std::string &new_line : result) {
           ostream << new_line << std::endl;
         }
+      }
+
+      if (!src_paths.empty()) {
+        try {
+          Archive archive(result_processed / "src.zip");
+          nlohmann::json src_mapping = nlohmann::json::object();
+
+          for (const fs::path &path : src_paths) {
+            std::string filename = std::to_string(src_mapping.size()) + path.extension().string();
+            src_mapping[path.string()] = filename;
+            archive.add_file(filename, path);
+          }
+
+          std::string src_mapping_str = nlohmann::to_string(src_mapping) + '\n';
+          std::stringstream s;
+          s << src_mapping_str;
+          archive.add_file_stream("index.json", s, src_mapping_str.length());
+
+          archive.close();
+        } catch (nlohmann::json::exception &e) {
+          print("A JSON error related to creating the source code archive has occurred! "
+                "Details: " + std::string(e.what()), true, true);
+        } catch (Archive::Exception &e) {
+          print("A source code archive creation error has occurred! "
+                "Details: " + std::string(e.what()), true, true);
+        }
+      }
+
+      if (!sources_json.empty()) {
+        std::ofstream ostream(result_processed / "sources.json");
+        ostream << sources_json << std::endl;
       }
     }
 

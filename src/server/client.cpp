@@ -97,7 +97,7 @@ namespace aperf {
         threads[i].get();
         nlohmann::json &thread_result = subclients[i]->get_result();
         for (auto &elem : thread_result.items()) {
-          if (elem.key() == "<SYSCALL_TREE>") {
+          if (elem.key() == "syscall_meta") {
             start_time = elem.value()[0];
 
             for (auto &tid : elem.value()[1]) {
@@ -109,7 +109,7 @@ namespace aperf {
 
               tids.insert(tid_str);
             }
-          } else if (elem.key() == "<SYSCALL>") {
+          } else if (elem.key() == "syscall") {
             for (auto &elem2 : elem.value().items()) {
               metadata["callchains"][elem2.key()].swap(elem2.value());
             }
@@ -117,7 +117,7 @@ namespace aperf {
         }
 
         for (auto &elem : thread_result.items()) {
-          if (elem.key().rfind("<SAMPLE>", 0) == 0) {
+          if (elem.key().rfind("sample", 0) == 0) {
             for (auto &elem2 : elem.value().items()) {
               if (elem2.value()["first_time"] >= start_time) {
                 std::regex pid_tid_regex("^(\\d+)_(\\d+)$");
