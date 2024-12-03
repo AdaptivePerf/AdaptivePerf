@@ -721,7 +721,14 @@ namespace aperf {
     }
 
     nlohmann::json sources_json = nlohmann::json::object();
-    boost::asio::thread_pool pool(cpu_config.get_profiler_thread_count());
+
+    // The number of threads needs to stay at 1 here because of a bug
+    // (a race condition?) causing randomly addr2line not to terminate after
+    // the stdin pipe is closed.
+    //
+    // TODO: fix this
+    boost::asio::thread_pool pool(1);
+
     std::pair<std::string, nlohmann::json> sources[dso_offsets.size()];
     std::unordered_set<fs::path> source_files[dso_offsets.size()];
 
