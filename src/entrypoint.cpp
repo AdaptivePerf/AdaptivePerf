@@ -282,14 +282,6 @@ namespace aperf {
       profilers.push_back(std::make_unique<Perf>(perf_path, main, cpu_config,
                                                  "On-CPU/Off-CPU profiler"));
 
-      PipeAcceptor::Factory generic_acceptor_factory;
-
-      for (int i = 0; i < profilers.size(); i++) {
-        std::unique_ptr<Acceptor> acceptor =
-          generic_acceptor_factory.make_acceptor(1);
-        profilers[i]->set_acceptor(acceptor, server_buffer);
-      }
-
       std::unordered_map<std::string, std::string> event_dict;
 
       for (std::string &event_str : event_strs) {
@@ -305,6 +297,14 @@ namespace aperf {
                                                    event_name));
 
         event_dict[event_name] = website_title;
+      }
+
+      PipeAcceptor::Factory generic_acceptor_factory;
+
+      for (int i = 0; i < profilers.size(); i++) {
+        std::unique_ptr<Acceptor> acceptor =
+          generic_acceptor_factory.make_acceptor(1);
+        profilers[i]->set_acceptor(acceptor, server_buffer);
       }
 
       pid_t current_pid = getpid();
