@@ -45,6 +45,7 @@ By default, the full suite is installed, i.e. ```adaptiveperf``` and ```adaptive
   * If you want complete kernel debug symbols, ```CONFIG_KALLSYMS=y``` and ```CONFIG_KALLSYMS_ALL=y``` (or equivalent) should also be set.
   * **Kernel recompilation may NOT be needed! If you have ```/sys/kernel/btf``` and ```/sys/kernel/tracing/events/syscalls``` as explained above and you don't care about having kernel debug symbols, you're already good to go here!**
 * Python 3
+* addr2line (part of binutils)
 * CMake 3.20 or newer (if building from source)
 * libnuma (if a machine with your profiled application has NUMA)
 * [CLI11](https://github.com/CLIUtils/CLI11) (if building from source)
