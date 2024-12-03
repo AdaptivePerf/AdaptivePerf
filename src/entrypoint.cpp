@@ -9,6 +9,7 @@
 #include "cmd.hpp"
 #include <boost/algorithm/string.hpp>
 #include <boost/program_options/parsers.hpp>
+#include <boost/predef.h>
 #include <regex>
 #include <sys/wait.h>
 
@@ -150,6 +151,15 @@ namespace aperf {
       ->option_text("EVENT,PERIOD,TITLE")
       ->take_all();
 
+#ifdef BOOST_ARCH_X86
+    unsigned int roofline_freq = 0;
+    app.add_option("-r,--roofline", roofline_freq, "Add perf events for "
+                   "cache-aware roofline profiling with the specified sampling "
+                   "frequency per second (default: 0 meaning \"disabled\")")
+      ->check(OnlyMinRange(0))
+      ->option_text("UINT");
+#endif
+
     quiet = false;
     app.add_flag("-q,--quiet", quiet, "Do not print anything (if set, check "
                  "exit code for any errors)");
@@ -281,6 +291,21 @@ namespace aperf {
                                                  "Thread tree profiler"));
       profilers.push_back(std::make_unique<Perf>(perf_path, main, cpu_config,
                                                  "On-CPU/Off-CPU profiler"));
+
+#ifdef BOOST_ARCH_X86
+      if (roofline_freq > 0) {
+        std::string freq = std::to_string(roofline_freq);
+        event_strs.push_back("fp_arith_inst_retired.scalar_single," + freq + ",CARM_SSP");
+        event_strs.push_back("fp_arith_inst_retired.scalar_double," + freq + ",CARM_SDP");
+        event_strs.push_back("fp_arith_inst_retired.128b_packed_single," + freq + ",CARM_SSESP");
+        event_strs.push_back("fp_arith_inst_retired.128b_packed_double," + freq + ",CARM_SSEDP");
+        event_strs.push_back("fp_arith_inst_retired.256b_packed_single," + freq + ",CARM_AVX2SP");
+        event_strs.push_back("fp_arith_inst_retired.256b_packed_double," + freq + ",CARM_AVX2DP");
+        event_strs.push_back("fp_arith_inst_retired.512b_packed_single," + freq + ",CARM_AVX512SP");
+        event_strs.push_back("fp_arith_inst_retired.512b_packed_double," + freq + ",CARM_AVX512DP");
+        event_strs.push_back("mem_inst_retired.any," + freq + ",CARM_MEM_LDST");
+      }
+#endif
 
       std::unordered_map<std::string, std::string> event_dict;
 
