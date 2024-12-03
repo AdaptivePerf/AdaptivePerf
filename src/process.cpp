@@ -29,7 +29,26 @@ namespace aperf {
     this->notify_pipe[1] = -1;
     this->stdin_pipe[0] = -1;
     this->stdin_pipe[1] = -1;
+    this->stdout_pipe[0] = -1;
+    this->stdout_pipe[1] = -1;
 #endif
+  }
+
+  Process::~Process() {
+    if (this->started) {
+#ifdef BOOST_OS_UNIX
+      if (this->writable &&
+          this->stdin_writer.get() != nullptr) {
+        this->stdin_writer->close();
+      }
+
+      if (this->notifiable) {
+        close(this->notify_pipe[1]);
+      }
+
+      waitpid(this->id, nullptr, 0);
+#endif
+    }
   }
 
   void Process::add_env(std::string key, std::string value) {
@@ -59,7 +78,7 @@ namespace aperf {
   }
 
   int Process::start(bool wait_for_notify,
-                     CPUConfig &cpu_config,
+                     const CPUConfig &cpu_config,
                      bool is_profiler,
                      fs::path working_path) {
     if (wait_for_notify) {
@@ -91,10 +110,10 @@ namespace aperf {
     if (!this->stdout_redirect) {
       if (pipe(this->stdout_pipe) == -1) {
         if (this->notifiable) {
-        close(this->notify_pipe[0]);
-        close(this->notify_pipe[1]);
-        this->notifiable = false;
-      }
+          close(this->notify_pipe[0]);
+          close(this->notify_pipe[1]);
+          this->notifiable = false;
+        }
 
         throw Process::StartException();
       }
@@ -119,6 +138,12 @@ namespace aperf {
       throw Process::StartException();
     }
 
+    if (this->writable) {
+      this->stdin_writer = std::make_unique<FileDescriptor>(nullptr,
+                                                            this->stdin_pipe,
+                                                            this->buf_size);
+    }
+
     pid_t forked = fork();
 
     if (forked == 0) {
@@ -130,7 +155,7 @@ namespace aperf {
         char buf;
         int bytes_read = 0;
         int received = ::read(this->notify_pipe[0], &buf, 1);
-        close(this->notify_pipe[1]);
+        close(this->notify_pipe[0]);
 
         if (received <= 0 || buf != 0x03) {
           std::exit(Process::ERROR_START_PROFILE);
@@ -138,6 +163,7 @@ namespace aperf {
       }
 
       close(this->stdin_pipe[1]);
+      close(this->stdout_pipe[0]);
 
       fs::current_path(working_path);
 
@@ -155,7 +181,6 @@ namespace aperf {
 
         close(stderr_fd);
       }
-
 
       if (this->stdout_redirect) {
         int stdout_fd;
@@ -206,10 +231,10 @@ namespace aperf {
 
       env[env_entries.size()] = nullptr;
 
-      cpu_set_t cpu_set = is_profiler ? cpu_config.get_cpu_profiler_set() :
+      cpu_set_t affinity = is_profiler ? cpu_config.get_cpu_profiler_set() :
         cpu_config.get_cpu_command_set();
 
-      if (sched_setaffinity(0, sizeof(cpu_set), &cpu_set) == -1) {
+      if (sched_setaffinity(0, sizeof(affinity), &affinity) == -1) {
         std::exit(Process::ERROR_AFFINITY);
       }
 
@@ -262,25 +287,10 @@ namespace aperf {
     if (this->started) {
       if (this->notifiable) {
 #ifdef BOOST_OS_UNIX
+        FileDescriptor notify_writer(nullptr, this->notify_pipe,
+                                     this->buf_size);
         char to_send = 0x03;
-        int written = 0;
-        bool all_written = false;
-        int retries = 0;
-
-        while (!all_written &&
-               (written = ::write(this->notify_pipe[1], &to_send, 1)) != -1) {
-          if (written == 0) {
-            if (retries >= 5) {
-              throw Process::WriteException();
-            }
-
-            retries++;
-          }
-
-          all_written = true;
-        }
-
-        close(this->notify_pipe[1]);
+        notify_writer.write(1, &to_send);
         this->notifiable = false;
 #else
         throw Process::NotImplementedException();
@@ -309,28 +319,7 @@ namespace aperf {
     if (this->started) {
       if (this->writable) {
 #ifdef BOOST_OS_UNIX
-        int written = 0;
-        int total_written = 0;
-        int retries = 0;
-
-        while (total_written < size &&
-               (written = ::write(this->stdin_pipe[1], buf, size)) != -1) {
-          if (written == 0) {
-            if (retries >= 5) {
-              throw Process::WriteException();
-            }
-
-            retries++;
-          } else {
-            retries = 0;
-          }
-
-          total_written += written;
-        }
-
-        if (written == -1) {
-          throw Process::WriteException();
-        }
+        this->stdin_writer->write(size, buf);
 #else
         throw Process::NotImplementedException();
 #endif
@@ -382,7 +371,8 @@ namespace aperf {
     }
 
 #ifdef BOOST_OS_UNIX
-    close(this->stdin_pipe[1]);
+    this->stdin_writer->close();
+    this->writable = false;
 #else
     throw Process:NotImplementedException();
 #endif

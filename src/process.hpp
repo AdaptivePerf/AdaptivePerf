@@ -30,6 +30,7 @@ namespace aperf {
     int stdout_pipe[2];
     int *stdout_fd;
     std::unique_ptr<FileDescriptor> stdout_reader;
+    std::unique_ptr<FileDescriptor> stdin_writer;
 #endif
     bool started;
     int id;
@@ -47,12 +48,13 @@ namespace aperf {
 
     Process(std::vector<std::string> &command,
             unsigned int buf_size = 1024);
+    ~Process();
     void add_env(std::string key, std::string value);
     void set_redirect_stdout(fs::path path);
     void set_redirect_stdout(Process &process);
     void set_redirect_stderr(fs::path path);
     int start(bool wait_for_notify,
-              CPUConfig &cpu_config,
+              const CPUConfig &cpu_config,
               bool is_profiler,
               fs::path working_path = fs::current_path());
     void notify();
@@ -62,10 +64,9 @@ namespace aperf {
     bool is_running();
     void close_stdin();
 
-    class ReadException : public std::exception { };
+    class NotifyException : public std::exception { };
     class NotReadableException : public std::exception { };
     class NotWritableException : public std::exception { };
-    class WriteException : public std::exception { };
     class StartException : public std::exception { };
     class EmptyCommandException : public std::exception { };
     class WaitException : public std::exception { };
