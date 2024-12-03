@@ -308,10 +308,12 @@ namespace aperf {
   void FileDescriptor::close() {
     if (this->read_fd[0] != -1) {
       ::close(this->read_fd[0]);
+      this->read_fd[0] = -1;
     }
 
     if (this->write_fd[1] != -1) {
       ::close(this->write_fd[1]);
+      this->write_fd[1] = -1;
     }
   }
 
