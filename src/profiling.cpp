@@ -81,7 +81,7 @@ namespace aperf {
      A CPUConfig object can be invalid only if the string mask used
      for its construction is invalid.
   */
-  bool CPUConfig::is_valid() {
+  bool CPUConfig::is_valid() const {
     return this->valid;
   }
 
@@ -89,7 +89,7 @@ namespace aperf {
      Returns the number of profiler threads that can be spawned
      based on how many cores are allowed for doing the profiling.
   */
-  int CPUConfig::get_profiler_thread_count() {
+  int CPUConfig::get_profiler_thread_count() const {
     return this->profiler_thread_count;
   }
 
@@ -97,7 +97,7 @@ namespace aperf {
      Returns the sched_setaffinity-compatible CPU set for doing
      the profiling.
   */
-  cpu_set_t & CPUConfig::get_cpu_profiler_set() {
+  cpu_set_t CPUConfig::get_cpu_profiler_set() const {
     return this->cpu_profiler_set;
   }
 
@@ -105,7 +105,7 @@ namespace aperf {
      Returns the sched_setaffinity-compatible CPU set for running
      the profiled command.
   */
-  cpu_set_t & CPUConfig::get_cpu_command_set() {
+  cpu_set_t CPUConfig::get_cpu_command_set() const {
     return this->cpu_command_set;
   }
 

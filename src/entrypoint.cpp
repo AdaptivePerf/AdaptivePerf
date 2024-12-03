@@ -269,7 +269,7 @@ namespace aperf {
         return 1;
       }
 
-      cpu_set_t &cpu_set = cpu_config.get_cpu_profiler_set();
+      cpu_set_t cpu_set = cpu_config.get_cpu_profiler_set();
       sched_setaffinity(0, sizeof(cpu_set), &cpu_set);
 
       std::vector<std::unique_ptr<Profiler> > profilers;

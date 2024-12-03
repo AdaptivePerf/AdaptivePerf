@@ -78,10 +78,10 @@ namespace aperf {
 
   public:
     CPUConfig(std::string mask);
-    bool is_valid();
-    int get_profiler_thread_count();
-    cpu_set_t &get_cpu_profiler_set();
-    cpu_set_t &get_cpu_command_set();
+    bool is_valid() const;
+    int get_profiler_thread_count() const;
+    cpu_set_t get_cpu_profiler_set() const;
+    cpu_set_t get_cpu_command_set() const;
   };
 
   /**
