@@ -133,6 +133,7 @@ if(NOT SERVER_ONLY)
 
   if(LIBNUMA_AVAILABLE)
     target_compile_definitions(requirements.o PRIVATE LIBNUMA_AVAILABLE)
+    target_include_directories(requirements.o PRIVATE ${LIBNUMA_INCLUDE})
     target_link_libraries(adaptiveperf PUBLIC numa)
   endif()
 
