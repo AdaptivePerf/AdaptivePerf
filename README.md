@@ -47,22 +47,22 @@ By default, the full suite is installed, i.e. ```adaptiveperf``` and ```adaptive
 * Python 3
 * addr2line (part of binutils)
 * CMake 3.20 or newer (if building from source)
-* libnuma (if a machine with your profiled application has NUMA)
-* [CLI11](https://github.com/CLIUtils/CLI11) (if building from source)
-* [nlohmann-json](https://github.com/nlohmann/json) (if building from source)
-* [PocoNet + PocoFoundation](https://pocoproject.org)
-* [Boost](https://www.boost.org) (header-only libraries and the ```program_options``` module)
+* libnuma (if a machine with your profiled application has NUMA, tested with 2.0.19)
+* [CLI11](https://github.com/CLIUtils/CLI11) (if building from source, tested with 2.4.2)
+* [nlohmann-json](https://github.com/nlohmann/json) (if building from source, tested with 3.11.3)
+* [PocoNet + PocoFoundation](https://pocoproject.org) (tested with 1.14.0)
+* [Boost](https://www.boost.org) (header-only libraries and the ```program_options``` module, tested with 1.85.0)
 * The patched "perf" dependencies:
-  * Clang (if building from source, can be removed after installing AdaptivePerf)
-  * libtraceevent
+  * Clang (if building from source, can be removed after installing AdaptivePerf, tested with 18)
+  * libtraceevent (tested with 1.8.3)
 
 If you install ```adaptiveperf-server``` alone, the requirements are different. You **only** need:
 * CMake 3.20 or newer (if building from source)
-* [CLI11](https://github.com/CLIUtils/CLI11) (if building from source)
-* [nlohmann-json](https://github.com/nlohmann/json) (if building from source)
-* [PocoNet + PocoFoundation](https://pocoproject.org)
+* [CLI11](https://github.com/CLIUtils/CLI11) (if building from source, tested with 2.4.2)
+* [nlohmann-json](https://github.com/nlohmann/json) (if building from source, tested with 3.11.3)
+* [PocoNet + PocoFoundation](https://pocoproject.org) (tested with 1.14.0)
 
-You should use the newest available version of the dependencies if the version is not explicitly specified. More information about the minimum tested version of each of these required programs/libraries will be provided soon.
+The tested dependency versions are a guideline only, AdaptivePerf may compile and run without issues with older versions. However, it is recommended to use the newest versions available for your distribution (and if this doesn't solve compilation errors for example, the newest versions available for installing from source).
 
 If you want to enable tests (see the documentation for contributors), you don't have to install [the GoogleTest framework](https://github.com/google/googletest) beforehand, this is done automatically during the compilation.
 
