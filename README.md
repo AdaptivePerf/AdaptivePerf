@@ -44,17 +44,19 @@ By default, the full suite is installed, i.e. ```adaptiveperf``` and ```adaptive
   * ```CONFIG_FTRACE_SYSCALLS=y``` (or equivalent, you can check this by seeing if ```/sys/kernel/tracing/events/syscalls``` exists in your system and is not empty, but you may need to mount ```/sys/kernel/tracing``` first)
   * If you want complete kernel debug symbols, ```CONFIG_KALLSYMS=y``` and ```CONFIG_KALLSYMS_ALL=y``` (or equivalent) should also be set.
   * **Kernel recompilation may NOT be needed! If you have ```/sys/kernel/btf``` and ```/sys/kernel/tracing/events/syscalls``` as explained above and you don't care about having kernel debug symbols, you're already good to go here!**
-* Python 3
-* addr2line (part of binutils)
+* Python 3.6 or newer
+* addr2line (part of binutils, tested with 2.42.0)
 * CMake 3.20 or newer (if building from source)
 * libnuma (if a machine with your profiled application has NUMA, tested with 2.0.19)
 * [CLI11](https://github.com/CLIUtils/CLI11) (if building from source, tested with 2.4.2)
 * [nlohmann-json](https://github.com/nlohmann/json) (if building from source, tested with 3.11.3)
 * [PocoNet + PocoFoundation](https://pocoproject.org) (tested with 1.14.0)
 * [Boost](https://www.boost.org) (header-only libraries and the ```program_options``` module, tested with 1.85.0)
+* [libarchive](https://github.com/libarchive/libarchive) (tested with 3.7.7)
 * The patched "perf" dependencies:
-  * Clang (if building from source, can be removed after installing AdaptivePerf, tested with 18)
+  * Clang (if building from source, can be removed after installing AdaptivePerf, tested with 17.0.6)
   * libtraceevent (tested with 1.8.3)
+  * libpython (corresponding to Python 3.6 or newer, development headers may be needed if building from source)
 
 If you install ```adaptiveperf-server``` alone, the requirements are different. You **only** need:
 * CMake 3.20 or newer (if building from source)
@@ -62,7 +64,7 @@ If you install ```adaptiveperf-server``` alone, the requirements are different. 
 * [nlohmann-json](https://github.com/nlohmann/json) (if building from source, tested with 3.11.3)
 * [PocoNet + PocoFoundation](https://pocoproject.org) (tested with 1.14.0)
 
-The tested dependency versions are a guideline only, AdaptivePerf may compile and run without issues with older versions. However, it is recommended to use the newest versions available for your distribution (and if this doesn't solve compilation errors for example, the newest versions available for installing from source).
+The tested dependency versions are a guideline only, AdaptivePerf may compile and run without issues with older versions (there have been problems with some older versions of nlohmann-json, CLI11, and libarchive though). However, it is recommended to use the newest versions available for your distribution (or for installing from source if distribution versions don't solve e.g. compilation errors).
 
 If you want to enable tests (see the documentation for contributors), you don't have to install [the GoogleTest framework](https://github.com/google/googletest) beforehand, this is done automatically during the compilation.
 
