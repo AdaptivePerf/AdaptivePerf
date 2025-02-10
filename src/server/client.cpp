@@ -9,6 +9,7 @@
 #include <regex>
 #include <cmath>
 #include <unordered_set>
+#include <time.h>
 
 namespace aperf {
   namespace fs = std::filesystem;
@@ -20,6 +21,7 @@ namespace aperf {
                                                                              connection,
                                                                              file_acceptor,
                                                                              file_timeout_seconds) {
+    this->profile_start = false;
     this->accepted = 0;
   }
 
@@ -81,6 +83,19 @@ namespace aperf {
 
       this->connection->write("start_profile", true);
 
+      std::string tstamp_msg = this->connection->read();
+
+      if (!std::regex_match(tstamp_msg, std::regex("^\\d+$"))) {
+        std::cerr << "Wrong timestamp received: " << tstamp_msg << std::endl;
+        this->connection->write("error_tstamp", true);
+        return;
+      }
+
+      this->profile_start_tstamp = std::stoull(tstamp_msg);
+      this->profile_start = true;
+
+      this->connection->write("tstamp_ack", true);
+
       nlohmann::json final_output;
       nlohmann::json metadata;
 
@@ -91,20 +106,16 @@ namespace aperf {
       metadata["offcpu_regions"] = nlohmann::json::object();
       metadata["sampled_times"] = nlohmann::json::object();
 
-      unsigned long long start_time = 0;
-
       for (int i = 0; i < subclient_cnt; i++) {
         threads[i].get();
         nlohmann::json &thread_result = subclients[i]->get_result();
         for (auto &elem : thread_result.items()) {
           if (elem.key() == "syscall_meta") {
-            start_time = elem.value()[0];
-
-            for (auto &tid : elem.value()[1]) {
+            for (auto &tid : elem.value()[0]) {
               std::string tid_str = tid.template get<std::string>();
               metadata["thread_tree"].push_back(nlohmann::json::object());
               nlohmann::json &new_object = metadata["thread_tree"].back();
-              new_object.swap(elem.value()[2][tid_str]);
+              new_object.swap(elem.value()[1][tid_str]);
               new_object["identifier"] = tid;
 
               tids.insert(tid_str);
@@ -119,34 +130,32 @@ namespace aperf {
         for (auto &elem : thread_result.items()) {
           if (elem.key().rfind("sample", 0) == 0) {
             for (auto &elem2 : elem.value().items()) {
-              if (elem2.value()["first_time"] >= start_time) {
-                std::regex pid_tid_regex("^(\\d+)_(\\d+)$");
-                std::smatch pid_tid_match;
+              std::regex pid_tid_regex("^(\\d+)_(\\d+)$");
+              std::smatch pid_tid_match;
 
-                if (!std::regex_search(elem2.key(), pid_tid_match, pid_tid_regex)) {
-                  std::cerr << "Could not process PID/TID key " << elem2.key() << ", this should not happen!";
-                  std::cerr << std::endl;
-                  continue;
-                }
+              if (!std::regex_search(elem2.key(), pid_tid_match, pid_tid_regex)) {
+                std::cerr << "Could not process PID/TID key " << elem2.key() << ", this should not happen!";
+                std::cerr << std::endl;
+                continue;
+              }
 
-                if (tids.find(pid_tid_match[2]) == tids.end()) {
-                  nlohmann::json new_elem;
-                  new_elem["identifier"] = pid_tid_match[2];
-                  new_elem["parent"] = nullptr;
-                  new_elem["tag"] = {
-                    "?", std::string(pid_tid_match[1]) + "/" + std::string(pid_tid_match[2]), -1, -1};
+              if (tids.find(pid_tid_match[2]) == tids.end()) {
+                nlohmann::json new_elem;
+                new_elem["identifier"] = pid_tid_match[2];
+                new_elem["parent"] = nullptr;
+                new_elem["tag"] = {
+                  "?", std::string(pid_tid_match[1]) + "/" + std::string(pid_tid_match[2]), -1, -1};
 
-                  metadata["thread_tree"].push_back(new_elem);
-                }
+                metadata["thread_tree"].push_back(new_elem);
+              }
 
-                for (auto &elem3 : elem2.value().items()) {
-                  if (elem3.key() == "sampled_time") {
-                    metadata["sampled_times"][elem2.key()].swap(elem3.value());
-                  } else if (elem3.key() == "offcpu_regions") {
-                    metadata["offcpu_regions"][elem2.key()].swap(elem3.value());
-                  } else if (elem3.key() != "first_time") {
-                    final_output[elem2.key()][elem3.key()].swap(elem3.value());
-                  }
+              for (auto &elem3 : elem2.value().items()) {
+                if (elem3.key() == "sampled_time") {
+                  metadata["sampled_times"][elem2.key()].swap(elem3.value());
+                } else if (elem3.key() == "offcpu_regions") {
+                  metadata["offcpu_regions"][elem2.key()].swap(elem3.value());
+                } else if (elem3.key() != "first_time") {
+                  final_output[elem2.key()][elem3.key()].swap(elem3.value());
                 }
               }
             }
@@ -156,7 +165,7 @@ namespace aperf {
 
       for (auto &regions : metadata["offcpu_regions"].items()) {
         for (int i = 0; i < regions.value().size(); i++) {
-          regions.value()[i][0] = (unsigned long long)regions.value()[i][0] - start_time;
+          regions.value()[i][0] = (unsigned long long)regions.value()[i][0] - this->profile_start_tstamp;
         }
       }
 
@@ -294,5 +303,14 @@ namespace aperf {
       this->accepted++;
     }
     this->accepted_cond.notify_all();
+  }
+
+  bool StdClient::get_profile_start_tstamp(unsigned long long *tstamp) {
+    if (!this->profile_start || !tstamp) {
+      return false;
+    }
+
+    *tstamp = this->profile_start_tstamp;
+    return true;
   }
 };
