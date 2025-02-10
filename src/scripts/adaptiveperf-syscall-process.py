@@ -192,15 +192,17 @@ def syscalls__sys_exit_execve(event_name, context, common_cpu, common_secs,
                               common_nsecs, common_pid, common_comm,
                               common_callchain, __syscall_nr, ret,
                               perf_sample_dict):
-    syscall_tree_callback('execve', common_comm, perf_sample_dict['sample']['pid'],
-                          perf_sample_dict['sample']['tid'],
-                          perf_sample_dict['sample']['time'], ret)
+    if ret == 0:
+        syscall_tree_callback('execve', common_comm, perf_sample_dict['sample']['pid'],
+                              perf_sample_dict['sample']['tid'],
+                              perf_sample_dict['sample']['time'], ret)
 
 
 def syscalls__sys_exit_execveat(event_name, context, common_cpu, common_secs,
                                 common_nsecs, common_pid, common_comm,
                                 common_callchain, __syscall_nr, ret,
                                 perf_sample_dict):
-    syscall_tree_callback('execve', common_comm, perf_sample_dict['sample']['pid'],
-                          perf_sample_dict['sample']['tid'],
-                          perf_sample_dict['sample']['time'], ret)
+    if ret == 0:
+        syscall_tree_callback('execve', common_comm, perf_sample_dict['sample']['pid'],
+                              perf_sample_dict['sample']['tid'],
+                              perf_sample_dict['sample']['time'], ret)
