@@ -116,10 +116,16 @@ if ! ldconfig; then
     fi
 fi
 
+echo_main "Installing AdaptivePerf utilities..."
+old_dir=$(pwd)
+cd src/utils
+make install prefix="$prefix"
+cd $old_dir
+
 if [[ -f adaptiveperf ]]; then
-    echo_main "Done! You can use AdaptivePerf and adaptiveperf-server now."
-    echo_main "For example, run \"adaptiveperf --help\" or \"adaptiveperf-server --help\"."
+    echo_main "Done! You can use AdaptivePerf and adaptiveperf-server now + the utilities with the \"adaptiveperf-\" prefix."
+    echo_main "For example, run \"adaptiveperf --help\", \"adaptiveperf-server --help\", or \"adaptiveperf-code --help\"."
 else
-    echo_main "Done! You can use adaptiveperf-server now."
-    echo_main "For example, run \"adaptiveperf-server --help\"."
+    echo_main "Done! You can use adaptiveperf-server now + the utilities with the \"adaptiveperf-\" prefix."
+    echo_main "For example, run \"adaptiveperf-server --help\" or \"adaptiveperf-code --help\"."
 fi
