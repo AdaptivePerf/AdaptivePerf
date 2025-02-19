@@ -291,11 +291,11 @@ namespace aperf {
 
             struct sample_result &res = subprocesses[pid][tid];
 
-            if (event_type == "offcpu-time") {
-              if (callchain.size() <= 1) {
-                callchain.push_back(std::make_pair("(just thread/process)", ""));
-              }
+            if (callchain.empty()) {
+              callchain.push_back(std::make_pair("(just thread/process)", ""));
+            }
 
+            if (event_type == "offcpu-time") {
               struct offcpu_region reg;
               reg.timestamp = timestamp - period;
               reg.period = period;
