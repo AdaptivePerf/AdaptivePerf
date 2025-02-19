@@ -75,6 +75,9 @@ namespace aperf {
 
        The value referenced by tstamp is unchanged if false is returned or
        tstamp is null.
+
+       @param tstamp A pointer to the variable where the profiling start timestamp
+                     should be stored. It can be null.
     */
     virtual bool get_profile_start_tstamp(unsigned long long *tstamp) = 0;
   };
