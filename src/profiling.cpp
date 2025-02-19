@@ -584,6 +584,25 @@ namespace aperf {
     print("Executing the following command (as passed to the exec syscall): " +
           command_list_str, true, false);
 
+    struct timespec ts;
+
+    if (clock_gettime(CLOCK_MONOTONIC, &ts) == -1) {
+      print("Calling clock_gettime() to get the profile start timestamp has failed! "
+            "Exiting.", true, true);
+      return 2;
+    }
+
+    std::string tstamp_msg = std::to_string(ts.tv_sec * 1000000000ULL + ts.tv_nsec);
+    connection->write(tstamp_msg);
+
+    notification_msg = connection->read();
+
+    if (notification_msg != "tstamp_ack") {
+      print("adaptiveperf-server has sent something else than a notification "
+            "of acknowledging the profile start timestamp receipt! Exiting.", true, true);
+      return 2;
+    }
+
     auto start_time =
       ch::duration_cast<ch::milliseconds>(ch::system_clock::now().time_since_epoch()).count();
 

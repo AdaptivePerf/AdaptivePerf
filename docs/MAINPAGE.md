@@ -24,7 +24,7 @@ To enable tests in the AdaptivePerf compilation, run ```build.sh``` with ```-DEN
 ### Communication between the frontend, server, clients, subclients, and profilers
 The backend (adaptiveperf-server) consists of the Server, Client, and Subclient components.
 
-**If adaptiveperf-server is run externally with the frontend connecting to it via TCP, the communication between the frontend, profilers, and server components is as follows:**
+**If adaptiveperf-server is run externally with the frontend connecting to it via TCP, the communication between the frontend, profilers, and server components is as follows (each colour represents a machine; different-coloured blocks can therefore run on different machines, but they don't have to):**
 
 <img class="main_page_img" src="external.svg" alt="External adaptiveperf-server communication diagram" />
 

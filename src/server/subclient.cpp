@@ -97,7 +97,7 @@ namespace aperf {
     }
   }
 
-  StdSubclient::StdSubclient(Notifiable &context,
+  StdSubclient::StdSubclient(Client &context,
                              std::unique_ptr<Acceptor> &acceptor,
                              std::string profiled_filename,
                              unsigned int buf_size) : InitSubclient(context,
@@ -133,13 +133,13 @@ namespace aperf {
       std::unordered_map<std::string, unsigned long long> exit_time_dict;
       std::unordered_map<std::string, std::vector<std::pair<std::string, unsigned long long> > > name_time_dict;
       std::unordered_map<std::string, std::string> tree;
-      std::unordered_map<std::string, unsigned long long> first_sample_time_dict;
 
       std::string extra_event_name = "";
       bool first_event_received = false;
       std::vector<std::pair<unsigned long long, std::string> > added_list;
 
-      std::unordered_map<std::string, std::string> last_clone_flags;
+      unsigned long long start_time = 0;
+      bool start_time_set = false;
 
       {
         std::shared_ptr<Connection> connection = this->acceptor->accept(this->buf_size);
@@ -151,6 +151,8 @@ namespace aperf {
           if (line == "<STOP>") {
             break;
           }
+
+          start_time_set = this->context.get_profile_start_tstamp(&start_time);
 
           nlohmann::json obj;
 
@@ -227,7 +229,7 @@ namespace aperf {
             } else if (syscall_type == "exit") {
               exit_time_dict[tid] = time;
             }
-          } else if (type == "sample") {
+          } else if (type == "sample" && start_time_set) {
             std::string event_type, pid, tid;
             unsigned long long timestamp, period;
             std::vector<std::pair<std::string, std::string> > callchain;
@@ -249,6 +251,10 @@ namespace aperf {
 
               if (event_type == "offcpu-time" || event_type == "task-clock") {
                 extra_event_name = "";
+
+                if (timestamp - period < start_time) {
+                  period = timestamp - start_time;
+                }
               } else {
                 extra_event_name = event_type;
               }
@@ -259,11 +265,6 @@ namespace aperf {
               std::cerr << (extra_event_name == "" ? "task-clock or offcpu-time" : extra_event_name);
               std::cerr << "), ignoring." << std::endl;
               continue;
-            }
-
-            if (first_sample_time_dict.find(pid + "_" + tid) ==
-                first_sample_time_dict.end()) {
-              first_sample_time_dict[pid + "_" + tid] = timestamp;
             }
 
             if (subprocesses.find(pid) == subprocesses.end()) {
@@ -290,11 +291,11 @@ namespace aperf {
 
             struct sample_result &res = subprocesses[pid][tid];
 
-            if (event_type == "offcpu-time") {
-              if (callchain.size() <= 1) {
-                callchain.push_back(std::make_pair("(just thread/process)", ""));
-              }
+            if (callchain.empty()) {
+              callchain.push_back(std::make_pair("(just thread/process)", ""));
+            }
 
+            if (event_type == "offcpu-time") {
               struct offcpu_region reg;
               reg.timestamp = timestamp - period;
               reg.period = period;
@@ -311,6 +312,10 @@ namespace aperf {
         }
       }
 
+      if (!start_time_set) {
+        return;
+      }
+
       std::sort(added_list.begin(), added_list.end(),
                 [] (auto &a, auto &b) { return a.first < b.first; });
 
@@ -325,42 +330,17 @@ namespace aperf {
         if (msg == "syscall") {
           this->json_result[msg_key] = tid_dict;
         } else if (msg == "syscall_meta") {
-          unsigned long long start_time = 0;
           this->json_result[msg_key] = nlohmann::json::array();
-          this->json_result[msg_key].push_back(start_time);
           this->json_result[msg_key].push_back(nlohmann::json::array());
           this->json_result[msg_key].push_back(nlohmann::json::object());
 
-          nlohmann::json &result_list = this->json_result[msg_key][1];
-          nlohmann::json &result_map = this->json_result[msg_key][2];
+          nlohmann::json &result_list = this->json_result[msg_key][0];
+          nlohmann::json &result_map = this->json_result[msg_key][1];
           std::unordered_set<std::string> added_identifiers;
-          bool profile_start = false;
 
           for (int i = 0; i < added_list.size(); i++) {
             std::string k = added_list[i].second;
             std::string p = tree[k];
-            int index = -1;
-
-            if (!profile_start) {
-              for (int i = 0; i < name_time_dict[k].size(); i++) {
-                if (name_time_dict[k][i].first == this->profiled_filename.substr(0, 15)) {
-                  index = i;
-                  break;
-                }
-              }
-
-              if (index != -1) {
-                profile_start = true;
-                start_time = name_time_dict[k][index].second;
-                p = "";
-              } else {
-                if (p.empty()) {
-                  tree[k] = "<INVALID>";
-                }
-
-                continue;
-              }
-            }
 
             if (!p.empty() && added_identifiers.find(p) == added_identifiers.end()) {
               continue;
@@ -370,13 +350,6 @@ namespace aperf {
 
             nlohmann::json elem;
             elem["tag"] = nlohmann::json::array();
-
-            for (int i = 0; i < name_time_dict[k].size(); i++) {
-              if (name_time_dict[k][i].first == this->profiled_filename.substr(0, 15) &&
-                  name_time_dict[k][i].second < start_time) {
-                start_time = name_time_dict[k][i].second;
-              }
-            }
 
             int dominant_name_index = 0;
             int dominant_name_time = 0;
@@ -394,10 +367,10 @@ namespace aperf {
 
             elem["tag"][0] = name_time_dict[k][dominant_name_index].first;
             elem["tag"][1] = combo_dict[k];
-            elem["tag"][2] = name_time_dict[k][index == -1 ? 0 : index].second;
+            elem["tag"][2] = name_time_dict[k][0].second;
 
             if (exit_time_dict.find(k) != exit_time_dict.end()) {
-              elem["tag"][3] = exit_time_dict[k] - name_time_dict[k][index == -1 ? 0 : index].second;
+              elem["tag"][3] = exit_time_dict[k] - name_time_dict[k][0].second;
             } else {
               elem["tag"][3] = -1;
             }
@@ -411,8 +384,6 @@ namespace aperf {
             result_list.push_back(k);
             result_map[k] = elem;
           }
-
-          this->json_result[msg_key][0] = start_time;
 
           for (auto &pair : result_map.items()) {
             auto &elem = pair.value();
@@ -450,7 +421,6 @@ namespace aperf {
                 event_name = extra_event_name;
               }
 
-              pid_tid_result["first_time"] = first_sample_time_dict[elem.first + "_" + elem2.first];
               pid_tid_result[event_name] = nlohmann::json::array();
               pid_tid_result[event_name].push_back(res.output);
               pid_tid_result[event_name].push_back(res.output_time_ordered);
