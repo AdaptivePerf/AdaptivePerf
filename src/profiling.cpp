@@ -8,6 +8,7 @@
 #include "server/server.hpp"
 #include "archive.hpp"
 #include "process.hpp"
+#include "common.hpp"
 #include <filesystem>
 #include <iomanip>
 #include <queue>
@@ -292,6 +293,7 @@ namespace aperf {
      @param event_dict       A dictionary mapping custom "perf" event names to their website
                              titles (e.g. "page-faults" -> "Page faults"). This dictionary will
                              be saved to event_dict.data in the "processed" directory.
+     @param codes_dst        TODO
   */
   int start_profiling_session(std::vector<std::unique_ptr<Profiler> > &profilers,
                               std::vector<std::string> &command_elements,
@@ -299,7 +301,8 @@ namespace aperf {
                               unsigned int buf_size, unsigned int warmup,
                               CPUConfig &cpu_config, fs::path tmp_dir,
                               std::vector<pid_t> &spawned_children,
-                              std::unordered_map<std::string, std::string> &event_dict) {
+                              std::unordered_map<std::string, std::string> &event_dict,
+                              std::string codes_dst) {
     print("Verifying profiler requirements...", false, false);
 
     bool requirements_fulfilled = true;
@@ -794,7 +797,7 @@ namespace aperf {
       sources_json[sources[i].first].swap(sources[i].second);
 
       for (auto &elem : source_files[i]) {
-        if (fs::exists(elem)) {
+        if (codes_dst != "" || fs::exists(elem)) {
           src_paths.insert(elem);
         }
       }
@@ -925,39 +928,47 @@ namespace aperf {
       }
 
       if (!src_paths.empty()) {
-        connection->write("p src.zip", true);
-        nlohmann::json src_mapping = nlohmann::json::object();
+        if (codes_dst == "srv") {
+          connection->write("p code_paths.lst", true);
 
-        try {
-          std::unique_ptr<Connection> file_connection = get_file_connection();
-          Archive archive(file_connection, false, buf_size);
-
-          for (const fs::path &path : src_paths) {
-            std::string filename = std::to_string(src_mapping.size()) + path.extension().string();
-            src_mapping[path.string()] = filename;
-            archive.add_file(filename, path);
+          // A separate scope is needed for the file connection to close
+          // automatically after the transfer is finished.
+          {
+            std::unique_ptr<Connection> file_connection = get_file_connection();
+            for (const fs::path &path : src_paths) {
+              file_connection->write(path.string());
+            }
           }
 
-          std::string src_mapping_str = nlohmann::to_string(src_mapping) + '\n';
-          std::stringstream s;
-          s << src_mapping_str;
-          archive.add_file_stream("index.json", s, src_mapping_str.length());
+          check_data_transfer("the source code paths");
+        } else if (codes_dst == "") {
+          connection->write("p src.zip", true);
 
-          archive.close();
-        } catch (nlohmann::json::exception &e) {
-          print("A JSON error related to creating the source code archive has occurred! "
-                "Details: " + std::string(e.what()), true, true);
-        } catch (Archive::Exception &e) {
-          print("A source code archive creation error has occurred! "
-                "Details: " + std::string(e.what()), true, true);
+          try {
+            std::unique_ptr<Connection> file_connection = get_file_connection();
+            Archive archive(file_connection, false, buf_size);
+            create_src_archive(archive, src_paths, true);
+          } catch (nlohmann::json::exception &e) {
+            print("A JSON error related to creating the source code archive has occurred! "
+                  "Details: " + std::string(e.what()), true, true);
+          } catch (Archive::Exception &e) {
+            print("A source code archive creation error has occurred! "
+                  "Details: " +
+                  std::string(e.what()),
+                  true, true);
+          }
+
+          check_data_transfer("the source code archive");
         }
 
-        check_data_transfer("the source code archive");
+
       }
 
       if (!sources_json.empty()) {
         connection->write("p sources.json", true);
 
+        // A separate scope is needed for the file connection to close
+        // automatically after the transfer is finished.
         {
           std::unique_ptr<Connection> file_connection = get_file_connection();
           file_connection->write(nlohmann::to_string(sources_json));
@@ -1029,23 +1040,10 @@ namespace aperf {
         }
       }
 
-      if (!src_paths.empty()) {
+      if (!src_paths.empty() && (codes_dst == "" || codes_dst == "srv")) {
         try {
           Archive archive(result_processed / "src.zip");
-          nlohmann::json src_mapping = nlohmann::json::object();
-
-          for (const fs::path &path : src_paths) {
-            std::string filename = std::to_string(src_mapping.size()) + path.extension().string();
-            src_mapping[path.string()] = filename;
-            archive.add_file(filename, path);
-          }
-
-          std::string src_mapping_str = nlohmann::to_string(src_mapping) + '\n';
-          std::stringstream s;
-          s << src_mapping_str;
-          archive.add_file_stream("index.json", s, src_mapping_str.length());
-
-          archive.close();
+          create_src_archive(archive, src_paths, true);
         } catch (nlohmann::json::exception &e) {
           print("A JSON error related to creating the source code archive has occurred! "
                 "Details: " + std::string(e.what()), true, true);
@@ -1058,6 +1056,25 @@ namespace aperf {
       if (!sources_json.empty()) {
         std::ofstream ostream(result_processed / "sources.json");
         ostream << sources_json << std::endl;
+      }
+    }
+
+    std::smatch codes_dst_match;
+
+    if (!src_paths.empty() &&
+        std::regex_match(codes_dst, codes_dst_match,
+                         std::regex("^(file|fd)\\:(.+)$"))) {
+      if (codes_dst_match[1] == "file") {
+        std::ofstream ofs(codes_dst_match[2]);
+        for (const fs::path &path : src_paths) {
+          ofs << path.string() << std::endl;
+        }
+      } else {
+        int write_fd[2] = {-1, std::stoi(codes_dst_match[2])};
+        FileDescriptor fd(nullptr, write_fd, 1024);
+        for (const fs::path &path : src_paths) {
+          fd.write(path.string(), true);
+        }
       }
     }
 
