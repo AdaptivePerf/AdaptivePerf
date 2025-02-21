@@ -129,6 +129,7 @@ namespace aperf {
           return "The value must be in form of \"srv\", \"file:<path>\", or "
             "\"fd:<number>\".";
         }
+
         return "";
       })
       ->option_text("TYPE[:ARG]");
@@ -215,6 +216,10 @@ namespace aperf {
     if (print_version) {
       std::cout << version << std::endl;
       return 0;
+    } else if (codes_dst == "srv" && address == "") {
+      std::cerr << "--codes cannot be set to \"srv\" if no -a option is "
+        "specified!" << std::endl;
+      return 3;
     } else if (command_parts.empty()) {
       std::cerr << "You need to provide the command to be profiled!" << std::endl;
       return 3;

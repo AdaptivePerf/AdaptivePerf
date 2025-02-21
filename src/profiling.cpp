@@ -1040,7 +1040,7 @@ namespace aperf {
         }
       }
 
-      if (!src_paths.empty() && (codes_dst == "" || codes_dst == "srv")) {
+      if (!src_paths.empty() && codes_dst == "") {
         try {
           Archive archive(result_processed / "src.zip");
           create_src_archive(archive, src_paths, true);
