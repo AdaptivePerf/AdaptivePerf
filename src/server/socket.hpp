@@ -10,6 +10,7 @@
 #include <iostream>
 #include <filesystem>
 #include <Poco/Net/ServerSocket.h>
+#include <boost/predef.h>
 
 #define UNLIMITED_ACCEPTED -1
 #define NO_TIMEOUT -1
@@ -338,6 +339,7 @@ namespace aperf {
     std::string get_type();
   };
 
+#ifdef BOOST_OS_UNIX
   /**
      A class describing a file-descriptor-based connection.
   */
@@ -407,6 +409,7 @@ namespace aperf {
     std::string get_connection_instructions();
     std::string get_type();
   };
+#endif
 }
 
 #endif
