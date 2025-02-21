@@ -182,9 +182,7 @@
     <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="1069,845 1079,840 1069,835 "/>
   </g>
   <g>
-    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="491" y1="880" x2="1169" y2="880"/>
-    <polygon style="fill: #000000" points="491,875 481,880 491,885 "/>
-    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="491,875 481,880 491,885 "/>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="480" y1="880" x2="1169" y2="880"/>
     <polygon style="fill: #000000" points="1169,885 1179,880 1169,875 "/>
     <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="1169,885 1179,880 1169,875 "/>
   </g>
@@ -265,7 +263,7 @@
     <tspan x="1100" y="855.416">starts</tspan>
   </text>
   <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:sans-serif;font-style:normal;font-weight:normal" x="500" y="875.416">
-    <tspan x="500" y="875.416">connects</tspan>
+    <tspan x="500" y="875.416">connects to</tspan>
   </text>
   <text font-size="12.8" style="fill: #000000;text-anchor:start;font-family:sans-serif;font-style:normal;font-weight:normal" x="500" y="915.416">
     <tspan x="500" y="915.416">sends file data and terminates connection</tspan>
@@ -308,17 +306,17 @@
     <tspan x="920" y="255.033">per connection</tspan>
   </text>
   <g>
-    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="1069" y1="629.205" x2="480" y2="629.205"/>
-    <polygon style="fill: #000000" points="1069,634.205 1079,629.205 1069,624.205 "/>
-    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="1069,634.205 1079,629.205 1069,624.205 "/>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="1069" y1="629.204" x2="480" y2="629.204"/>
+    <polygon style="fill: #000000" points="1069,634.204 1079,629.204 1069,624.204 "/>
+    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="1069,634.204 1079,629.204 1069,624.204 "/>
   </g>
-  <text font-size="12.8" style="fill: #000000;text-anchor:end;font-family:sans-serif;font-style:normal;font-weight:normal" x="1060" y="623.036">
-    <tspan x="1060" y="623.036">sends current Unix timestamp to indicate profiling start time</tspan>
+  <text font-size="12.8" style="fill: #000000;text-anchor:end;font-family:sans-serif;font-style:normal;font-weight:normal" x="888.686" y="624.243">
+    <tspan x="888.686" y="624.243">sends current Unix timestamp to indicate profiling start time</tspan>
   </text>
   <g>
-    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="1080" y1="658.409" x2="491" y2="658.409"/>
-    <polygon style="fill: #000000" points="491,653.409 481,658.409 491,663.409 "/>
-    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="491,653.409 481,658.409 491,663.409 "/>
+    <line style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" x1="1080" y1="658.41" x2="491" y2="658.41"/>
+    <polygon style="fill: #000000" points="491,653.41 481,658.41 491,663.41 "/>
+    <polygon style="fill: none; fill-opacity:0; stroke-width: 2; stroke: #000000" points="491,653.41 481,658.41 491,663.41 "/>
   </g>
   <text font-size="12.8" style="fill: #000000;text-anchor:end;font-family:sans-serif;font-style:normal;font-weight:normal" x="1060" y="652.24">
     <tspan x="1060" y="652.24">sends "tstamp_ack"</tspan>
