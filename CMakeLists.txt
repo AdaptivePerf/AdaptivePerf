@@ -38,6 +38,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 find_package(nlohmann_json REQUIRED)
 find_package(Poco REQUIRED Net Foundation)
 find_package(CLI11 CONFIG REQUIRED)
+find_package(LibArchive REQUIRED)
 
 execute_process(
   COMMAND git rev-parse --short HEAD
@@ -50,8 +51,12 @@ configure_file(src/version.cpp.in version.cpp @ONLY)
 add_library(version.o OBJECT version.cpp)
 target_include_directories(version.o PRIVATE ${CMAKE_SOURCE_DIR}/src)
 
-add_library(server.o OBJECT src/server/server.cpp)
+add_library(archive.o OBJECT src/archive.cpp)
+
 add_library(client.o OBJECT src/server/client.cpp)
+target_include_directories(client.o PRIVATE ${CMAKE_SOURCE_DIR}/src)
+
+add_library(server.o OBJECT src/server/server.cpp)
 add_library(subclient.o OBJECT src/server/subclient.cpp)
 
 add_library(socket.o OBJECT src/server/socket.cpp)
@@ -65,7 +70,8 @@ target_include_directories(server_entrypoint.o PRIVATE ${CMAKE_SOURCE_DIR}/src/c
 add_library(aperfserv SHARED)
 target_link_libraries(aperfserv PUBLIC nlohmann_json::nlohmann_json)
 target_link_libraries(aperfserv PUBLIC Poco::Foundation Poco::Net)
-target_link_libraries(aperfserv PRIVATE server.o client.o subclient.o socket.o)
+target_link_libraries(aperfserv PUBLIC LibArchive::LibArchive)
+target_link_libraries(aperfserv PRIVATE server.o client.o subclient.o socket.o archive.o)
 
 add_executable(adaptiveperf-server
   src/main.cpp)
@@ -86,7 +92,6 @@ if(NOT SERVER_ONLY)
   add_library(profilers.o OBJECT src/profilers.cpp)
   add_library(profiling.o OBJECT src/profiling.cpp)
   add_library(requirements.o OBJECT src/requirements.cpp)
-  add_library(archive.o OBJECT src/archive.cpp)
   add_library(process.o OBJECT src/process.cpp)
 
   target_compile_definitions(profilers.o PRIVATE APERF_SCRIPT_PATH="${APERF_SCRIPT_PATH}")
@@ -98,13 +103,13 @@ if(NOT SERVER_ONLY)
     message(STATUS "Found Boost: headers inside ${Boost_INCLUDE_DIRS}, version ${Boost_VERSION_STRING}")
   endif()
 
-  find_package(LibArchive REQUIRED)
-
   target_link_libraries(adaptiveperf PUBLIC nlohmann_json::nlohmann_json)
   target_link_libraries(adaptiveperf PUBLIC Poco::Foundation Poco::Net)
   target_link_libraries(adaptiveperf PUBLIC CLI11::CLI11)
   target_link_libraries(adaptiveperf PUBLIC Boost::program_options)
   target_link_libraries(adaptiveperf PUBLIC LibArchive::LibArchive)
+
+  target_include_directories(adaptiveperf PUBLIC ${Boost_INCLUDE_DIRS})
 
   find_library(LIBNUMA
     NAMES numa
@@ -140,6 +145,14 @@ if(NOT SERVER_ONLY)
   target_link_libraries(adaptiveperf PRIVATE aperfserv)
   target_link_libraries(adaptiveperf PRIVATE
     profiling.o requirements.o profilers.o print.o archive.o main_entrypoint.o process.o version.o)
+else()
+  find_package(Boost REQUIRED)
+
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.30")
+    message(STATUS "Found Boost: headers inside ${Boost_INCLUDE_DIRS}, version ${Boost_VERSION_STRING}")
+  endif()
+
+  target_include_directories(aperfserv PUBLIC ${Boost_INCLUDE_DIRS})
 endif()
 
 if (ENABLE_TESTS)

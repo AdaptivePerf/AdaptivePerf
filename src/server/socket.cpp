@@ -267,6 +267,7 @@ namespace aperf {
     }
   }
 
+#ifdef BOOST_OS_UNIX
   /**
      Constructs a FileDescriptor object.
 
@@ -543,4 +544,5 @@ namespace aperf {
   std::string PipeAcceptor::get_type() {
     return "pipe";
   }
+#endif
 }

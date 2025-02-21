@@ -2,6 +2,8 @@
 // Copyright (C) CERN. See LICENSE for details.
 
 #include "server.hpp"
+#include "archive.hpp"
+#include "common.hpp"
 #include <future>
 #include <filesystem>
 #include <fstream>
@@ -242,39 +244,57 @@ namespace aperf {
             this->file_acceptor->accept(1);
 
           try {
-            std::ofstream f(path, std::ios_base::out | std::ios_base::binary);
+            if (name == "code_paths.lst") {
+              std::unordered_set<fs::path> src_paths;
+              bool stop = false;
 
-            if (!f) {
-              std::cerr << "Error for " << type << " file " << path.filename() << ": ";
-              std::cerr << "Could not open the output stream." << std::endl;
-              this->connection->write("error_out_file", true);
-              continue;
-            }
+              while (!stop) {
+                std::string line = file_connection->read();
 
-            std::unique_ptr<char> buf(new char[FILE_BUFFER_SIZE]);
+                if (line.empty()) {
+                  stop = true;
+                } else if (fs::exists(line)) {
+                  src_paths.insert(fs::canonical(line));
+                }
+              }
 
-            int bytes_received = 0;
-            bool stop = false;
+              Archive archive(processed_path / "src.zip");
+              create_src_archive(archive, src_paths, true);
+            } else {
+              std::ofstream f(path, std::ios_base::out | std::ios_base::binary);
 
-            while (!stop && !error) {
-              bytes_received = file_connection->read(buf.get(),
-                                                     FILE_BUFFER_SIZE,
-                                                     this->file_timeout_seconds);
+              if (!f) {
+                std::cerr << "Error for " << type << " file " << path.filename() << ": ";
+                std::cerr << "Could not open the output stream." << std::endl;
+                this->connection->write("error_out_file", true);
+                continue;
+              }
 
-              if (bytes_received == 0) {
-                stop = true;
-              } else {
-                f.write(buf.get(), bytes_received);
+              std::unique_ptr<char> buf(new char[FILE_BUFFER_SIZE]);
 
-                if (!f) {
-                  std::cerr << "Error for " << type << " file " << path.filename() << ": ";
-                  std::cerr << "Could not write to the output stream." << std::endl;
-                  error = true;
+              int bytes_received = 0;
+              bool stop = false;
+
+              while (!stop && !error) {
+                bytes_received = file_connection->read(buf.get(),
+                                                       FILE_BUFFER_SIZE,
+                                                       this->file_timeout_seconds);
+
+                if (bytes_received == 0) {
+                  stop = true;
+                } else {
+                  f.write(buf.get(), bytes_received);
+
+                  if (!f) {
+                    std::cerr << "Error for " << type << " file "
+                              << path.filename() << ": ";
+                    std::cerr << "Could not write to the output stream."
+                              << std::endl;
+                    error = true;
+                  }
                 }
               }
             }
-
-            f.close();
 
             if (error) {
               this->connection->write("error_out_file", true);

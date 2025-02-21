@@ -113,6 +113,27 @@ namespace aperf {
       })
       ->option_text("ADDRESS:PORT");
 
+    std::string codes_dst = "";
+    app.add_option("-c,--codes", codes_dst, "Send the newline-separated list "
+                   "of detected source code files to a specified destination "
+                   "rather than pack the code files on the same machine where "
+                   "a profiled program is run. The value can be either \"srv\" "
+                   "(i.e. the server receives the list, looks for the "
+                   "files there, and creates a source code archive there as "
+                   "well), \"file:<path>\" (i.e. the list is saved to <path> "
+                   "and can be then read e.g. by adaptiveperf-code), or "
+                   "\"fd:<number>\" (i.e. the list is written to a specified "
+                   "file descriptor).")
+      ->check([](const std::string &arg) {
+        if (!std::regex_match(arg, std::regex("^(file\\:.+|fd:\\d+|srv)$"))) {
+          return "The value must be in form of \"srv\", \"file:<path>\", or "
+            "\"fd:<number>\".";
+        }
+
+        return "";
+      })
+      ->option_text("TYPE[:ARG]");
+
     unsigned int server_buffer = 1024;
     app.add_option("-s,--server-buffer", server_buffer, "Communication "
                    "buffer size in bytes for internal adaptiveperf-server. "
@@ -195,6 +216,10 @@ namespace aperf {
     if (print_version) {
       std::cout << version << std::endl;
       return 0;
+    } else if (codes_dst == "srv" && address == "") {
+      std::cerr << "--codes cannot be set to \"srv\" if no -a option is "
+        "specified!" << std::endl;
+      return 3;
     } else if (command_parts.empty()) {
       std::cerr << "You need to provide the command to be profiled!" << std::endl;
       return 3;
@@ -321,7 +346,7 @@ namespace aperf {
       try {
         int code = start_profiling_session(profilers, command_elements, address, server_buffer,
                                            warmup, cpu_config, tmp_dir, spawned_children,
-                                           event_dict);
+                                           event_dict, codes_dst);
 
         auto end_time =
           ch::duration_cast<ch::milliseconds>(ch::system_clock::now().time_since_epoch()).count();
@@ -338,8 +363,8 @@ namespace aperf {
 
         to_return = code;
       } catch (ConnectionException &e) {
-        print("I/O error has occurred in the communication with adaptiveperf-server! Exiting.",
-              false, true);
+        print("I/O error has occurred! Exiting.", false, true);
+        print("Details: " + std::string(e.what()), false, true);
         print("For investigating what has gone wrong, you can check the files created in " +
               tmp_dir.string() + ".", false, true);
 
