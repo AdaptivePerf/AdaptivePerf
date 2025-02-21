@@ -145,6 +145,14 @@ if(NOT SERVER_ONLY)
   target_link_libraries(adaptiveperf PRIVATE aperfserv)
   target_link_libraries(adaptiveperf PRIVATE
     profiling.o requirements.o profilers.o print.o archive.o main_entrypoint.o process.o version.o)
+else()
+  find_package(Boost REQUIRED)
+
+  if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.30")
+    message(STATUS "Found Boost: headers inside ${Boost_INCLUDE_DIRS}, version ${Boost_VERSION_STRING}")
+  endif()
+
+  target_include_directories(aperfserv PUBLIC ${Boost_INCLUDE_DIRS})
 endif()
 
 if (ENABLE_TESTS)

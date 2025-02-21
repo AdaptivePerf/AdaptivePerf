@@ -63,6 +63,7 @@ If you install ```adaptiveperf-server``` alone, the requirements are different. 
 * [CLI11](https://github.com/CLIUtils/CLI11) (if building from source, tested with 2.4.2)
 * [nlohmann-json](https://github.com/nlohmann/json) (if building from source, tested with 3.11.3)
 * [PocoNet + PocoFoundation](https://pocoproject.org) (tested with 1.14.0)
+* [Boost](https://www.boost.org) (header-only libraries, tested with 1.85.0)
 
 The tested dependency versions are a guideline only, AdaptivePerf may compile and run without issues with older versions (there have been problems with some older versions of nlohmann-json, CLI11, and libarchive though). However, it is recommended to use the newest versions available for your distribution (or for installing from source if distribution versions don't solve e.g. compilation errors).
 
