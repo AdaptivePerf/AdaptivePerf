@@ -13,23 +13,28 @@ paths_file_help = \
 output_help = \
     'path to an output ZIP archive to be produced (src.zip\n' \
     'in the current directory by default, use "-" for stdout)'
+verbose_help = \
+    'print path-processing-related errors to stderr (these\n' \
+    'are not printed by default)'
 
 
-def run(paths_file, output):
+def run(paths_file, output, verbose):
     paths = []
 
     def process_src_line(filename, i, line):
         try:
             src_path = Path(line).resolve(strict=True)
         except OSError:
-            print(f'Line {i} in {filename}: Could not resolve '
-                  f'{line}, is it a correct and existing path?',
-                  file=sys.stderr)
+            if verbose:
+                print(f'Line {i} in {filename}: Could not resolve '
+                      f'{line}, is it a correct and existing path?',
+                      file=sys.stderr)
             return
 
         if src_path.is_dir():
-            print(f'Line {i} in {filename}: {line} refers to a directory',
-                  file=sys.stderr)
+            if verbose:
+                print(f'Line {i} in {filename}: {line} refers to a directory',
+                      file=sys.stderr)
             return
 
         paths.append((line, src_path))
@@ -82,6 +87,30 @@ if __name__ == '__main__':
     parser.add_argument('-o', dest='out',
                         metavar='FILE', help=output_help,
                         default='src.zip')
+    parser.add_argument('-v', dest='verbose',
+                        action='store_true', help=verbose_help)
     args = parser.parse_args()
 
-    sys.exit(run(args.paths_file, args.out))
+    output_already_existed = False
+
+    if args.out == '-':
+        p_out = None
+    else:
+        p_out = Path(args.out)
+
+    if p_out is not None and p_out.exists():
+        output_already_existed = True
+
+    try:
+        sys.exit(run(args.paths_file, args.out, args.verbose))
+    except KeyboardInterrupt:
+        print('adaptiveperf-code: Interrupted', file=sys.stderr)
+        if p_out is not None and not output_already_existed \
+           and p_out.exists():
+            p_out.unlink()
+        sys.exit(2)
+    except Exception as e:
+        if p_out is not None and not output_already_existed \
+           and p_out.exists():
+            p_out.unlink()
+        raise e
