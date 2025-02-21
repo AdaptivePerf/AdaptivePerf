@@ -38,13 +38,13 @@ Work is being done towards eliminating all of the limitations below step-by-step
 
 ## Installation
 ### Requirements
-By default, the full suite is installed, i.e. ```adaptiveperf``` and ```adaptiveperf-server```. For this, you need:
+By default, the full suite is installed, i.e. ```adaptiveperf``` and ```adaptiveperf-server``` + the utilities. For this, you need:
 * Linux 5.8 or newer compiled with:
   * ```CONFIG_DEBUG_INFO_BTF=y``` (or equivalent, you can check this by seeing if ```/sys/kernel/btf``` exists in your system)
   * ```CONFIG_FTRACE_SYSCALLS=y``` (or equivalent, you can check this by seeing if ```/sys/kernel/tracing/events/syscalls``` exists in your system and is not empty, but you may need to mount ```/sys/kernel/tracing``` first)
   * If you want complete kernel debug symbols, ```CONFIG_KALLSYMS=y``` and ```CONFIG_KALLSYMS_ALL=y``` (or equivalent) should also be set.
   * **Kernel recompilation may NOT be needed! If you have ```/sys/kernel/btf``` and ```/sys/kernel/tracing/events/syscalls``` as explained above and you don't care about having kernel debug symbols, you're already good to go here!**
-* Python 3.6 or newer
+* Python 3.6 or newer (3.7 or newer for ```adaptiveperf-code```)
 * addr2line (part of binutils, tested with 2.42.0)
 * CMake 3.20 or newer (if building from source)
 * libnuma (if a machine with your profiled application has NUMA, tested with 2.0.19)
