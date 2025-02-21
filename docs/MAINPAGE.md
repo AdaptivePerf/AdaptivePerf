@@ -22,7 +22,11 @@ Making sure the tests pass and updating these when needed is crucial during the 
 To enable tests in the AdaptivePerf compilation, run ```build.sh``` with ```-DENABLE_TESTS=ON```. Afterwards, run ```ctest``` inside the newly-created build directory every time you want to run the tests.
 
 ### Communication between the frontend, server, clients, subclients, and profilers
-The backend (adaptiveperf-server) consists of the Server, Client, and Subclient components.
+The backend (adaptiveperf-server) consists of the Server, Client, and Subclient components. The communication between these components and the frontend + profilers differs depending on whether adaptiveperf-server is run externally or internally. The diagrams below explain how this works for both cases.
+
+Please note the following:
+1. In both cases, the frontend additionally sends the received subclient connection instructions directly to each profiler before waiting for "start_profile".
+2. In case of adaptiveperf-server running externally, if "p code_paths.lst" is sent by the frontend during the file transfer stage, no code\_paths.lst file is actually created by the server. Instead, it consumes the received content (i.e. the list of source code paths) immediately to produce a source code archive.
 
 **If adaptiveperf-server is run externally with the frontend connecting to it via TCP, the communication between the frontend, profilers, and server components is as follows (each colour represents a machine; different-coloured blocks can therefore run on different machines, but they don't have to):**
 
@@ -31,5 +35,3 @@ The backend (adaptiveperf-server) consists of the Server, Client, and Subclient 
 **If adaptiveperf-server is run internally (i.e. as part of the ```adaptiveperf``` command) with the frontend connecting to it via file descriptors, the communication is as follows:**
 
 <img class="main_page_img" src="internal.svg" alt="Internal adaptiveperf-server communication diagram" />
-
-*Please note that in both cases the frontend additionally sends the received subclient connection instructions directly to each profiler before waiting for "start_profile".*
