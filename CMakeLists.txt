@@ -109,6 +109,8 @@ if(NOT SERVER_ONLY)
   target_link_libraries(adaptiveperf PUBLIC Boost::program_options)
   target_link_libraries(adaptiveperf PUBLIC LibArchive::LibArchive)
 
+  target_include_directories(adaptiveperf PUBLIC ${Boost_INCLUDE_DIRS})
+
   find_library(LIBNUMA
     NAMES numa
     DOC "libnuma")
