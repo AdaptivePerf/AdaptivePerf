@@ -342,6 +342,7 @@ namespace aperf {
 #ifdef BOOST_OS_UNIX
   /**
      A class describing a file-descriptor-based connection.
+     This is available only when compiled for Unix-based platforms.
   */
   class FileDescriptor : public Connection {
   private:
@@ -368,6 +369,7 @@ namespace aperf {
 
   /**
      A class describing an inter-process pipe acceptor.
+     This is available only when compiled for Unix-based platforms.
   */
   class PipeAcceptor : public Acceptor {
   private:
