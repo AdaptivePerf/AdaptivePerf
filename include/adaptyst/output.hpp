@@ -8,9 +8,12 @@
 #include <nlohmann/json.hpp>
 #include <mutex>
 #include <fstream>
+#include <boost/hana.hpp>
+#include <boost/hana/ext/std/tuple.hpp>
 
 namespace adaptyst {
   namespace fs = std::filesystem;
+  namespace hana = boost::hana;
 
   /**
      This abstract class describes an arbitrary object with attached metadata in
@@ -287,6 +290,11 @@ namespace adaptyst {
   } && std::is_same_v<T, std::pair<typename T::first_type,
                                    typename T::second_type> >;
 
+  template<typename T>
+  concept is_tuple = requires {
+    std::tuple_size<T>::value;
+  };
+
   /**
      This class represents an array of arbitrary values saved to a file
      and with metadata attached to it (thanks to inheriting from File which
@@ -311,6 +319,10 @@ namespace adaptyst {
         if constexpr (is_pair<T>) {
           this->istream >> val.first;
           this->istream >> val.second;
+        } else if constexpr (is_tuple<T>) {
+          hana::for_each(val, [&](auto &item) {
+            this->istream >> item;
+          });
         } else {
           this->istream >> val;
         }
@@ -325,7 +337,7 @@ namespace adaptyst {
        Accesses the index-th element of the array.
 
        @param index Array index to access.
-       
+
        @return index-th element of the array.
     */
     T operator[](int index) {
@@ -352,6 +364,16 @@ namespace adaptyst {
 
       if constexpr (is_pair<T>) {
         this->ostream << val.first << " " << val.second << std::endl;
+      } else if constexpr (is_tuple<T>) {
+        std::stringstream str_stream;
+        hana::for_each(val, [&](auto &item) {
+          str_stream << item << " ";
+        });
+
+        std::string to_write = str_stream.str();
+        to_write = to_write.substr(0, to_write.length() - 1);
+
+        this->ostream << to_write << std::endl;
       } else {
         this->ostream << val << std::endl;
       }
