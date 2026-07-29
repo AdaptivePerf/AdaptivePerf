@@ -69,10 +69,10 @@ make-gentoo-apptainer-image:
   dependencies: []
   before_script:
     - apt-get update
-    - apt-get install -y apptainer xrootd-client
+    - apt-get install -y apptainer xrootd-client krb5-user
     - echo $KERBEROS_PASSWORD | kinit ${KERBEROS_USER}@CERN.CH
   script:
-    - sudo apptainer build --build-arg project_dir="$CI_PROJECT_DIR" adaptyst.sif $CI_PROJECT_DIR/apptainer.def
+    - apptainer build --build-arg project_dir="$CI_PROJECT_DIR" adaptyst.sif $CI_PROJECT_DIR/apptainer.def
     - |
       if [[ "$CI_COMMIT_TAG" != "" ]]; then
         xrdcp -C auto --rm-bad-cksum -t 5 adaptyst.sif root://eosuser.cern.ch/$WEB_STORAGE/apptainer/adaptyst-$CI_COMMIT_TAG.sif
@@ -92,10 +92,10 @@ make-alma10-apptainer-image:
   dependencies: []
   before_script:
     - apt-get update
-    - apt-get install -y apptainer xrootd-client
+    - apt-get install -y apptainer xrootd-client krb5-user
     - echo $KERBEROS_PASSWORD | kinit ${KERBEROS_USER}@CERN.CH
   script:
-    - sudo apptainer build --build-arg project_dir="$CI_PROJECT_DIR" adaptyst-alma10.sif $CI_PROJECT_DIR/apptainer-alma.def
+    - apptainer build --build-arg project_dir="$CI_PROJECT_DIR" adaptyst-alma10.sif $CI_PROJECT_DIR/apptainer-alma.def
     - |
       if [[ "$CI_COMMIT_TAG" != "" ]]; then
         xrdcp -C auto --rm-bad-cksum -t 5 adaptyst-alma10.sif root://eosuser.cern.ch/$WEB_STORAGE/apptainer/adaptyst-alma10-$CI_COMMIT_TAG.sif
