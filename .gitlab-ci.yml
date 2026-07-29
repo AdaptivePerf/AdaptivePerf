@@ -3,8 +3,9 @@
 
 workflow:
   rules:
-    - if: $CI_PIPELINE_SOURCE == "external_pull_request_event" || $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "web"
     - if: $CI_COMMIT_TAG != null
+    - if: $CI_COMMIT_BRANCH == "dev"
 
 stages:
   - build
@@ -26,7 +27,7 @@ make-gentoo-docker-image:
         export IMAGE_DESTINATION_DETAILED=$CI_REGISTRY/adaptyst/adaptyst:$CI_COMMIT_TAG
         /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile --destination $IMAGE_DESTINATION --destination $IMAGE_DESTINATION_DETAILED
         echo "Image pushed successfully to ${IMAGE_DESTINATION} and ${IMAGE_DESTINATION_DETAILED}"
-      elif [[ "$CI_PIPELINE_SOURCE" == "web" ]]; then
+      elif [[ "$CI_PIPELINE_SOURCE" == "web" || "$CI_COMMIT_BRANCH" == "dev" ]]; then
         export IMAGE_DESTINATION=$CI_REGISTRY/adaptyst/adaptyst:$CI_COMMIT_SHORT_SHA
         /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile --destination $IMAGE_DESTINATION
         echo "Image pushed successfully to ${IMAGE_DESTINATION}"
@@ -50,7 +51,7 @@ make-alma10-docker-image:
         export IMAGE_DESTINATION_DETAILED=$CI_REGISTRY/adaptyst/adaptyst:alma10-$CI_COMMIT_TAG
         /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile-alma --destination $IMAGE_DESTINATION --destination $IMAGE_DESTINATION_DETAILED
         echo "Image pushed successfully to ${IMAGE_DESTINATION} and ${IMAGE_DESTINATION_DETAILED}"
-      elif [[ "$CI_PIPELINE_SOURCE" == "web" ]]; then
+      elif [[ "$CI_PIPELINE_SOURCE" == "web" || "$CI_COMMIT_BRANCH" == "dev" ]]; then
         export IMAGE_DESTINATION=$CI_REGISTRY/adaptyst/adaptyst:alma10-$CI_COMMIT_SHORT_SHA
         /kaniko/executor --context $CI_PROJECT_DIR --dockerfile $CI_PROJECT_DIR/Dockerfile-alma --destination $IMAGE_DESTINATION
         echo "Image pushed successfully to ${IMAGE_DESTINATION}"
@@ -61,17 +62,21 @@ make-alma10-docker-image:
 
 make-gentoo-apptainer-image:
   tags:
-    - gentoo
+    - docker-privileged-xl
+  image:
+    name: registry.cern.ch/docker.io/ubuntu:latest
   stage: build
   dependencies: []
   before_script:
+    - apt-get update
+    - apt-get install -y apptainer xrootd-client
     - echo $KERBEROS_PASSWORD | kinit ${KERBEROS_USER}@CERN.CH
   script:
     - sudo apptainer build --build-arg project_dir="$CI_PROJECT_DIR" adaptyst.sif $CI_PROJECT_DIR/apptainer.def
     - |
       if [[ "$CI_COMMIT_TAG" != "" ]]; then
         xrdcp -C auto --rm-bad-cksum -t 5 adaptyst.sif root://eosuser.cern.ch/$WEB_STORAGE/apptainer/adaptyst-$CI_COMMIT_TAG.sif
-      elif [[ "$CI_PIPELINE_SOURCE" == "web" ]]; then
+      elif [[ "$CI_PIPELINE_SOURCE" == "web" || "$CI_COMMIT_BRANCH" == "dev" ]]; then
         xrdcp -C auto --rm-bad-cksum -t 5 adaptyst.sif root://eosuser.cern.ch/$WEB_STORAGE_TMP/apptainer/adaptyst-$CI_COMMIT_SHORT_SHA.sif
       fi
   after_script:
@@ -80,17 +85,21 @@ make-gentoo-apptainer-image:
 
 make-alma10-apptainer-image:
   tags:
-    - gentoo
+    - docker-privileged-xl
+  image:
+    name: registry.cern.ch/docker.io/ubuntu:latest
   stage: build
   dependencies: []
   before_script:
+    - apt-get update
+    - apt-get install -y apptainer xrootd-client
     - echo $KERBEROS_PASSWORD | kinit ${KERBEROS_USER}@CERN.CH
   script:
     - sudo apptainer build --build-arg project_dir="$CI_PROJECT_DIR" adaptyst-alma10.sif $CI_PROJECT_DIR/apptainer-alma.def
     - |
       if [[ "$CI_COMMIT_TAG" != "" ]]; then
         xrdcp -C auto --rm-bad-cksum -t 5 adaptyst-alma10.sif root://eosuser.cern.ch/$WEB_STORAGE/apptainer/adaptyst-alma10-$CI_COMMIT_TAG.sif
-      elif [[ "$CI_PIPELINE_SOURCE" == "web" ]]; then
+      elif [[ "$CI_PIPELINE_SOURCE" == "web" || "$CI_COMMIT_BRANCH" == "dev" ]]; then
         xrdcp -C auto --rm-bad-cksum -t 5 adaptyst-alma10.sif root://eosuser.cern.ch/$WEB_STORAGE_TMP/apptainer/adaptyst-alma10-$CI_COMMIT_SHORT_SHA.sif
       fi
   after_script:
