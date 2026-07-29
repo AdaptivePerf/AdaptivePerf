@@ -8,6 +8,7 @@ From: gitlab-registry.cern.ch/adaptyst/gentoo-fp:latest
     {{ project_dir }} adaptyst
 
 %post
+    emerge --quiet-build=y media-libs/libpng
     emerge --quiet-build=y dev-build/ninja dev-cpp/cli11 dev-cpp/nlohmann_json dev-libs/boost app-arch/libarchive dev-libs/poco
     cd adaptyst
     mkdir build && cd build
