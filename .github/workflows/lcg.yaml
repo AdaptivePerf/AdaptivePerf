@@ -1,40 +1,40 @@
 # SPDX-FileCopyrightText: 2026 CERN
 # SPDX-License-Identifier: LGPL-3.0-or-later
 
-name: linux
+# name: linux
 
-on:
-  push:
-    tags: [v**]
-  pull_request:
-    types: [opened, review_requested]
+# on:
+#   push:
+#     tags: [v**]
+#   pull_request:
+#     types: [opened, review_requested]
 
-jobs:
-  default:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v4
-    - uses: cvmfs-contrib/github-action-cvmfs@v4
-    - uses: aidasoft/run-lcg-view@v3
-      with:
-        container: "el9"
-        view-path: "/cvmfs/sft-nightlies.cern.ch/lcg/nightlies/dev4/Mon/Boost/1.88.0/x86_64-el9-gcc14fp-opt"
-        setup-script: "Boost-env.sh"
-        run: |
-          source /cvmfs/sft-nightlies.cern.ch/lcg/nightlies/dev4/Mon/libarchive/3.7.9/x86_64-el9-gcc14fp-opt/libarchive-env.sh
-          source /cvmfs/sft-nightlies.cern.ch/lcg/nightlies/dev4/Mon/jsonmcpp/3.11.3/x86_64-el9-gcc14fp-opt/jsonmcpp-env.sh
-          source /cvmfs/sft-nightlies.cern.ch/lcg/nightlies/dev4/Mon/poco/1.14.1/x86_64-el9-gcc14fp-opt/poco-env.sh
-          source /cvmfs/sft-nightlies.cern.ch/lcg/nightlies/dev4/Mon/cli11/2.4.2/x86_64-el9-gcc14fp-opt/cli11-env.sh
-          source /cvmfs/sft-nightlies.cern.ch/lcg/nightlies/dev4/Mon/libbpf/1.5.0/x86_64-el9-gcc14fp-opt/libbpf-env.sh
-          source /cvmfs/sft-nightlies.cern.ch/lcg/nightlies/dev4/Mon/libnuma/2.0.19/x86_64-el9-gcc14fp-opt/libnuma-env.sh
-          source /cvmfs/sft-nightlies.cern.ch/lcg/nightlies/dev4/Mon/libtraceevent/1.8.4/x86_64-el9-gcc14fp-opt/libtraceevent-env.sh
-          source /cvmfs/sft-nightlies.cern.ch/lcg/nightlies/dev4/Mon/flex/2.6.4/x86_64-el9-gcc14fp-opt/flex-env.sh
-          source /cvmfs/sft-nightlies.cern.ch/lcg/nightlies/dev4/Mon/bison/3.8.2/x86_64-el9-gcc14fp-opt/bison-env.sh
-          source /cvmfs/sft-nightlies.cern.ch/lcg/nightlies/dev4/Mon/Python/3.11.9/x86_64-el9-gcc14fp-opt/Python-env.sh
-          source /cvmfs/sft-nightlies.cern.ch/lcg/nightlies/dev4/Mon/perf/20250408/x86_64-el9-gcc14fp-opt/perf-env.sh
-          mkdir build
-          cd build
-          echo "::group::CMakeConfig"
-          cmake -DPERF_DIR=${PERF__HOME} ..
-          echo "::group::Compile"
-          make VERBOSE=1 -k
+# jobs:
+#   default:
+#     runs-on: ubuntu-latest
+#     steps:
+#     - uses: actions/checkout@v4
+#     - uses: cvmfs-contrib/github-action-cvmfs@v4
+#     - uses: aidasoft/run-lcg-view@v3
+#       with:
+#         container: "el9"
+#         view-path: "/cvmfs/sft-nightlies.cern.ch/lcg/nightlies/dev4/Mon/Boost/1.88.0/x86_64-el9-gcc14fp-opt"
+#         setup-script: "Boost-env.sh"
+#         run: |
+#           source /cvmfs/sft-nightlies.cern.ch/lcg/nightlies/dev4/Mon/libarchive/3.7.9/x86_64-el9-gcc14fp-opt/libarchive-env.sh
+#           source /cvmfs/sft-nightlies.cern.ch/lcg/nightlies/dev4/Mon/jsonmcpp/3.11.3/x86_64-el9-gcc14fp-opt/jsonmcpp-env.sh
+#           source /cvmfs/sft-nightlies.cern.ch/lcg/nightlies/dev4/Mon/poco/1.14.1/x86_64-el9-gcc14fp-opt/poco-env.sh
+#           source /cvmfs/sft-nightlies.cern.ch/lcg/nightlies/dev4/Mon/cli11/2.4.2/x86_64-el9-gcc14fp-opt/cli11-env.sh
+#           source /cvmfs/sft-nightlies.cern.ch/lcg/nightlies/dev4/Mon/libbpf/1.5.0/x86_64-el9-gcc14fp-opt/libbpf-env.sh
+#           source /cvmfs/sft-nightlies.cern.ch/lcg/nightlies/dev4/Mon/libnuma/2.0.19/x86_64-el9-gcc14fp-opt/libnuma-env.sh
+#           source /cvmfs/sft-nightlies.cern.ch/lcg/nightlies/dev4/Mon/libtraceevent/1.8.4/x86_64-el9-gcc14fp-opt/libtraceevent-env.sh
+#           source /cvmfs/sft-nightlies.cern.ch/lcg/nightlies/dev4/Mon/flex/2.6.4/x86_64-el9-gcc14fp-opt/flex-env.sh
+#           source /cvmfs/sft-nightlies.cern.ch/lcg/nightlies/dev4/Mon/bison/3.8.2/x86_64-el9-gcc14fp-opt/bison-env.sh
+#           source /cvmfs/sft-nightlies.cern.ch/lcg/nightlies/dev4/Mon/Python/3.11.9/x86_64-el9-gcc14fp-opt/Python-env.sh
+#           source /cvmfs/sft-nightlies.cern.ch/lcg/nightlies/dev4/Mon/perf/20250408/x86_64-el9-gcc14fp-opt/perf-env.sh
+#           mkdir build
+#           cd build
+#           echo "::group::CMakeConfig"
+#           cmake -DPERF_DIR=${PERF__HOME} ..
+#           echo "::group::Compile"
+#           make VERBOSE=1 -k
