@@ -4,6 +4,7 @@
 FROM gitlab-registry.cern.ch/adaptyst/gentoo-fp:latest
 RUN mkdir -p /root/adaptyst
 COPY . /root/adaptyst/
+RUN emerge --quiet-build=y media-libs/libpng
 RUN emerge --quiet-build=y dev-build/ninja \
     dev-cpp/cli11 dev-cpp/nlohmann_json \
     dev-libs/boost app-arch/libarchive dev-libs/poco
