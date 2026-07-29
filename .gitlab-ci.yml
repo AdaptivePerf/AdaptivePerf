@@ -70,7 +70,7 @@ make-gentoo-apptainer-image:
   before_script:
     - dnf install -y epel-release
     - dnf install -y apptainer xrootd-client
-    - echo $KERBEROS_PASSWORD | kinit ${KERBEROS_USER}@CERN.CH
+    - echo $KERBEROS_PASSWORD | kinit ${KERBEROS_USER}
   script:
     - apptainer build --build-arg project_dir="$CI_PROJECT_DIR" adaptyst.sif $CI_PROJECT_DIR/apptainer.def
     - |
@@ -93,7 +93,7 @@ make-alma10-apptainer-image:
   before_script:
     - dnf install -y epel-release
     - dnf install -y apptainer xrootd-client
-    - echo $KERBEROS_PASSWORD | kinit ${KERBEROS_USER}@CERN.CH
+    - echo $KERBEROS_PASSWORD | kinit ${KERBEROS_USER}
   script:
     - apptainer build --build-arg project_dir="$CI_PROJECT_DIR" adaptyst-alma10.sif $CI_PROJECT_DIR/apptainer-alma.def
     - |
