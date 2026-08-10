@@ -328,6 +328,22 @@ namespace adaptyst {
       this->last_received_message = this->handles[id].fd->read(timeout_seconds);
       return this->last_received_message;
     }
+
+    void send_timestamp_info(unsigned long long timestamp_start,
+                             bool timestamp_start_valid,
+                             unsigned long long timestamp_end,
+                             bool timestamp_end_valid,
+                             std::string func_name) {
+      try {
+        std::string part_id = std::to_string(getpid()) + "_" + std::to_string(gettid());
+        this->fd->write("time " + part_id + " " + func_name + " " +
+                        (timestamp_start_valid ? std::to_string(timestamp_start) : "-1") + " " +
+                        (timestamp_end_valid ? std::to_string(timestamp_end) : "-1"), true);
+      } catch (std::exception &e) {
+        std::cerr << "Exception related to sending timestamp information has occurred: ";
+        std::cerr << e.what() << std::endl;
+      }
+    }
   };
 };
 
@@ -342,7 +358,9 @@ extern "C" {
     "ADAPTYST_WRITE_FD1", getenv("ADAPTYST_WRITE_FD1"),
     "ADAPTYST_WRITE_FD2", getenv("ADAPTYST_WRITE_FD2") };
 
-  int handle_error_if_any(int code, const char *type) {
+  int handle_error_if_any(unsigned long long timestamp_start,
+                          bool timestamp_start_valid,
+                          int code, const char *type) {
     if (code != ADAPTYST_INJECT_OK && print_errors > 0) {
       std::cerr << "[Adaptyst, " << type << "] ";
 
@@ -404,6 +422,18 @@ extern "C" {
       }
 
       std::cerr << std::endl;
+    }
+
+    if (instance) {
+      int err;
+      unsigned long long timestamp_end = adaptyst_get_timestamp(&err);
+      bool timestamp_end_valid = err == 0;
+
+      instance->send_timestamp_info(timestamp_start,
+                                    timestamp_start_valid,
+                                    timestamp_end,
+                                    timestamp_end_valid,
+                                    std::string(type));
     }
 
     return code;
@@ -481,7 +511,11 @@ extern "C" {
 
   int _adaptyst_region_end(const char *name) {
     if (!instance) {
-      return ADAPTYST_INJECT_ERR_NOT_INITIALISED;
+      int result = _adaptyst_init();
+
+      if (result != ADAPTYST_INJECT_OK) {
+        return result;
+      }
     }
 
     try {
@@ -494,15 +528,31 @@ extern "C" {
   }
 
   void adaptyst_close() {
-    std::unique_lock lock(inject_mutex);
-    if (instance) {
-      instance.reset();
+    int err;
+    unsigned long long ts_s = adaptyst_get_timestamp(&err);
+    bool ts_s_v = err == 0;
+
+    {
+      std::unique_lock lock(inject_mutex);
+      if (instance) {
+        unsigned long long ts_e = adaptyst_get_timestamp(&err);
+        bool ts_e_v = err == 0;
+
+        instance->send_timestamp_info(ts_s, ts_s_v,
+                                      ts_e, ts_e_v, "close");
+
+        instance.reset();
+      }
     }
   }
 
   int _adaptyst_send_data(amod_t id, char *buf, unsigned int n) {
     if (!instance) {
-      return ADAPTYST_INJECT_ERR_NOT_INITIALISED;
+      int result = _adaptyst_init();
+
+      if (result != ADAPTYST_INJECT_OK) {
+        return result;
+      }
     }
 
     try {
@@ -517,7 +567,11 @@ extern "C" {
   int _adaptyst_receive_data(amod_t id, char *buf, unsigned int buf_size,
                              int *n) {
     if (!instance) {
-      return ADAPTYST_INJECT_ERR_NOT_INITIALISED;
+      int result = _adaptyst_init();
+
+      if (result != ADAPTYST_INJECT_OK) {
+        return result;
+      }
     }
 
     try {
@@ -532,7 +586,11 @@ extern "C" {
   int _adaptyst_receive_data_timeout(amod_t id, char *buf, unsigned int buf_size,
                                      int *n, long timeout_seconds) {
     if (!instance) {
-      return ADAPTYST_INJECT_ERR_NOT_INITIALISED;
+      int result = _adaptyst_init();
+
+      if (result != ADAPTYST_INJECT_OK) {
+        return result;
+      }
     }
 
     try {
@@ -548,7 +606,11 @@ extern "C" {
 
   int _adaptyst_send_string(amod_t id, const char *str) {
     if (!instance) {
-      return ADAPTYST_INJECT_ERR_NOT_INITIALISED;
+      int result = _adaptyst_init();
+
+      if (result != ADAPTYST_INJECT_OK) {
+        return result;
+      }
     }
 
     try {
@@ -562,7 +624,11 @@ extern "C" {
 
   int _adaptyst_receive_string(amod_t id, const char **str) {
     if (!instance) {
-      return ADAPTYST_INJECT_ERR_NOT_INITIALISED;
+      int result = _adaptyst_init();
+
+      if (result != ADAPTYST_INJECT_OK) {
+        return result;
+      }
     }
 
     try {
@@ -584,7 +650,11 @@ extern "C" {
   int _adaptyst_receive_string_timeout(amod_t id, const char **str,
                                        long timeout_seconds) {
     if (!instance) {
-      return ADAPTYST_INJECT_ERR_NOT_INITIALISED;
+      int result = _adaptyst_init();
+
+      if (result != ADAPTYST_INJECT_OK) {
+        return result;
+      }
     }
 
     try {
@@ -606,118 +676,240 @@ extern "C" {
   }
 
   int adaptyst_send_data(amod_t id, char *buf, unsigned int n) {
-    std::unique_lock lock(inject_mutex);
-    return handle_error_if_any(_adaptyst_send_data(id, buf, n),
-                               "send_data");
+    int err;
+    unsigned long long ts_s = adaptyst_get_timestamp(&err);
+    bool ts_s_v = err == 0;
+
+    {
+      std::unique_lock lock(inject_mutex);
+      return handle_error_if_any(ts_s, ts_s_v,
+                                 _adaptyst_send_data(id, buf, n),
+                                 "send_data");
+    }
   }
 
   int adaptyst_receive_data(amod_t id, char *buf, unsigned int buf_size,
                             int *n) {
-    std::unique_lock lock(inject_mutex);
-    return handle_error_if_any(_adaptyst_receive_data(id, buf, buf_size, n),
-                               "receive_data");
+    int err;
+    unsigned long long ts_s = adaptyst_get_timestamp(&err);
+    bool ts_s_v = err == 0;
+
+    {
+      std::unique_lock lock(inject_mutex);
+      return handle_error_if_any(ts_s, ts_s_v, _adaptyst_receive_data(id, buf, buf_size, n),
+                                 "receive_data");
+    }
   }
 
   int adaptyst_receive_data_timeout(amod_t id, char *buf, unsigned int buf_size,
                                    int *n, long timeout_seconds) {
-    std::unique_lock lock(inject_mutex);
-    return handle_error_if_any(_adaptyst_receive_data_timeout(id, buf, buf_size,
-                                                              n, timeout_seconds),
-                               "receive_data_timeout");
+    int err;
+    unsigned long long ts_s = adaptyst_get_timestamp(&err);
+    bool ts_s_v = err == 0;
+
+    {
+      std::unique_lock lock(inject_mutex);
+      return handle_error_if_any(ts_s, ts_s_v, _adaptyst_receive_data_timeout(id, buf, buf_size,
+                                                                n, timeout_seconds),
+                                 "receive_data_timeout");
+    }
   }
 
   int adaptyst_send_string(amod_t id, const char *str) {
-    std::unique_lock lock(inject_mutex);
-    return handle_error_if_any(_adaptyst_send_string(id, str),
-                               "send_string");
+    int err;
+    unsigned long long ts_s = adaptyst_get_timestamp(&err);
+    bool ts_s_v = err == 0;
+
+    {
+      std::unique_lock lock(inject_mutex);
+      return handle_error_if_any(ts_s, ts_s_v, _adaptyst_send_string(id, str),
+                                 "send_string");
+    }
   }
 
   int adaptyst_receive_string(amod_t id, const char **str) {
-    std::unique_lock lock(inject_mutex);
-    return handle_error_if_any(_adaptyst_receive_string(id, str),
-                               "receive_string");
+    int err;
+    unsigned long long ts_s = adaptyst_get_timestamp(&err);
+    bool ts_s_v = err == 0;
+
+    {
+      std::unique_lock lock(inject_mutex);
+      return handle_error_if_any(ts_s, ts_s_v, _adaptyst_receive_string(id, str),
+                                 "receive_string");
+    }
   }
 
   int adaptyst_receive_string_timeout(amod_t id, const char **str,
                                       long timeout_seconds) {
-    std::unique_lock lock(inject_mutex);
-    return handle_error_if_any(_adaptyst_receive_string_timeout(id, str, timeout_seconds),
-                               "receive_string_timeout");
+    int err;
+    unsigned long long ts_s = adaptyst_get_timestamp(&err);
+    bool ts_s_v = err == 0;
+
+    {
+      std::unique_lock lock(inject_mutex);
+      return handle_error_if_any(ts_s, ts_s_v, _adaptyst_receive_string_timeout(id, str, timeout_seconds),
+                                 "receive_string_timeout");
+    }
   }
 
   int adaptyst_send_data_nl(amod_t id, char *buf, unsigned int n) {
-    return handle_error_if_any(_adaptyst_send_data(id, buf, n),
+    int err;
+    unsigned long long ts_s = adaptyst_get_timestamp(&err);
+    bool ts_s_v = err == 0;
+
+    return handle_error_if_any(ts_s, ts_s_v, _adaptyst_send_data(id, buf, n),
                                "send_data_nl");
   }
 
   int adaptyst_receive_data_nl(amod_t id, char *buf, unsigned int buf_size,
                                int *n) {
-    return handle_error_if_any(_adaptyst_receive_data(id, buf, buf_size, n),
+    int err;
+    unsigned long long ts_s = adaptyst_get_timestamp(&err);
+    bool ts_s_v = err == 0;
+
+    return handle_error_if_any(ts_s, ts_s_v, _adaptyst_receive_data(id, buf, buf_size, n),
                                "receive_data_nl");
   }
 
   int adaptyst_receive_data_timeout_nl(amod_t id, char *buf, unsigned int buf_size,
                                        int *n, long timeout_seconds) {
-    return handle_error_if_any(_adaptyst_receive_data_timeout(id, buf, buf_size,
+    int err;
+    unsigned long long ts_s = adaptyst_get_timestamp(&err);
+    bool ts_s_v = err == 0;
+
+    return handle_error_if_any(ts_s, ts_s_v, _adaptyst_receive_data_timeout(id, buf, buf_size,
                                                               n, timeout_seconds),
                                "receive_data_timeout");
   }
 
   int adaptyst_send_string_nl(amod_t id, const char *str) {
-    return handle_error_if_any(_adaptyst_send_string(id, str),
+    int err;
+    unsigned long long ts_s = adaptyst_get_timestamp(&err);
+    bool ts_s_v = err == 0;
+
+    return handle_error_if_any(ts_s, ts_s_v, _adaptyst_send_string(id, str),
                                "send_string_nl");
   }
 
   int adaptyst_receive_string_nl(amod_t id, const char **str) {
-    return handle_error_if_any(_adaptyst_receive_string(id, str),
+    int err;
+    unsigned long long ts_s = adaptyst_get_timestamp(&err);
+    bool ts_s_v = err == 0;
+
+    return handle_error_if_any(ts_s, ts_s_v, _adaptyst_receive_string(id, str),
                                "receive_string_nl");
   }
 
   int adaptyst_receive_string_timeout_nl(amod_t id, const char **str,
                                          long timeout_seconds) {
-    return handle_error_if_any(_adaptyst_receive_string_timeout(id, str,
+    int err;
+    unsigned long long ts_s = adaptyst_get_timestamp(&err);
+    bool ts_s_v = err == 0;
+
+    return handle_error_if_any(ts_s, ts_s_v, _adaptyst_receive_string_timeout(id, str,
                                                                 timeout_seconds),
                                "receive_string_timeout_nl");
   }
 
   void adaptyst_set_print_errors(unsigned int print) {
-    std::unique_lock lock(inject_mutex);
-    print_errors = print;
+    int err;
+    unsigned long long ts_s = adaptyst_get_timestamp(&err);
+    bool ts_s_v = err == 0;
+
+    {
+      std::unique_lock lock(inject_mutex);
+      print_errors = print;
+
+      if (instance) {
+        unsigned long long ts_e = adaptyst_get_timestamp(&err);
+        bool ts_e_v = err == 0;
+
+        instance->send_timestamp_info(ts_s, ts_s_v,
+                                      ts_e, ts_e_v,
+                                      "set_print_errors");
+      }
+    }
   }
 
   int adaptyst_init() {
-    std::unique_lock lock(inject_mutex);
-    return handle_error_if_any(_adaptyst_init(), "init");
+    int err;
+    unsigned long long ts_s = adaptyst_get_timestamp(&err);
+    bool ts_s_v = err == 0;
+
+    {
+      std::unique_lock lock(inject_mutex);
+      return handle_error_if_any(ts_s, ts_s_v, _adaptyst_init(), "init");
+    }
   }
 
   int adaptyst_init_custom_buf_size(unsigned int size) {
-    std::unique_lock lock(inject_mutex);
-    return handle_error_if_any(_adaptyst_init_custom_buf_size(size),
-                               "init_custom_buf_size");
+    int err;
+    unsigned long long ts_s = adaptyst_get_timestamp(&err);
+    bool ts_s_v = err == 0;
+
+    {
+      std::unique_lock lock(inject_mutex);
+      return handle_error_if_any(ts_s, ts_s_v, _adaptyst_init_custom_buf_size(size),
+                                 "init_custom_buf_size");
+    }
   }
 
   int adaptyst_region_start(const char *name) {
-    std::unique_lock lock(inject_mutex);
-    return handle_error_if_any(_adaptyst_region_start(name),
-                               "region_start");
+    int err;
+    unsigned long long ts_s = adaptyst_get_timestamp(&err);
+    bool ts_s_v = err == 0;
+
+    {
+      std::unique_lock lock(inject_mutex);
+      return handle_error_if_any(ts_s, ts_s_v, _adaptyst_region_start(name),
+                                 "region_start");
+    }
   }
 
   int adaptyst_region_end(const char *name) {
-    std::unique_lock lock(inject_mutex);
-    return handle_error_if_any(_adaptyst_region_end(name),
-                               "region_end");
+    int err;
+    unsigned long long ts_s = adaptyst_get_timestamp(&err);
+    bool ts_s_v = err == 0;
+
+    {
+      std::unique_lock lock(inject_mutex);
+      return handle_error_if_any(ts_s, ts_s_v, _adaptyst_region_end(name),
+                                 "region_end");
+    }
   }
 
   void adaptyst_set_error(const char *msg) {
-    std::unique_lock lock(inject_mutex);
-    if (instance) {
-      instance->set_module_error(std::string(msg));
+    int err;
+    unsigned long long ts_s = adaptyst_get_timestamp(&err);
+    bool ts_s_v = err == 0;
+
+    {
+      std::unique_lock lock(inject_mutex);
+      if (instance) {
+        instance->set_module_error(std::string(msg));
+
+        unsigned long long ts_e = adaptyst_get_timestamp(&err);
+        bool ts_e_v = err == 0;
+
+        instance->send_timestamp_info(ts_s, ts_s_v,
+                                      ts_e, ts_e_v, "set_error");
+      }
     }
   }
 
   void adaptyst_set_error_nl(const char *msg) {
+    int err;
+    unsigned long long ts_s = adaptyst_get_timestamp(&err);
+    bool ts_s_v = err == 0;
+
     if (instance) {
       instance->set_module_error(std::string(msg));
+
+      unsigned long long ts_e = adaptyst_get_timestamp(&err);
+      bool ts_e_v = err == 0;
+
+      instance->send_timestamp_info(ts_s, ts_s_v,
+                                    ts_e, ts_e_v, "set_error_nl");
     }
   }
 

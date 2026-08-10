@@ -92,6 +92,11 @@ namespace adaptyst {
     std::string path;
   } InjectPath;
 
+  typedef std::tuple<std::string,
+                     std::string,
+                     std::string,
+                     std::string> ApiTimestamp;
+
   class Module : public Identifiable {
   public:
     static std::unordered_map<amod_t, Module *> all_modules;
@@ -341,6 +346,7 @@ namespace adaptyst {
     std::mutex profile_wait_mutex;
     bool process_finished;
     int process_exit_code;
+    std::vector<ApiTimestamp> api_timestamps;
   };
 
   class System {

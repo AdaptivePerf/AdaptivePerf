@@ -1732,6 +1732,37 @@ namespace adaptyst {
               }
 
               fd.write("ack", true);
+            } else if (std::regex_match(msg, match, std::regex("^time (.+) (.+) (-?\\d+) (-?\\d+)$"))) {
+              std::string workflow_part_id = match[1].str();
+              std::string func_name = match[2].str();
+              std::string timestamp_start_raw_str = match[3].str();
+              std::string timestamp_end_raw_str = match[4].str();
+
+              std::string timestamp_start_str, timestamp_end_str;
+
+              if (this->workflow_timestamp_error) {
+                timestamp_start_str = "-1";
+                timestamp_end_str = "-1";
+              } else {
+                if (timestamp_start_raw_str == "-1") {
+                  timestamp_start_str = "-1";
+                } else {
+                  timestamp_start_str = std::to_string(std::stoull(timestamp_start_raw_str) - this->workflow_timestamp);
+                }
+
+                if (timestamp_end_raw_str == "-1") {
+                  timestamp_end_str = "-1";
+                } else {
+                  timestamp_end_str = std::to_string(std::stoull(timestamp_end_raw_str) - this->workflow_timestamp);
+                }
+              }
+
+              this->api_timestamps.push_back({workflow_part_id,
+                  func_name,
+                  timestamp_start_str,
+                  timestamp_end_str});
+
+              // No ack here to minimise timestamping overhead on the workflow side.
             } else {
               fd.write("invalid", true);
             }
@@ -1753,6 +1784,12 @@ namespace adaptyst {
 
     for (auto entry : this->nodes) {
       entry.second->wait();
+    }
+
+    Array<ApiTimestamp> api_timestamps_array(*this->entity_dir, "api_timestamps");
+
+    for (auto &timestamp : this->api_timestamps) {
+      api_timestamps_array.push_back(timestamp);
     }
 
     if (save_src_code_paths) {
