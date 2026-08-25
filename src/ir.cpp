@@ -93,7 +93,7 @@ namespace adaptyst {
 
     if (forked == 0) {
       execvp(this->cmd_copies[0][0], this->cmd_copies[0]);
-      return errno;
+      std::exit(errno);
     } else {
       int status;
       int result = waitpid(forked, &status, 0);

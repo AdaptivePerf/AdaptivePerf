@@ -1432,6 +1432,13 @@ namespace adaptyst {
     this->modules.push_back(std::move(mod));
   }
 
+  void Node::export_log_types() {
+    Terminal::instance->export_log_types(*this);
+    for (auto &module : this->modules) {
+      Terminal::instance->export_log_types(*module);
+    }
+  }
+
   int Node::get_modules_profiling() {
     return this->modules_profiling;
   }
@@ -1589,6 +1596,7 @@ namespace adaptyst {
 
   void Entity::add_node(std::shared_ptr<Node> &node) {
     node->set_parent(this);
+    node->export_log_types();
     this->nodes[node->get_name()] = node;
   }
 
@@ -1601,7 +1609,9 @@ namespace adaptyst {
 
     this->connections[id] =
       std::make_shared<NodeConnection>(id, this->get_node(departure_node),
-                                   this->get_node(arrival_node));
+                                       this->get_node(arrival_node));
+    this->connections[id]->set_parent(this);
+    Terminal::instance->export_log_types(*this->connections[id]);
   }
 
   std::shared_ptr<Node> &Entity::get_node(std::string id) {
@@ -1642,9 +1652,9 @@ namespace adaptyst {
       ir_obj->compile();
 
       fs::path stdout_path =
-        fs::path(Terminal::instance->get_log_dir()) / (this->get_name() + "_stdout.log");
+        this->get_log_path(adaptyst::Terminal::instance->get_log_dir(), "stdout");
       fs::path stderr_path =
-        fs::path(Terminal::instance->get_log_dir()) / (this->get_name() + "_stderr.log");
+        this->get_log_path(adaptyst::Terminal::instance->get_log_dir(), "stderr");
 
       int pipe1[2];
       int pipe2[2];
@@ -2237,6 +2247,7 @@ namespace adaptyst {
                                  processing_threads,
                                  local_config_path,
                                  tmp_dir, no_inject, buf_size);
+      Terminal::instance->export_log_types(*entity_obj);
 
       if (!entity.has_child("nodes")) {
         throw std::runtime_error("\"" + name + "\" in \"entities\" in "
@@ -2433,10 +2444,10 @@ namespace adaptyst {
                                      "key-value type!");
           }
 
-          std::shared_ptr<NodeConnection> connection =
-            std::make_shared<
-              NodeConnection>(edge_name, entity_obj->get_node(std::string(node1.val().data(), node1.val().len)),
-                              entity_obj->get_node(std::string(node2.val().data(), node2.val().len)));
+          entity_obj->add_connection(
+            edge_name,
+            std::string(node1.val().data(), node1.val().len),
+            std::string(node2.val().data(), node2.val().len));
         }
       }
 

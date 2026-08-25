@@ -4,44 +4,60 @@
 #include "print.hpp"
 #include <iostream>
 #include <mutex>
+#include <sstream>
+#include <unistd.h>
 
 namespace adaptyst {
   std::unique_ptr<Terminal> Terminal::instance = nullptr;
 
   void Terminal::init(bool batch, bool formatted, std::string version,
-                      fs::path log_dir) {
+                      fs::path log_dir, int log_source_fd) {
     if (Terminal::instance) {
       throw std::runtime_error("Only one instance of Terminal can be constructed!");
     }
 
     Terminal::instance = std::unique_ptr<Terminal>(new Terminal(batch, formatted,
-                                                                version, log_dir));
+                                                                version, log_dir,
+                                                                log_source_fd));
   }
 
   Terminal::Terminal(bool batch, bool formatted, std::string version,
-                     fs::path log_dir) {
+                     fs::path log_dir, int log_source_fd) {
     this->batch = batch;
     this->formatted = formatted;
     this->version = version;
     this->last_line_len = 0;
 
+    if (log_source_fd != -1) {
+      int write_fd[2] = {-1, log_source_fd};
+      this->log_source_fd = std::make_unique<FileDescriptor>(nullptr, write_fd, 0);
+    }
+
     if (!fs::exists(log_dir)) {
       try {
         fs::create_directories(log_dir);
       } catch (std::exception &e) {
-        this->print("Could not create " + log_dir.string() + "! Exiting.",
-                    false, true);
-        std::exit(1);
+        throw std::runtime_error("Could not create " + log_dir.string() + "!");
       }
     }
 
     this->log_dir = fs::canonical(log_dir);
+    if (!this->batch) {
+      this->main_log.open(this->log_dir / "Adaptyst.log");
+      if (!this->main_log) {
+        throw std::runtime_error("Could not create the main Adaptyst log!");
+      }
+    }
   }
 
   /**
      Prints the version and licensing notice.
   */
   void Terminal::print_notice() {
+    if (!this->batch) {
+      return;
+    }
+
     {
       std::unique_lock lock(this->mutex);
 
@@ -98,6 +114,7 @@ namespace adaptyst {
       *stream << message << std::endl;
       stream->flush();
     }
+
   }
 
   /**
@@ -115,6 +132,30 @@ namespace adaptyst {
   void Terminal::print(std::string message, bool sub, bool error,
                        bool same_line) {
     std::unique_lock lock(this->mutex);
+
+    if (!this->batch) {
+      std::stringstream stream(message);
+      std::string line;
+      bool first = true;
+
+      while (std::getline(stream, line)) {
+        if (first) {
+          this->main_log << (error ? "[ERROR] " : "")
+                         << (sub ? "-> " : "==> ");
+        }
+        this->main_log << line << '\n';
+        first = false;
+      }
+
+      if (first) {
+        this->main_log << (error ? "[ERROR] " : "")
+                       << (sub ? "-> " : "==> ") << '\n';
+      }
+
+      this->main_log.flush();
+      return;
+    }
+
     int new_len = 0;
 
     if (same_line && !this->batch) {
@@ -153,6 +194,30 @@ namespace adaptyst {
 
   const char *Terminal::get_log_dir() {
     return this->log_dir.c_str();
+  }
+
+  bool Terminal::is_formatted() {
+    return this->formatted;
+  }
+
+  void Terminal::export_log_types(Identifiable &source) {
+    if (this->batch || !this->log_source_fd) {
+      return;
+    }
+
+    for (auto &log_type : source.get_log_types()) {
+      fs::path path = source.get_path(this->log_dir) / (log_type + ".log");
+      std::string path_str = path.string();
+
+      this->log_source_fd->write(path_str, true);
+    }
+  }
+
+  void Terminal::close_log_source_export() {
+    if (this->log_source_fd) {
+      this->log_source_fd->close();
+      this->log_source_fd.reset(nullptr);
+    }
   }
 
   void Terminal::set_log_dir(fs::path log_dir) {
