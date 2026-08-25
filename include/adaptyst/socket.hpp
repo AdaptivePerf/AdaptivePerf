@@ -617,6 +617,8 @@ namespace adaptyst {
                                 as returned by the pipe system call. Can
                                 be nullptr.
        @param buf_size          The buffer size for communication, in bytes.
+                                Can be set to zero if no read operations are
+                                foreseen.
        @param close_on_destruct Whether the file descriptors should
                                 be closed when the object is destroyed.
     */
@@ -624,7 +626,10 @@ namespace adaptyst {
                    int write_fd[2],
                    unsigned int buf_size,
                    bool close_on_destruct = true) {
-      this->buf.reset(new char[buf_size]);
+      if (buf_size > 0) {
+        this->buf.reset(new char[buf_size]);
+      }
+
       this->buf_size = buf_size;
       this->start_pos = 0;
       this->close_on_destruct = close_on_destruct;

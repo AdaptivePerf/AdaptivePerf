@@ -76,6 +76,11 @@ namespace adaptyst {
       return this->paths[start];
     }
 
+    fs::path get_log_path(fs::path start,
+                          std::string log_type) {
+      return this->get_path(start) / (log_type + ".log");
+    }
+
     virtual std::vector<std::string> get_log_types() = 0;
     virtual std::string get_type() = 0;
   };
@@ -235,6 +240,7 @@ namespace adaptyst {
     fs::path &get_tmp_dir();
     fs::path &get_local_config_dir();
     std::unordered_set<fs::path> get_src_code_paths();
+    void export_log_types();
     std::vector<InjectPath> get_module_inject_paths();
     bool is_workflow_running();
     bool is_workflow_ever_run();

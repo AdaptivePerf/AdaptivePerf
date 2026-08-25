@@ -52,6 +52,12 @@ FetchContent_Declare(ryml
   GIT_SHALLOW FALSE)
 FetchContent_MakeAvailable(ryml)
 
+FetchContent_Declare(ftxui
+  GIT_REPOSITORY https://github.com/ArthurSonzogni/FTXUI
+  GIT_TAG v7.0.3
+  GIT_SHALLOW TRUE)
+FetchContent_MakeAvailable(ftxui)
+
 if(CMAKE_VERSION VERSION_GREATER_EQUAL "3.30")
   find_package(Boost REQUIRED program_options CONFIG
                OPTIONAL_COMPONENTS process)
@@ -119,6 +125,7 @@ install(FILES
 add_executable(adaptyst-bin
   src/main.cpp
   src/entrypoint.cpp
+  src/tui.cpp
   src/workflow.cpp)
 
 target_compile_definitions(adaptyst-bin PRIVATE ADAPTYST_MISC_PATH="${ADAPTYST_MISC_PATH}")
@@ -128,6 +135,7 @@ target_compile_definitions(adaptyst-bin PRIVATE ADAPTYST_CONFIG_FILE="${ADAPTYST
 target_link_libraries(adaptyst-bin PUBLIC adaptyst)
 target_link_libraries(adaptyst-bin PUBLIC CLI11::CLI11)
 target_link_libraries(adaptyst-bin PUBLIC Boost::headers Boost::program_options $<TARGET_NAME_IF_EXISTS:Boost::process>)
+target_link_libraries(adaptyst-bin PRIVATE ftxui::ftxui)
 
 target_include_directories(adaptyst-bin PUBLIC ${CMAKE_SOURCE_DIR}/include)
 

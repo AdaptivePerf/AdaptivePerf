@@ -3,6 +3,7 @@
 
 #include "entrypoint.hpp"
 #include "print.hpp"
+#include "tui.hpp"
 #include "cmd.hpp"
 #include "system.hpp"
 #include "workflow.hpp"
@@ -11,9 +12,17 @@
 #include <boost/algorithm/string.hpp>
 #include <boost/program_options/parsers.hpp>
 #include <boost/predef.h>
+#include <fcntl.h>
 #include <regex>
 #include <sys/wait.h>
+#include <atomic>
+#include <cstdlib>
 #include <filesystem>
+#include <thread>
+
+#ifdef BOOST_OS_LINUX
+#include <sys/prctl.h>
+#endif
 
 #ifndef ADAPTYST_CONFIG_FILE
 #define ADAPTYST_CONFIG_FILE ""
@@ -106,8 +115,22 @@ namespace adaptyst {
     unsigned int buf_size = 1024;
     app.add_option("--buffer", buf_size, "Size of buffer for internal "
                    "communication in bytes (default: 1024)")
-      ->option_text("UINT")
-      ->check(OnlyMinRange(0));
+      ->option_text("UINT>0")
+      ->check(CLI::PositiveNumber);
+
+    unsigned int tui_max_read_size = 4 * 1024 * 1024;
+    app.add_option("--tui-max-read-size", tui_max_read_size,
+                   "Maximum number of bytes read from a log at once by TUI "
+                   "(default: 4194304)")
+      ->option_text("UINT>0")
+      ->check(CLI::PositiveNumber);
+
+    int tui_max_lines = 10000;
+    app.add_option("--tui-max-lines", tui_max_lines,
+                   "Maximum number of complete log lines retained in each "
+                   "TUI pane (default: 10000)")
+      ->option_text("UINT>0")
+      ->check(CLI::PositiveNumber);
 
     // no_inject will be fully implemented when process injection mechanism
     // is implemented
@@ -135,9 +158,11 @@ namespace adaptyst {
     //   })
     //   ->option_text("TYPE[:ARG]");
 
+    bool batch = false;
+    app.add_flag("--batch", batch, "Use the non-interactive batch interface");
+
     bool no_format = false;
-    app.add_flag("--no-format", no_format, "Do not use any non-standard "
-                 "terminal formatting");
+    app.add_flag("--no-format", no_format, "Do not use terminal colours");
 
     std::string footer =
       "If you want to change the paths of the system-wide and local Adaptyst\n"
@@ -209,6 +234,18 @@ namespace adaptyst {
       ->take_all();
 
     CLI11_PARSE(app, argc, argv);
+
+    if ((!isatty(STDIN_FILENO) || !isatty(STDOUT_FILENO)) &&
+        (!batch || !no_format)) {
+      std::cout << "Either stdin or stdout (or both) is not connected to ";
+      std::cout << "a terminal. Switching to non-formatted batch mode." << std::endl;
+
+      std::cout << "To disable this message, run Adaptyst with --batch and --no-format.";
+      std::cout << std::endl << std::endl;
+
+      batch = true;
+      no_format = true;
+    }
 
     std::vector<fs::path> module_paths;
 
@@ -484,142 +521,231 @@ namespace adaptyst {
     out_dir_obj.set_metadata<std::string>("label", label.empty() ? out_dir : label, false);
     out_dir_obj.save_metadata();
 
-    Terminal::init(false, !no_format, adaptyst::version,
-                   fs::path(out_dir) / "log");
+    int log_source_pipe[2] = {-1, -1};
+
+    if (!batch) {
+      if (pipe(log_source_pipe) == -1) {
+        std::cerr << "Could not create the TUI log source pipe." << std::endl;
+        return 2;
+      }
+
+      fcntl(log_source_pipe[0], F_SETFD, FD_CLOEXEC);
+      fcntl(log_source_pipe[1], F_SETFD, FD_CLOEXEC);
+
+      int flags = fcntl(log_source_pipe[0], F_GETFL);
+      fcntl(log_source_pipe[0], F_SETFL, flags | O_NONBLOCK);
+    }
+
+    Terminal::init(batch, !no_format, adaptyst::version,
+                   fs::path(out_dir) / "log", log_source_pipe[1]);
     Terminal &terminal = *Terminal::instance;
 
-    terminal.print_notice();
+    auto run_analysis = [&]() -> int {
+      terminal.print_notice();
 
-    auto start_time =
-      ch::duration_cast<ch::milliseconds>(ch::system_clock::now().time_since_epoch()).count();
+      auto start_time =
+        ch::duration_cast<ch::milliseconds>(ch::system_clock::now().time_since_epoch())
+        .count();
 
-    terminal.print("Reading config file(s)...", false, false);
+      terminal.print("Reading config file(s)...", false, false);
 
-    std::unordered_map<std::string, std::string> config;
+      std::unordered_map<std::string, std::string> config;
 
-    auto read_config = [&terminal](fs::path config_path,
-                                   std::unordered_map<std::string, std::string> &result) {
-      std::ifstream stream(config_path);
+      auto read_config =
+        [&terminal](fs::path config_path,
+                    std::unordered_map<std::string, std::string> &result) {
+          std::ifstream stream(config_path);
 
-      if (!stream) {
-        terminal.print("Cannot open or find " + config_path.string() + ", ignoring.",
+          if (!stream) {
+            terminal.print("Cannot open or find " + config_path.string() +
+                           ", ignoring.",
+                           true, false);
+            return true;
+          }
+
+          int cur_line = 1;
+
+          while (stream) {
+            std::string line;
+            std::getline(stream, line);
+
+            if (line.empty() || line[0] == '#') {
+              cur_line++;
+              continue;
+            }
+
+            std::smatch match;
+
+            if (!std::regex_match(line, match,
+                                  std::regex("^(\\S+)\\s*\\=\\s*(.+)$"))) {
+              terminal.print("Syntax error in line " +
+                             std::to_string(cur_line) + " of " +
+                             config_path.string() + "!",
+                             true, true);
+              return false;
+            }
+
+            result[match[1]] = match[2];
+            cur_line++;
+          }
+
+          terminal.print("Successfully read " + config_path.string(), true,
+                         false);
+          return true;
+        };
+
+      if (!read_config(system_config_path, config) ||
+          !read_config(local_config_path, config)) {
+        terminal.print("Could not read the config files.", false, true);
+        return 2;
+      }
+
+      std::vector<pid_t> spawned_children;
+      int to_return = 0;
+
+      try {
+        terminal.print("Reading the computer system definition file...", false,
+                       false);
+        System system(system_def_dir, fs::path(out_dir) / "system",
+                      module_paths, local_config_path, tmp_dir / "system",
+                      no_inject, buf_size);
+
+        terminal.print("Making an IR of the command/workflow...", false, false);
+
+        if (is_command) {
+          WorkflowCompilerSingleCmd compiler;
+          Workflow workflow(command_elements);
+          system.set_ir(compiler.compile(workflow));
+        } else {
+          WorkflowCompilerMLIR compiler;
+          Workflow workflow(command_elements[0]);
+          system.set_ir(compiler.compile(workflow));
+        }
+
+        terminal.print("Running performance analysis...", false, false);
+
+        system.process();
+
+        auto end_time =
+          ch::duration_cast<ch::milliseconds>(ch::system_clock::now().time_since_epoch())
+          .count();
+
+        try {
+          fs::remove_all(tmp_dir);
+        } catch (...) {}
+
+        unsigned long long elapsed = end_time - start_time;
+        std::string elapsed_str;
+
+        if (elapsed >= 1000) {
+          int ms = elapsed % 1000;
+          elapsed /= 1000;
+
+          elapsed_str = std::to_string(elapsed) + ".";
+
+          if (ms >= 100) {
+            elapsed_str += std::to_string(ms);
+          } else if (ms >= 10) {
+            elapsed_str += "0" + std::to_string(ms);
+          } else {
+            elapsed_str += "00" + std::to_string(ms);
+          }
+
+          elapsed_str += " s";
+        } else {
+          elapsed_str = std::to_string(elapsed) + " ms";
+        }
+
+        terminal.print("Done in " + elapsed_str + " in total!", false, false);
+        to_return = 0;
+      } catch (std::runtime_error &e) {
+        terminal.print(e.what(), true, true);
+        to_return = 2;
+      } catch (std::exception &e) {
+        terminal.print("A fatal error has occurred! If the issue persits, "
+                       "please contact the Adaptyst developers, citing \"" +
+                       std::string(e.what()) + "\".",
+                       true, true);
+        to_return = 2;
+      }
+
+      if (to_return == 0) {
+        terminal.print("The results are available in " +
+                       fs::absolute(out_dir).string(),
                        true, false);
-        return true;
+      } else {
+        terminal.print("Performance analysis has failed.", false, true);
+        terminal.print("The incomplete results are available in " +
+                       fs::absolute(out_dir).string(),
+                       true, false);
       }
 
-      int cur_line = 1;
+      for (auto &pid : spawned_children) {
+        int status = waitpid(pid, nullptr, WNOHANG);
 
-      while (stream) {
-        std::string line;
-        std::getline(stream, line);
-
-        if (line.empty() || line[0] == '#') {
-          cur_line++;
-          continue;
+        if (status == 0) {
+          kill(pid, SIGTERM);
         }
-
-        std::smatch match;
-
-        if (!std::regex_match(line, match,
-                              std::regex("^(\\S+)\\s*\\=\\s*(.+)$"))) {
-          terminal.print("Syntax error in line " + std::to_string(cur_line) + " of " +
-                         config_path.string() + "!", true, true);
-          return false;
-        }
-
-        result[match[1]] = match[2];
-        cur_line++;
       }
 
-      terminal.print("Successfully read " + config_path.string(), true, false);
-      return true;
+      return to_return;
     };
 
-    if (!read_config(system_config_path, config) ||
-        !read_config(local_config_path, config)) {
+    if (batch) {
+      return run_analysis();
+    }
+
+    pid_t analysis_pid = fork();
+
+    if (analysis_pid == -1) {
+      terminal.close_log_source_export();
+      close(log_source_pipe[0]);
+      std::cerr << "Could not start performance analysis." << std::endl;
       return 2;
-    }
+    } else if (analysis_pid == 0) {
+      close(log_source_pipe[0]);
 
-    std::vector<pid_t> spawned_children;
-    int to_return = 0;
+#ifdef BOOST_OS_LINUX
+      prctl(PR_SET_PDEATHSIG, SIGKILL);
+#endif
 
-    try {
-      terminal.print("Reading the computer system definition file...", false, false);
-      System system(system_def_dir, fs::path(out_dir) / "system", module_paths,
-                    local_config_path, tmp_dir / "system", no_inject, buf_size);
-
-      terminal.print("Making an IR of the command/workflow...", false, false);
-
-      if (is_command) {
-        WorkflowCompilerSingleCmd compiler;
-        Workflow workflow(command_elements);
-        system.set_ir(compiler.compile(workflow));
+      if (setpgid(0, 0) == -1) {
+        std::exit(errno);
       } else {
-        WorkflowCompilerMLIR compiler;
-        Workflow workflow(command_elements[0]);
-        system.set_ir(compiler.compile(workflow));
-      }
-
-      terminal.print("Running performance analysis...", false, false);
-
-      system.process();
-
-      auto end_time =
-        ch::duration_cast<ch::milliseconds>(ch::system_clock::now().time_since_epoch()).count();
-
-      fs::remove_all(tmp_dir);
-
-      unsigned long long elapsed = end_time - start_time;
-      std::string elapsed_str;
-
-      if (elapsed >= 1000) {
-        int ms = elapsed % 1000;
-        elapsed /= 1000;
-
-        elapsed_str = std::to_string(elapsed) + ".";
-
-        if (ms >= 100) {
-          elapsed_str += std::to_string(ms);
-        } else if (ms >= 10) {
-          elapsed_str += "0" + std::to_string(ms);
-        } else {
-          elapsed_str += "00" + std::to_string(ms);
-        }
-
-        elapsed_str += " s";
-      } else {
-        elapsed_str = std::to_string(elapsed) + " ms";
-      }
-
-      terminal.print("Done in " + elapsed_str + " in total!", false, false);
-      to_return = 0;
-    } catch (std::runtime_error &e) {
-      terminal.print(e.what(), true, true);
-      to_return = 2;
-    } catch (std::exception &e) {
-      terminal.print("A fatal error has occurred! If the issue persits, "
-                     "please contact the Adaptyst developers, citing \"" +
-                     std::string(e.what()) + "\".", false, true);
-
-      to_return = 2;
-    }
-
-    if (to_return == 0) {
-      terminal.print("The results are available in " + fs::absolute(out_dir).string(),
-                     true, false);
-    } else {
-      terminal.print("The incomplete results are available in " + fs::absolute(out_dir).string(),
-                     true, false);
-    }
-
-    for (auto &pid : spawned_children) {
-      int status = waitpid(pid, nullptr, WNOHANG);
-
-      if (status == 0) {
-        kill(pid, SIGTERM);
+        std::exit(run_analysis());
       }
     }
 
-    return to_return;
+    terminal.close_log_source_export();
+
+    Tui tui(terminal, adaptyst::version, log_source_pipe[0],
+            buf_size, tui_max_read_size, tui_max_lines);
+    std::atomic<int> analysis_result;
+    std::thread worker([&] {
+      int status;
+      int waitpid_res = waitpid(analysis_pid, &status, 0);
+      int result = waitpid_res == analysis_pid && WIFEXITED(status)
+        ? WEXITSTATUS(status) : 2;
+      analysis_result.store(result, std::memory_order_relaxed);
+      tui.finish(result == 0);
+    });
+
+    bool aborted = tui.run();
+
+    if (aborted) {
+      kill(-analysis_pid, SIGTERM);
+      std::this_thread::sleep_for(500ms);
+      kill(-analysis_pid, SIGKILL);
+      worker.join();
+
+      try {
+        fs::remove_all(tmp_dir);
+      } catch (...) {}
+
+      return 130;
+    }
+
+    worker.join();
+    return analysis_result.load(std::memory_order_relaxed);
   }
 };
