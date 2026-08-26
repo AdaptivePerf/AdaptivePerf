@@ -15,6 +15,7 @@
 #include <time.h>
 #include <iostream>
 #include <mutex>
+#include <utility>
 
 extern "C" {
   static char *error_msg = NULL;
@@ -37,9 +38,15 @@ namespace adaptyst {
     std::string error_message;
     int status;
     std::unique_ptr<FileDescriptor> fd;
-    std::unordered_map<std::string, std::unordered_set<std::string> > regions;
     std::string module_error;
     std::string last_received_message;
+
+    region_t next_region_id = 0;
+    std::unordered_map<std::string,
+                       std::unordered_map<std::string,
+                                          std::string> > region_part_id_mapping;
+    std::unordered_map<region_t, std::string> regions;
+    std::unordered_map<std::string, std::pair<region_t, std::string> > regions_reverse;
 
   public:
     Injection(int *read_fd,
@@ -221,25 +228,41 @@ namespace adaptyst {
     }
 
     int region_switch(std::string name,
+                      region_t *region_id,
                       std::string state) {
-      if (state != "start" && state != "end") {
-        return ADAPTYST_INJECT_ERR_INVALID_REGION_STATE;
-      }
-
-      if (state == "start" && this->regions.contains(name)) {
-        return ADAPTYST_INJECT_ERR_REGION_ALREADY_STARTED;
-      }
-
       std::string part_id = std::to_string(getpid()) + "_" + std::to_string(gettid());
 
-      if (state == "end") {
-        if (!this->regions.contains(name)) {
+      if (state == "start") {
+        if (name.empty()) {
+          name = std::to_string(this->next_region_id);
+        } else if (this->region_part_id_mapping.contains(name)) {
+          if (this->region_part_id_mapping[name].contains(part_id)) {
+            name = this->region_part_id_mapping[name][part_id];
+
+            if (this->regions_reverse.contains(name)) {
+              return ADAPTYST_INJECT_ERR_REGION_ALREADY_STARTED;
+            }
+          } else {
+            std::string new_name = name + std::to_string(this->next_region_id);
+
+            this->region_part_id_mapping[name][part_id] = new_name;
+            name = new_name;
+          }
+        } else {
+          this->region_part_id_mapping[name][part_id] = name;
+        }
+      } else if (state == "end") {
+        if (!this->regions.contains(*region_id)) {
           return ADAPTYST_INJECT_ERR_REGION_NOT_FOUND;
         }
 
-        if (!this->regions[name].contains(part_id)) {
+        name = this->regions[*region_id];
+
+        if (this->regions_reverse[name].second != part_id) {
           return ADAPTYST_INJECT_ERR_REGION_IN_DIFFERENT_UNIT;
         }
+      } else {
+        return ADAPTYST_INJECT_ERR_INVALID_REGION_STATE;
       }
 
       int error;
@@ -294,18 +317,14 @@ namespace adaptyst {
         error_msg = (char *)this->error_message.c_str();
       }
 
-      if (this->regions.find(name) == this->regions.end()) {
-        this->regions[name] = std::unordered_set<std::string>();
-      }
-
       if (state == "start") {
-        this->regions[name].insert(part_id);
+        this->regions[this->next_region_id] = name;
+        this->regions_reverse[name] = std::make_pair(this->next_region_id, part_id);
+        *region_id = this->next_region_id;
+        this->next_region_id++;
       } else {
-        this->regions[name].erase(part_id);
-
-        if (this->regions[name].empty()) {
-          this->regions.erase(name);
-        }
+        this->regions.erase(*region_id);
+        this->regions_reverse.erase(name);
       }
 
       return to_return;
@@ -491,7 +510,7 @@ extern "C" {
     return error_msg;
   }
 
-  int _adaptyst_region_start(const char *name) {
+  int _adaptyst_region_start(const char *name, region_t *region_id) {
     if (!instance) {
       int result = _adaptyst_init();
 
@@ -501,7 +520,9 @@ extern "C" {
     }
 
     try {
-      return instance->region_switch(std::string(name),
+      std::string name_str = name ? std::string(name) : "";
+      return instance->region_switch(name_str,
+                                     region_id,
                                      "start");
     } catch (std::exception &e) {
       error_msg = (char *)e.what();
@@ -509,7 +530,7 @@ extern "C" {
     }
   }
 
-  int _adaptyst_region_end(const char *name) {
+  int _adaptyst_region_end(region_t region_id) {
     if (!instance) {
       int result = _adaptyst_init();
 
@@ -519,8 +540,7 @@ extern "C" {
     }
 
     try {
-      return instance->region_switch(std::string(name),
-                                     "end");
+      return instance->region_switch("", &region_id, "end");
     } catch (std::exception &e) {
       error_msg = (char *)e.what();
       return ADAPTYST_INJECT_EXCEPTION;
@@ -854,26 +874,27 @@ extern "C" {
     }
   }
 
-  int adaptyst_region_start(const char *name) {
+  int adaptyst_region_start(const char *name, region_t *region_id) {
     int err;
     unsigned long long ts_s = adaptyst_get_timestamp(&err);
     bool ts_s_v = err == 0;
 
     {
       std::unique_lock lock(inject_mutex);
-      return handle_error_if_any(ts_s, ts_s_v, _adaptyst_region_start(name),
+      return handle_error_if_any(ts_s, ts_s_v,
+                                 _adaptyst_region_start(name, region_id),
                                  "region_start");
     }
   }
 
-  int adaptyst_region_end(const char *name) {
+  int adaptyst_region_end(region_t region_id) {
     int err;
     unsigned long long ts_s = adaptyst_get_timestamp(&err);
     bool ts_s_v = err == 0;
 
     {
       std::unique_lock lock(inject_mutex);
-      return handle_error_if_any(ts_s, ts_s_v, _adaptyst_region_end(name),
+      return handle_error_if_any(ts_s, ts_s_v, _adaptyst_region_end(region_id),
                                  "region_end");
     }
   }
